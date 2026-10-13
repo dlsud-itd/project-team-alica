@@ -1,53 +1,88 @@
-# Checkpoint: QR-Based Event RSVP and Attendance Management System
+# Checkpoint: QR-based event RSVP and attendance management system
 
-Team ALICA (DLSU-D ITD)
+Team ALICA
 
-## Project Overview
+## About the project
 
-Checkpoint helps event organisers, staff, and attendees manage RSVPs and check in with QR codes.
+Checkpoint helps event organisers, staff and attendees manage RSVPs and check in with QR codes.
 
-The repository contains two separate application folders:
-- [frontend](file:///c:/Users/Alen/Documents/dev/work/project-team-alica/frontend): Angular client application
-- [backend](file:///c:/Users/Alen/Documents/dev/work/project-team-alica/backend): NestJS REST API
+The repository contains 2 main application folders:
+- [frontend](frontend): Angular client application
+- [backend](backend): NestJS REST API
 
-## Tech Stack
+## Technology stack
 
-- Frontend: Angular (v22, Standalone components, RxJS, SCSS)
-- Backend: NestJS (v12, REST API)
+- Frontend: Angular 22 with standalone components, RxJS and SCSS
+- Backend: NestJS 12 REST API
 - Database: PostgreSQL with Prisma ORM
 
-## Folder Structure
+## Project structure
 
 ```text
 project-team-alica/
 ├── backend/          # NestJS application and Prisma schema
 ├── frontend/         # Angular application and styles
 ├── document/         # Project proposals and design specifications
-├── package.json      # Root runner scripts (npm run dev)
+├── package.json      # Root runner scripts
 └── README.md
 ```
 
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
 Install these tools before you start:
 - Node.js (version 20 or higher)
 - npm (version 10 or higher)
-- PostgreSQL (running locally or through a cloud provider)
+- PostgreSQL (local instance or cloud database)
 
-### 1. Database Setup
+### 1. Install dependencies
 
-Ensure you have a PostgreSQL database running.
+Install dependencies for the root workspace, backend and frontend.
 
-Create a database named `checkpoint_db` (or use any database name you prefer).
+You can install all dependencies from the root directory:
 
-Make sure `backend/.env` has your database connection string:
+```bash
+npm install
+npm install --prefix backend
+npm install --prefix frontend
+```
+
+Or you can install them by changing into each folder:
+
+```bash
+npm install
+cd backend && npm install
+cd ../frontend && npm install
+```
+
+### 2. Set up the database and Prisma
+
+Ensure your PostgreSQL database is running.
+
+1. Create a database named `checkpoint_db` (or your preferred database name).
+2. Copy the sample environment file and set your database connection string in `backend/.env`.
+
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-### 2. Start Both Applications (Recommended)
+3. Generate the Prisma client.
+
+From the root directory:
+
+```bash
+npx prisma generate --schema=backend/prisma/schema.prisma
+```
+
+Or from the `backend` folder:
+
+```bash
+cd backend
+npx prisma generate
+```
+
+### 3. Start the applications
 
 Run both the backend and frontend together from the root directory:
 
@@ -55,34 +90,37 @@ Run both the backend and frontend together from the root directory:
 npm run dev
 ```
 
-This starts:
+This command starts:
 - NestJS backend at `http://localhost:5000/api/v1`
 - Angular frontend at `http://localhost:4200`
 
-### 3. Run Applications Separately
+Open `http://localhost:4200` in your browser to view the application.
 
-If you prefer separate terminal windows:
+### 4. Run applications in separate terminals
+
+If you prefer separate terminal windows, run:
 - Backend: `npm run dev:backend` (or `cd backend && npm run start:dev`)
 - Frontend: `npm run dev:frontend` (or `cd frontend && npm start`)
 
-Open `http://localhost:4200` in your browser to view the application.
+## Common scripts
 
-## Common Scripts
+### Root directory
 
-### Root Directory
+- `npm run dev`: starts both backend and frontend concurrently
+- `npm run build`: builds both backend and frontend
+- `npm test`: runs all unit tests
 
-- `npm run dev` – runs both backend and frontend concurrently
-- `npm run build` – builds both backend and frontend
-- `npm test` – runs all unit tests
+### Backend
 
-### Backend (`cd backend`)
+Run these commands from the root with `--prefix backend` or directly inside the `backend` folder:
+- `npm run start:dev`: starts the NestJS server with live reload
+- `npm run build`: compiles the backend application to `dist`
+- `npm run lint`: runs Oxlint on backend source and test files
+- `npm test`: runs backend unit tests with Vitest
 
-- `npm run start:dev` – starts the backend with live reload
-- `npm run build` – compiles the application to `dist`
-- `npm run test` – runs backend unit tests
+### Frontend
 
-### Frontend (`cd frontend`)
-
-- `npm start` – starts the Angular development server
-- `npm run build` – builds the application for production
-- `npm run test` – runs frontend unit tests
+Run these commands from the root with `--prefix frontend` or directly inside the `frontend` folder:
+- `npm start`: starts the Angular development server
+- `npm run build`: builds the Angular application for production
+- `npm test`: runs frontend unit tests with Vitest

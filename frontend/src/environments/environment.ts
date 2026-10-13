@@ -1,4 +1,4 @@
 export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:5000/api/v1',
+  production: true,
+  apiUrl: 'https://checkpoint-prod.onrender.com/api/v1',
 };

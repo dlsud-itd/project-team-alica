@@ -15,7 +15,6 @@ async function bootstrap() {
   await app.listen(port);
 
   logger.log(`Server running at http://localhost:${port}/api/v1`);
-  logger.log(`Health endpoint for UptimeRobot: http://localhost:${port}/health`);
 }
 
 await bootstrap();

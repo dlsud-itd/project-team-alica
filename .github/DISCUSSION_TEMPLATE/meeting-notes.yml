@@ -1,0 +1,83 @@
+title: "Meeting Notes: "
+labels: ["meeting-notes"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🗒️ Team ALICA Meeting Notes Form
+  - type: input
+    id: date-time
+    attributes:
+      label: Date & Time
+      placeholder: "e.g. 2026-10-15 1:00 PM"
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Location / Link
+      placeholder: "e.g. Discord / Face to Face @ ICT 212"
+    validations:
+      required: true
+  - type: input
+    id: facilitator
+    attributes:
+      label: Facilitator
+      placeholder: "e.g. Everyone / Name"
+  - type: input
+    id: notetaker
+    attributes:
+      label: Note Taker
+      placeholder: "e.g. Magno, Bianca Lauryn"
+    validations:
+      required: true
+  - type: checkboxes
+    id: attendees
+    attributes:
+      label: Attendees Present
+      description: Check all members who attended this meeting
+      options:
+        - label: "Layug, Charlz Edison"
+        - label: "Luna, Gracy Mae"
+        - label: "Magno, Bianca Lauryn"
+        - label: "Padolina, Ian Charles"
+        - label: "Ramos, Lenard Kristan"
+        - label: "Umandal, Alen Mikel"
+  - type: textarea
+    id: absentees
+    attributes:
+      label: Absent
+      value: "None"
+  - type: textarea
+    id: agenda
+    attributes:
+      label: Agenda & Discussion Notes
+      description: Summary of discussions and topic reviews
+      placeholder: |
+        ### Topic 1: [Topic Title]
+        - [Discussion points]
+
+        ### Topic 2: [Topic Title]
+        - [Discussion points]
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisions Made
+      placeholder: |
+        - [x] Decision 1
+        - [ ] Decision 2
+  - type: textarea
+    id: action-items
+    attributes:
+      label: Action Items
+      description: "Checklist of tasks. (Tip: Hover over any checklist item in the published discussion to convert it into a GitHub Issue with 1 click!)"
+      value: |
+        - [ ] Task 1 (@assignee)
+        - [ ] Task 2 (@assignee)
+  - type: textarea
+    id: next-meeting
+    attributes:
+      label: Next Meeting & Carry-Over Items
+      placeholder: "Proposed next sync schedule and pending carry-over topics"

@@ -1,0 +1,22 @@
+{
+  "name": "checkpoint",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Checkpoint: QR-Based Event RSVP and Attendance Management System",
+  "scripts": {
+    "dev": "concurrently -n \"backend,frontend\" -c \"cyan,magenta\" \"npm run start:dev --prefix backend\" \"npm start --prefix frontend\"",
+    "start": "npm run dev",
+    "dev:backend": "npm run start:dev --prefix backend",
+    "dev:frontend": "npm start --prefix frontend",
+    "build:backend": "npm run build --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "test:backend": "npm test --prefix backend",
+    "test:frontend": "npm test --prefix frontend -- --watch=false",
+    "test": "npm run test:backend && npm run test:frontend",
+    "ng": "npm --prefix frontend run ng --"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

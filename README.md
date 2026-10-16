@@ -6,6 +6,12 @@ Team ALICA
 
 Checkpoint helps event organisers, staff and attendees manage RSVPs and check in with QR codes.
 
+The repository features two site setups:
+- [Production](https://checkpoint.dlsud-ilt.workers.dev/)
+- [Development](https://dev-checkpoint.dlsud-ilt.workers.dev/)
+
+## Project Structure
+
 The repository contains 2 main application folders:
 - [frontend](frontend): Angular client application
 - [backend](backend): NestJS REST API

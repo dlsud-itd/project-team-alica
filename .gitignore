@@ -39,3 +39,9 @@ Thumbs.db
 coverage/
 frontend/coverage/
 backend/coverage/
+
+.agents/
+skills-lock.json
+.neon
+
+

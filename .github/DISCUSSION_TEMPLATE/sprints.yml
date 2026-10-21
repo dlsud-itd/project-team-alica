@@ -8,7 +8,7 @@ body:
         **Project Name:** Checkpoint: A QR-Based Event RSVP and Attendance Management System  
         **Team:** ALICA  
         
-        *Complete the overall sprint progress, retrospective, and individual reports below.*
+        *Complete the overall sprint progress and retrospective below.*
 
   - type: input
     id: sprint-number
@@ -89,36 +89,5 @@ body:
       placeholder: |
         ● Proceed with the implementation of user roles and authentication.
         ● Start with the creation of dashboard components.
-    validations:
-      required: true
-
-  - type: textarea
-    id: individual-reports
-    attributes:
-      label: "Individual Reports"
-      description: "Task-by-task or member breakdown: Member, Role, Task, and Done items (matching ALT-F4 format)"
-      value: |
-        ### Sprint Task: WBS 1.1.1
-        * **Member:** [Member Name]
-        * **Role:** [Tech Lead / Project Manager / UI/UX / Tester / Developer]
-        * **Task:** [Review and prioritize requirements, translate proposal into specifications, etc.]
-        * **Done:**
-          ● [Accomplishment point 1]
-          ● [Accomplishment point 2]
-          ● [Accomplishment point 3]
-        * **Next sprint:**
-          ● [Planned follow-up task]
-
-        ---
-
-        ### Sprint Task: WBS 1.1.2
-        * **Member:** [Member Name]
-        * **Role:** [Tech Lead / Project Manager / UI/UX / Tester / Developer]
-        * **Task:** [Brief task summary]
-        * **Done:**
-          ● [Accomplishment point 1]
-          ● [Accomplishment point 2]
-        * **Next sprint:**
-          ● [Planned follow-up task]
     validations:
       required: true

@@ -46,4 +46,19 @@ describe('role-based routing', () => {
     await router.navigateByUrl('/login');
     expect(router.url).toBe('/staff/scanner');
   });
+
+  it('keeps the full returnUrl for nested staff routes', async () => {
+    await router.navigateByUrl('/staff/profile');
+    expect(router.url).toBe('/staff/login?returnUrl=%2Fstaff%2Fprofile');
+  });
+
+  it('lets staff and organizers open their own profile', async () => {
+    auth.setSession(userWith('STAFF'), 'token');
+    await router.navigateByUrl('/staff/profile');
+    expect(router.url).toBe('/staff/profile');
+
+    auth.setSession(userWith('ORGANIZER'), 'token');
+    await router.navigateByUrl('/organizer/profile');
+    expect(router.url).toBe('/organizer/profile');
+  });
 });

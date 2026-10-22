@@ -6,45 +6,40 @@ export const routes: Routes = [
 
   // Public
   {
-    path: 'events',
+    path: '',
     loadComponent: () =>
-      import('./pages/public/events/events.component').then((m) => m.Events),
-  },
-  {
-    path: 'login',
-    canMatch: [guestGuard],
-    loadComponent: () =>
-      import('./pages/public/login/login.component').then((m) => m.Login),
-  },
-  {
-    path: 'register',
-    canMatch: [guestGuard],
-    loadComponent: () =>
-      import('./pages/public/register/register.component').then(
-        (m) => m.Register,
-      ),
-  },
-  {
-    path: 'staff/login',
-    canMatch: [guestGuard],
-    loadComponent: () =>
-      import('./pages/staff/operator-login/operator-login.component').then(
-        (m) => m.OperatorLogin,
-      ),
+      import('./layouts/public-layout/public-layout.component').then((m) => m.PublicLayout),
+    children: [
+      {
+        path: 'events',
+        loadComponent: () => import('./pages/public/events/events.component').then((m) => m.Events),
+      },
+      {
+        path: 'login',
+        canMatch: [guestGuard],
+        loadComponent: () => import('./pages/public/login/login.component').then((m) => m.Login),
+      },
+      {
+        path: 'register',
+        canMatch: [guestGuard],
+        loadComponent: () =>
+          import('./pages/public/register/register.component').then((m) => m.Register),
+      },
+    ],
   },
 
   // ADMIN
   {
     path: 'admin',
     canMatch: [roleGuard(['ADMIN'])],
+    loadComponent: () =>
+      import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayout),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
         path: 'dashboard',
         loadComponent: () =>
-          import('./pages/admin/dashboard/dashboard.component').then(
-            (m) => m.AdminDashboard,
-          ),
+          import('./pages/admin/dashboard/dashboard.component').then((m) => m.AdminDashboard),
       },
     ],
   },
@@ -53,6 +48,10 @@ export const routes: Routes = [
   {
     path: 'organizer',
     canMatch: [roleGuard(['ORGANIZER'])],
+    loadComponent: () =>
+      import('./layouts/organizer-layout/organizer-layout.component').then(
+        (m) => m.OrganizerLayout,
+      ),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
@@ -62,21 +61,45 @@ export const routes: Routes = [
             (m) => m.OrganizerDashboard,
           ),
       },
+      {
+        path: 'profile',
+        loadComponent: () =>
+          import('./pages/attendee/profile/profile.component').then((m) => m.Profile),
+      },
     ],
   },
 
-  // STAFF (unauthenticated staff are sent to the operator login)
+  // STAFF
   {
     path: 'staff',
-    canMatch: [roleGuard(['STAFF'], '/staff/login')],
+    loadComponent: () =>
+      import('./layouts/staff-layout/staff-layout.component').then((m) => m.StaffLayout),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'scanner' },
       {
-        path: 'scanner',
+        path: 'login',
+        canMatch: [guestGuard],
         loadComponent: () =>
-          import('./pages/staff/scanner/scanner.component').then(
-            (m) => m.Scanner,
+          import('./pages/staff/operator-login/operator-login.component').then(
+            (m) => m.OperatorLogin,
           ),
+      },
+      // Unauthenticated staff are sent to the operator login.
+      {
+        path: '',
+        canMatch: [roleGuard(['STAFF'], '/staff/login')],
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'scanner' },
+          {
+            path: 'scanner',
+            loadComponent: () =>
+              import('./pages/staff/scanner/scanner.component').then((m) => m.Scanner),
+          },
+          {
+            path: 'profile',
+            loadComponent: () =>
+              import('./pages/attendee/profile/profile.component').then((m) => m.Profile),
+          },
+        ],
       },
     ],
   },
@@ -85,21 +108,19 @@ export const routes: Routes = [
   {
     path: 'attendee',
     canMatch: [roleGuard(['ATTENDEE'])],
+    loadComponent: () =>
+      import('./layouts/attendee-layout/attendee-layout.component').then((m) => m.AttendeeLayout),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'profile' },
       {
         path: 'profile',
         loadComponent: () =>
-          import('./pages/attendee/profile/profile.component').then(
-            (m) => m.Profile,
-          ),
+          import('./pages/attendee/profile/profile.component').then((m) => m.Profile),
       },
       {
         path: 'history',
         loadComponent: () =>
-          import('./pages/attendee/history/history.component').then(
-            (m) => m.History,
-          ),
+          import('./pages/attendee/history/history.component').then((m) => m.History),
       },
     ],
   },

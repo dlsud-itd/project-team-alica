@@ -20,7 +20,7 @@ October 12 - 17
 
 ### Overall Completion
 
-12/56 = 21%
+12/55 = 21%
 
 ### Sprint Planning & Progress Update: Completed Tasks
 

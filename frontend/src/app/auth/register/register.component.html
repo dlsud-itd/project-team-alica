@@ -1,0 +1,164 @@
+<div class="register-page">
+  <!-- Left Column: Form Area -->
+  <div class="form-column">
+    <!-- Brand Header -->
+    <header class="brand-header">
+      <a routerLink="/" class="brand-link" aria-label="Checkpoint Home">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="2"></rect>
+          <rect x="14" y="3" width="7" height="7" rx="2"></rect>
+          <rect x="14" y="14" width="7" height="7" rx="2"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="2"></rect>
+        </svg>
+        <span class="brand-name">checkpoint</span>
+      </a>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="form-main">
+      <div class="form-content">
+        <!-- Title & Sign In Link -->
+        <div class="intro-block">
+          <h1 class="page-title">Create account</h1>
+          <p class="account-prompt">
+            Already have an account?
+            <a routerLink="/login" class="login-link">Sign in</a>
+          </p>
+        </div>
+
+        <!-- Notification Alert -->
+        @if (errorMsg) {
+          <div class="alert alert-error" role="alert">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ errorMsg }}</span>
+          </div>
+        }
+
+        <!-- Registration Form -->
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" class="register-form" novalidate>
+          <!-- Full Name Input -->
+          <div class="form-group">
+            <label for="full_name" class="form-label">Full name</label>
+            <div class="input-wrapper" [class.has-error]="form.controls.fullName.invalid && form.controls.fullName.touched">
+              <input
+                id="full_name"
+                type="text"
+                formControlName="fullName"
+                class="form-input"
+                placeholder="Juan Dela Cruz"
+                autocomplete="name"
+                required
+              />
+            </div>
+            @if (form.controls.fullName.invalid && form.controls.fullName.touched) {
+              <p class="field-error">Full name is required.</p>
+            }
+          </div>
+
+          <!-- Email Input -->
+          <div class="form-group">
+            <label for="email" class="form-label">E-mail</label>
+            <div class="input-wrapper" [class.has-error]="form.controls.email.invalid && form.controls.email.touched">
+              <input
+                id="email"
+                type="email"
+                formControlName="email"
+                class="form-input"
+                placeholder="example@gmail.com"
+                autocomplete="email"
+                required
+              />
+            </div>
+            @if (form.controls.email.invalid && form.controls.email.touched) {
+              <p class="field-error">Please enter a valid email address.</p>
+            }
+          </div>
+
+          <!-- Password Input -->
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <div class="input-wrapper" [class.has-error]="form.controls.password.invalid && form.controls.password.touched">
+              <input
+                id="password"
+                [type]="showPassword ? 'text' : 'password'"
+                formControlName="password"
+                class="form-input"
+                placeholder="At least 8 characters"
+                autocomplete="new-password"
+                required
+              />
+              <button
+                type="button"
+                class="btn-toggle-password"
+                (click)="togglePasswordVisibility()"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+              >
+                @if (showPassword) {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                } @else {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                }
+              </button>
+            </div>
+            @if (form.controls.password.invalid && form.controls.password.touched) {
+              <p class="field-error">Password must be at least 8 characters.</p>
+            }
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="btn-submit" [disabled]="loading">
+            @if (loading) {
+              <span class="spinner" aria-hidden="true"></span>
+              <span>Creating account...</span>
+            } @else {
+              <span>Create account</span>
+            }
+          </button>
+        </form>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="form-footer">
+      <span class="copyright">© 2026 Checkpoint</span>
+      <div class="footer-links">
+        <a href="javascript:void(0)" class="footer-link">Privacy</a>
+        <span class="footer-separator">•</span>
+        <a href="javascript:void(0)" class="footer-link">Terms</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Right Column: Rounded Green Feature Card with Watermark Motif -->
+  <aside class="banner-column" aria-label="Feature Showcase">
+    <div class="banner-card">
+      <!-- Watermark 4-Box Motif -->
+      <div class="watermark-grid" aria-hidden="true">
+        <div class="tile"></div>
+        <div class="tile"></div>
+        <div class="tile"></div>
+        <div class="tile"></div>
+      </div>
+
+      <!-- Bottom Headline and Copy -->
+      <div class="banner-content">
+        <h2 class="banner-headline">
+          Keep every<br />checkpoint in sight.
+        </h2>
+        <p class="banner-description">
+          Automate check-ins, eliminate long queues, and gain live insights into every session.
+        </p>
+      </div>
+    </div>
+  </aside>
+</div>

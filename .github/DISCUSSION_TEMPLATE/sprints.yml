@@ -1,0 +1,93 @@
+title: "Sprint Ceremony Document: Sprint "
+labels: ["sprint-ceremony"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🏃 Sprint Ceremony Document
+        **Project Name:** Checkpoint: A QR-Based Event RSVP and Attendance Management System  
+        **Team:** ALICA  
+        
+        *Complete the overall sprint progress and retrospective below.*
+
+  - type: input
+    id: sprint-number
+    attributes:
+      label: Sprint Number
+      placeholder: "e.g. Sprint 1"
+    validations:
+      required: true
+
+  - type: input
+    id: sprint-window
+    attributes:
+      label: Sprint Window (Dates)
+      placeholder: "e.g. October 11 – October 17, 2026"
+    validations:
+      required: true
+
+  - type: input
+    id: overall-completion
+    attributes:
+      label: Overall Completion
+      placeholder: "e.g. 23/168 * 100 = 13.69%"
+    validations:
+      required: true
+
+  - type: textarea
+    id: completed-tasks
+    attributes:
+      label: "Sprint Planning & Progress Update: Completed Tasks"
+      description: "High-level summary of deliverables completed during this sprint"
+      placeholder: |
+        ● Web Hosting & Deployment Setup: Provisioned and configured web hosting infrastructure for initial application deployment.
+        ● Backend Core Structure: Implemented base API routing and database connection scripts according to specified schemas.
+        ● Frontend UI Foundation: Established core page layouts and initial component structures based on design mockups.
+    validations:
+      required: true
+
+  - type: textarea
+    id: planned-tasks-next-sprint
+    attributes:
+      label: "Planned Tasks for Next Sprint"
+      description: "Table of backlog items queued for the upcoming sprint with Task ID / WBS Ref, Title, Description, and Assignees"
+      value: |
+        | Task ID | Task Title | Description | Assignee(s) |
+        | :--- | :--- | :--- | :--- |
+        | WBS 2.2.1 | Attendee Registration | Implement registration API, input validation, and password security | Tech Lead |
+        | WBS 2.2.2 | Admin Login | Implement authentication endpoints and JWT token service | Tech Lead |
+        | WBS 3.1.2 | Navigation & Layout | Scaffold responsive app shell, navigation bar, and sidebar components | UI/UX Designer |
+        | WBS 4.1.1 | Authentication Testing | Unit and integration tests for auth guards and session tokens | Tester |
+    validations:
+      required: true
+
+  - type: textarea
+    id: retro-went-well
+    attributes:
+      label: "Sprint Retrospective: What Went Well"
+      placeholder: |
+        ● Infrastructure setup and initial web hosting environment were configured on schedule.
+        ● Clear separation of developer responsibilities between API implementation and frontend components.
+        ● Tech stack was researched and improved.
+    validations:
+      required: true
+
+  - type: textarea
+    id: retro-could-improve
+    attributes:
+      label: "Sprint Retrospective: What Could Be Improved"
+      placeholder: |
+        ● Encountered challenges finding an API that is suitable with zero or minimal cost.
+        ● Concurrency and load testing for QR check-in bursts needs earlier execution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: retro-needs-done
+    attributes:
+      label: "Sprint Retrospective: What Needs to Be Done (Next Steps)"
+      placeholder: |
+        ● Proceed with the implementation of user roles and authentication.
+        ● Start with the creation of dashboard components.
+    validations:
+      required: true

@@ -1,9 +1,10 @@
 import { Component, inject } from '@angular/core';
-import { AuthService } from '../../../core/auth/auth.service';
+import { RouterLink } from '@angular/router';
+import { AuthService } from '../../core/auth/auth.service';
 
-// Shared by attendee, staff, and organizer routes.
+// Shared profile page for guests and every signed-in role.
 @Component({
-  imports: [],
+  imports: [RouterLink],
   selector: 'app-profile',
   styleUrl: './profile.component.scss',
   templateUrl: './profile.component.html',

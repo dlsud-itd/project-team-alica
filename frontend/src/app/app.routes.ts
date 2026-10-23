@@ -15,17 +15,22 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/public/events/events.component').then((m) => m.Events),
       },
       {
-        path: 'login',
-        canMatch: [guestGuard],
-        loadComponent: () => import('./pages/public/login/login.component').then((m) => m.Login),
-      },
-      {
-        path: 'register',
-        canMatch: [guestGuard],
+        path: 'profile',
         loadComponent: () =>
-          import('./pages/public/register/register.component').then((m) => m.RegisterComponent),
+          import('./pages/profile/profile.component').then((m) => m.Profile),
       },
     ],
+  },
+  {
+    path: 'login',
+    canMatch: [guestGuard],
+    loadComponent: () => import('./pages/public/login/login.component').then((m) => m.Login),
+  },
+  {
+    path: 'register',
+    canMatch: [guestGuard],
+    loadComponent: () =>
+      import('./pages/public/register/register.component').then((m) => m.RegisterComponent),
   },
 
   // ADMIN
@@ -61,11 +66,6 @@ export const routes: Routes = [
             (m) => m.OrganizerDashboard,
           ),
       },
-      {
-        path: 'profile',
-        loadComponent: () =>
-          import('./pages/attendee/profile/profile.component').then((m) => m.Profile),
-      },
     ],
   },
 
@@ -94,11 +94,6 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./pages/staff/scanner/scanner.component').then((m) => m.Scanner),
           },
-          {
-            path: 'profile',
-            loadComponent: () =>
-              import('./pages/attendee/profile/profile.component').then((m) => m.Profile),
-          },
         ],
       },
     ],
@@ -111,12 +106,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./layouts/attendee-layout/attendee-layout.component').then((m) => m.AttendeeLayout),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'profile' },
-      {
-        path: 'profile',
-        loadComponent: () =>
-          import('./pages/attendee/profile/profile.component').then((m) => m.Profile),
-      },
+      { path: '', pathMatch: 'full', redirectTo: '/profile' },
       {
         path: 'history',
         loadComponent: () =>

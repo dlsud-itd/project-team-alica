@@ -19,9 +19,19 @@ describe('role-based routing', () => {
     auth = TestBed.inject(AuthService);
   });
 
+  it('redirects the root URL to events', async () => {
+    await router.navigateByUrl('/');
+    expect(router.url).toBe('/events');
+  });
+
   it('sends guests to login with a returnUrl', async () => {
     await router.navigateByUrl('/admin/dashboard');
     expect(router.url).toBe('/login?returnUrl=%2Fadmin%2Fdashboard');
+  });
+
+  it('allows guests to open the profile page', async () => {
+    await router.navigateByUrl('/profile');
+    expect(router.url).toBe('/profile');
   });
 
   it('sends guest staff routes to the operator login', async () => {
@@ -47,18 +57,17 @@ describe('role-based routing', () => {
     expect(router.url).toBe('/staff/scanner');
   });
 
-  it('keeps the full returnUrl for nested staff routes', async () => {
-    await router.navigateByUrl('/staff/profile');
-    expect(router.url).toBe('/staff/login?returnUrl=%2Fstaff%2Fprofile');
+  it('lets every role use the shared profile route', async () => {
+    for (const role of ['ADMIN', 'ATTENDEE', 'STAFF', 'ORGANIZER'] as const) {
+      auth.setSession(userWith(role), 'token');
+      await router.navigateByUrl('/profile');
+      expect(router.url).toBe('/profile');
+    }
   });
 
-  it('lets staff and organizers open their own profile', async () => {
-    auth.setSession(userWith('STAFF'), 'token');
-    await router.navigateByUrl('/staff/profile');
-    expect(router.url).toBe('/staff/profile');
-
-    auth.setSession(userWith('ORGANIZER'), 'token');
-    await router.navigateByUrl('/organizer/profile');
-    expect(router.url).toBe('/organizer/profile');
+  it('redirects the attendee landing route to the shared profile', async () => {
+    auth.setSession(userWith('ATTENDEE'), 'token');
+    await router.navigateByUrl('/attendee');
+    expect(router.url).toBe('/profile');
   });
 });

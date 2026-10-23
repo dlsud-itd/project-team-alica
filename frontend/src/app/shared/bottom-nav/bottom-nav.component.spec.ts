@@ -14,7 +14,7 @@ describe('BottomNav', () => {
     fixture = TestBed.createComponent(BottomNav);
     fixture.componentRef.setInput('items', [
       { label: 'Events', path: '/events' },
-      { label: 'Profile', path: '/attendee/profile' },
+      { label: 'Profile', path: '/profile' },
     ]);
     await fixture.whenStable();
   });

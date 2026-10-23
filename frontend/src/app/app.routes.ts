@@ -23,7 +23,7 @@ export const routes: Routes = [
         path: 'register',
         canMatch: [guestGuard],
         loadComponent: () =>
-          import('./pages/public/register/register.component').then((m) => m.Register),
+          import('./pages/public/register/register.component').then((m) => m.RegisterComponent),
       },
     ],
   },

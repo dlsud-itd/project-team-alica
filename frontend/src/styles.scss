@@ -1,1 +1,97 @@
-/* You can add global styles to this file, and also import other style files */
+/* Checkpoint Design Tokens (Team ALICA Brand Palette) */
+:root {
+  --color-white: #ffffff;
+  --color-forest-green: #0f6e56;
+  --color-border-light: #e2e5e9;
+  --color-charcoal-dark: #1a1a1a;
+  --color-slate-medium: #6b6b6b;
+  --color-slate-dark: #5f5e5a;
+  --color-gray-placeholder: #9a9a9a;
+  --color-warm-cream: #f1f0e8;
+  --color-emerald-accent: #1d9e75;
+  --color-sage-border: #8a938f;
+  --color-mint-light: #e1f5ee;
+  --color-mint-subtle: #f1f5f3;
+
+  /* Semantic Tokens */
+  --color-primary: var(--color-forest-green);
+  --color-primary-hover: var(--color-emerald-accent);
+  --color-primary-subtle: var(--color-mint-light);
+  --color-bg-page: var(--color-mint-subtle);
+  --color-surface-card: var(--color-white);
+  --color-text-main: var(--color-charcoal-dark);
+  --color-text-muted: var(--color-slate-medium);
+  --color-text-label: var(--color-slate-dark);
+  --color-text-placeholder: var(--color-gray-placeholder);
+  --color-border-default: var(--color-border-light);
+  --color-border-focus: var(--color-forest-green);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: var(--color-white);
+  color: var(--color-text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  margin-bottom: 1.25rem;
+  animation: fadeIn 0.15s ease-in-out;
+
+  &.alert-error {
+    background: #fdf2f2;
+    border: 1px solid #f8b4b4;
+    color: #9b1c1c;
+  }
+
+  &.alert-success {
+    background: var(--color-mint-light, #e1f5ee);
+    border: 1px solid rgba(15, 110, 86, 0.3);
+    color: var(--color-forest-green, #0f6e56);
+  }
+
+  .alert-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}

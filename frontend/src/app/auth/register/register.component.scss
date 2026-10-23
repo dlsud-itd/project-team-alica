@@ -1,215 +1,318 @@
-$green: #0f6f56;
-$font: Inter, Arial, sans-serif;
+// Checkpoint Register Layout - Cohesive with Login and Design Tokens
 
-:host {
-  display: block;
-  font-family: $font;
-  color: #1a1a1a;
-}
-
-.page {
-  display: grid;
-  grid-template-columns: 1fr;
+.register-page {
+  display: flex;
   min-height: 100vh;
+  width: 100%;
+  background-color: var(--color-white, #ffffff);
 }
 
-.form-side {
+// ---------------------------------------------------------------------------
+// Left Column: Form Area
+// ---------------------------------------------------------------------------
+.form-column {
+  flex: 1 1 50%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 32px 24px;
-}
+  justify-content: space-between;
+  padding: 2.75rem 3.5rem 2rem;
+  box-sizing: border-box;
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: $green;
-  font-weight: 800;
-  font-size: 22px;
-}
-
-.logo {
-  display: grid;
-  grid-template-columns: repeat(2, 8px);
-  gap: 3px;
-
-  i {
-    width: 8px;
-    height: 8px;
-    border: 2px solid $green;
-    border-radius: 3px;
+  @media (max-width: 960px) {
+    padding: 2rem 1.5rem 1.5rem;
   }
 }
 
-.form-wrap {
-  flex: 1;
+.brand-header {
+  margin-bottom: 1rem;
+}
+
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  text-decoration: none;
+}
+
+.brand-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--color-forest-green, #0f6e56);
+}
+
+.brand-name {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-forest-green, #0f6e56);
+}
+
+.form-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 1.5rem 0;
+}
+
+.form-content {
   width: 100%;
   max-width: 380px;
-  margin: 0 auto;
-  padding: 40px 0;
+}
+
+.intro-block {
+  margin-bottom: 1.75rem;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 2.625rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-charcoal-dark, #1a1a1a);
+  line-height: 1.1;
+}
+
+.account-prompt {
+  margin: 0.625rem 0 0;
+  font-size: 0.875rem;
+  color: var(--color-slate-medium, #6b6b6b);
+}
+
+.login-link {
+  font-weight: 600;
+  color: var(--color-forest-green, #0f6e56);
+  text-decoration: underline;
+  margin-left: 0.25rem;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: var(--color-emerald-accent, #1d9e75);
+  }
+}
+
+.register-form {
   display: flex;
   flex-direction: column;
+  gap: 1.125rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-slate-medium, #6b6b6b);
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border-light, #e2e5e9);
+  border-radius: 8px;
+  background: var(--color-white, #ffffff);
+  transition: border-color 0.15s, box-shadow 0.15s;
+
+  &:hover:not(:focus-within) {
+    border-color: var(--color-sage-border, #8a938f);
+  }
+
+  &:focus-within {
+    border-color: var(--color-forest-green, #0f6e56);
+    box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.12);
+  }
+
+  &.has-error {
+    border-color: #e02424;
+    background: #fff8f8;
+  }
+}
+
+.form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 1rem;
+  font-size: 0.9375rem;
+  color: var(--color-charcoal-dark, #1a1a1a);
+  background: transparent;
+  border: none;
+  outline: none;
+
+  &::placeholder {
+    color: var(--color-gray-placeholder, #9a9a9a);
+  }
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: 0.625rem;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: var(--color-slate-medium, #6b6b6b);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-forest-green, #0f6e56);
+  }
+
+  svg {
+    width: 17px;
+    height: 17px;
+  }
 }
 
-h1 {
-  font-size: 40px;
-  font-weight: 800;
-  line-height: 1.1;
-  margin: 0 0 8px;
+.field-error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #e02424;
 }
 
-.sub {
-  font-size: 13px;
-  margin: 0 0 28px;
+.btn-submit {
+  width: 100%;
+  height: 46px;
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-white, #ffffff);
+  background-color: var(--color-forest-green, #0f6e56);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
 
-  a {
-    color: $green;
-    font-weight: 600;
+  &:hover:not(:disabled) {
+    background-color: var(--color-emerald-accent, #1d9e75);
+    box-shadow: 0 4px 12px rgba(29, 158, 117, 0.28);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+  }
+}
+
+.form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 1.5rem;
+  font-size: 0.75rem;
+  color: var(--color-gray-placeholder, #9a9a9a);
+}
+
+.copyright {
+  color: var(--color-slate-medium, #6b6b6b);
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+}
+
+.footer-link {
+  color: var(--color-slate-medium, #6b6b6b);
+  text-decoration: none;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: var(--color-charcoal-dark, #1a1a1a);
     text-decoration: underline;
   }
 }
 
-form {
+.footer-separator {
+  margin: 0 0.35rem;
+  color: var(--color-border-light, #e2e5e9);
+}
+
+// ---------------------------------------------------------------------------
+// Right Column: Green Rounded Banner Card
+// ---------------------------------------------------------------------------
+.banner-column {
+  flex: 1 1 50%;
+  min-width: 0;
+  display: flex;
+  padding: 1rem 1rem 1rem 0;
+  box-sizing: border-box;
+
+  @media (max-width: 960px) {
+    display: none;
+  }
+}
+
+.banner-card {
+  flex: 1;
+  position: relative;
+  background-color: var(--color-forest-green, #0f6e56);
+  border-radius: 32px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-label {
-  font-size: 12px;
-  margin: 16px 0 8px;
-}
-
-input {
-  width: 100%;
+  justify-content: flex-end;
+  padding: 4rem 3.5rem;
   box-sizing: border-box;
-  height: 46px;
-  padding: 0 16px;
-  border: 1px solid #e3e6e4;
-  border-radius: 8px;
-  background: #fff;
-  font-family: inherit;
-  font-size: 14px;
-
-  &::placeholder {
-    color: #999;
-  }
-
-  &:focus {
-    outline: 2px solid $green;
-  }
 }
 
-.password-field {
-  position: relative;
-
-  input {
-    padding-right: 48px;
-  }
-}
-
-.toggle {
+// 4-Box Watermark Motif
+.watermark-grid {
   position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  background: none;
-  border: none;
-  color: #444;
-  cursor: pointer;
-}
+  top: 50px;
+  right: -30px;
+  display: grid;
+  grid-template-columns: 190px 190px;
+  grid-template-rows: 190px 190px;
+  gap: 20px;
+  pointer-events: none;
+  opacity: 0.9;
 
-.primary {
-  margin-top: 28px;
-  height: 46px;
-  border: none;
-  border-radius: 8px;
-  background: $green;
-  color: #fff;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  .tile {
+    border: 1.5px solid rgba(255, 255, 255, 0.22);
+    border-radius: 42px;
+    background: rgba(255, 255, 255, 0.03);
   }
 }
 
-.error {
-  color: #d93025;
-  font-size: 12px;
-  margin-top: 6px;
+.banner-content {
+  position: relative;
+  z-index: 2;
+  max-width: 460px;
 }
 
-footer {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: #555;
+.banner-headline {
+  margin: 0 0 1rem;
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--color-white, #ffffff);
 }
 
-.hero {
-  display: none;
-}
-
-@media (min-width: 900px) {
-  .page {
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    padding: 16px;
-  }
-
-  .form-side {
-    padding: 40px 56px 24px;
-  }
-
-  .hero {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    overflow: hidden;
-    padding: 48px 56px;
-    border-radius: 32px;
-    background: $green;
-    color: #fff;
-  }
-
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-    width: 55%;
-    margin-left: auto;
-    margin-right: -80px;
-
-    i {
-      aspect-ratio: 1;
-      border-radius: 32px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      background: rgba(255, 255, 255, 0.05);
-
-      &:first-child {
-        background: rgba(255, 255, 255, 0.1);
-      }
-    }
-  }
-
-  .hero-text h2 {
-    font-size: 44px;
-    font-weight: 800;
-    line-height: 1.05;
-    margin: 0 0 16px;
-    max-width: 420px;
-  }
-
-  .hero-text p {
-    font-size: 15px;
-    line-height: 1.6;
-    max-width: 440px;
-    margin: 0;
-    opacity: 0.9;
-  }
-}
+.banner-description {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+}

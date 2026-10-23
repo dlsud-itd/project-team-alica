@@ -10,21 +10,28 @@ import { AuthService } from '../auth.service';
   styleUrl: './register.component.scss',
 })
 export class RegisterComponent {
-  private fb = inject(FormBuilder);
-  private auth = inject(AuthService);
-  private router = inject(Router);
+  private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   loading = false;
   errorMsg = '';
   showPassword = false;
 
   form = this.fb.nonNullable.group({
-    fullName: ['', Validators.required],
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(8)]],
+    fullName: ['', { validators: [Validators.required] }],
+    email: ['', { validators: [Validators.required, Validators.email] }],
+    password: [
+      '',
+      { validators: [Validators.required, Validators.minLength(8)] },
+    ],
   });
 
-  onSubmit() {
+  togglePasswordVisibility(): void {
+    this.showPassword = !this.showPassword;
+  }
+
+  onSubmit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -33,12 +40,13 @@ export class RegisterComponent {
     this.errorMsg = '';
 
     this.auth.register(this.form.getRawValue()).subscribe({
-      next: () =>
-        this.router.navigate(['/login'], { queryParams: { registered: true } }),
-      error: (err) => {
+      next: () => {
+        this.router.navigate(['/login'], { queryParams: { registered: true } });
+      },
+      error: (err: { error?: { message?: string } }) => {
         this.loading = false;
         this.errorMsg = err.error?.message ?? 'Registration failed. Try again.';
       },
     });
   }
-}
+}

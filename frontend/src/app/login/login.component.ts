@@ -1,12 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import {
   FormControl,
   FormGroup,
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 @Component({
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
@@ -14,7 +14,10 @@ import { Router, RouterLink } from '@angular/router';
   styleUrl: './login.component.scss',
   templateUrl: './login.component.html',
 })
-export class Login {
+export class Login implements OnInit {
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
   loginForm = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
@@ -32,7 +35,12 @@ export class Login {
   errorMessage: string | null = null;
   successMessage: string | null = null;
 
-  constructor(private readonly router: Router) {}
+  ngOnInit(): void {
+    const isRegistered = this.route.snapshot.queryParamMap.get('registered');
+    if (isRegistered === 'true' || isRegistered === '') {
+      this.successMessage = 'Account created successfully! Please sign in.';
+    }
+  }
 
   togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;

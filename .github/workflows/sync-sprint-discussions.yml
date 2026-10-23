@@ -28,20 +28,22 @@ jobs:
             const path = require('path');
 
             const title = context.payload.discussion.title;
-            const body = context.payload.discussion.body;
+            const body = context.payload.discussion.body || '';
             const number = context.payload.discussion.number;
             const url = context.payload.discussion.html_url;
             const author = context.payload.discussion.user.login;
             const createdAt = context.payload.discussion.created_at.split('T')[0];
 
-            // Determine clean filename, e.g., Sprint-1.md
+            const titleMatch = title.match(/sprint\s*#?\s*(\d+)/i);
+            const bodyMatch = body.match(/sprint\s*number\W*(?:sprint\s*)?(\d+)/i);
+            const sprintNum = (titleMatch && titleMatch[1]) || (bodyMatch && bodyMatch[1]) || '';
+
             let filename = '';
-            const sprintMatch = title.match(/sprint\s*(\d+)/i);
-            if (sprintMatch) {
-              filename = `Sprint-${sprintMatch[1]}.md`;
+            if (sprintNum) {
+              filename = `Sprint-${sprintNum}.md`;
             } else {
               const sanitized = title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-              filename = `${sanitized}.md`;
+              filename = `${sanitized}-${number}.md`;
             }
 
             const targetDir = path.join(process.env.GITHUB_WORKSPACE, 'document', 'Sprints');
@@ -51,57 +53,60 @@ jobs:
 
             const filePath = path.join(targetDir, filename);
 
-            const fileContent = `<!-- Generated automatically from GitHub Discussion #${number} -->
-<!-- Source URL: ${url} -->
-
-# ${title}
-
-> **Project:** Checkpoint (Team ALICA)  
-> **Author:** @${author}  
-> **Date:** ${createdAt}  
-> **Discussion:** [#${number} on GitHub](${url})
-
----
-
-${body}
-`;
+            const fileContent = [
+              `<!-- Generated automatically from GitHub Discussion #${number} -->`,
+              `<!-- Source URL: ${url} -->`,
+              '',
+              `# ${title}`,
+              '',
+              '> **Project:** Checkpoint (Team ALICA)  ',
+              `> **Author:** @${author}  `,
+              `> **Date:** ${createdAt}  `,
+              `> **Discussion:** [#${number} on GitHub](${url})`,
+              '',
+              '---',
+              '',
+              body,
+              ''
+            ].join('\n');
 
             fs.writeFileSync(filePath, fileContent, 'utf8');
             console.log(`Successfully generated: document/Sprints/${filename}`);
 
             core.setOutput('filename', filename);
-            core.setOutput('sprint_number', sprintMatch ? sprintMatch[1] : 'update');
+            core.setOutput('sprint_number', sprintNum || `discussion-${number}`);
 
       - name: Commit and Push Changes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FILENAME: ${{ steps.generate.outputs.filename }}
           SPRINT_NUM: ${{ steps.generate.outputs.sprint_number }}
+          DISCUSSION_NUM: ${{ github.event.discussion.number }}
+          DISCUSSION_URL: ${{ github.event.discussion.html_url }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           git add document/Sprints/
-          
+
           if git diff --staged --quiet; then
             echo "No changes detected. document/Sprints is up to date."
             exit 0
           fi
-          
-          git commit -m "docs: auto-sync ${FILENAME} from discussion #${{ github.event.discussion.number }}"
-          
-          # Try pushing directly to main
+
+          git commit -m "docs: auto-sync ${FILENAME} from discussion #${DISCUSSION_NUM}"
+
           if git push origin main; then
             echo "Successfully pushed directly to main branch."
           else
-            echo "Direct push to main was rejected (branch protection/ruleset). Creating a pull request..."
+            echo "Direct push to main was rejected. Creating a pull request..."
             BRANCH="docs/sync-sprint-${SPRINT_NUM}"
             git checkout -b "$BRANCH"
             git push origin "$BRANCH" --force
-            
+
             gh pr create \
-              --title "docs: sync ${FILENAME} from discussion #${{ github.event.discussion.number }}" \
-              --body "Automated sync of sprint ceremony notes from [Discussion #${{ github.event.discussion.number }}](${{ github.event.discussion.html_url }})." \
+              --title "docs: sync ${FILENAME} from discussion #${DISCUSSION_NUM}" \
+              --body "Automated sync of sprint ceremony notes from [Discussion #${DISCUSSION_NUM}](${DISCUSSION_URL})." \
               --base main \
-              --head "$BRANCH" || true
+              --head "$BRANCH"
           fi

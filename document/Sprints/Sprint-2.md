@@ -35,7 +35,7 @@ Oct 19 - 24
 
 ### Moved Down Features:
   - SMTP
-  - SSO
+  - OAUTH
   - 2FA
   - Passkeys
 

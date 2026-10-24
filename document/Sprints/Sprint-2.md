@@ -30,8 +30,14 @@ Oct 19 - 24
 - User ID Creation / Profile
 - Test Matrix
 
-To be integrated
+### To be integrated
 - Dashboards
+
+### Moved Down Features:
+  - SMTP
+  - SSO
+  - 2FA
+  - Passkeys
 
 ### Planned Tasks for Next Sprint
 

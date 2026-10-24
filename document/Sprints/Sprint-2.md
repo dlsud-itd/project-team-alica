@@ -28,6 +28,7 @@ Oct 19 - 24
 - Login
 - Responsiveness
 - User ID Creation / Profile
+- Test Matrix
 
 To be integrated
 - Dashboards

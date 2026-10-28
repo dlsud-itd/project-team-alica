@@ -1,0 +1,110 @@
+.profile-page {
+  display: grid;
+  min-height: calc(100vh - 6rem);
+  place-items: center;
+  padding: 2rem 1.25rem 7rem;
+  color: #111827;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+.profile-card {
+  width: min(100%, 30rem);
+  padding: 3rem 2.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 1.5rem;
+  background: #ffffff;
+  box-shadow: 0 18px 50px rgba(17, 24, 39, 0.09);
+  text-align: center;
+}
+
+.profile-avatar {
+  display: grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto 1.5rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.guest-avatar {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  color: #047857;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.profile-email,
+.profile-message {
+  margin: 0.75rem 0 1.75rem;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.profile-button {
+  display: inline-flex;
+  min-height: 2.875rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border: 0;
+  border-radius: 0.75rem;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 3px solid #6ee7b7;
+    outline-offset: 3px;
+  }
+}
+
+.login-button {
+  background: #047857;
+  color: #ffffff;
+
+  &:hover {
+    background: #065f46;
+  }
+}
+
+.secondary-button {
+  background: #f3f4f6;
+  color: #374151;
+
+  &:hover {
+    background: #e5e7eb;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-card {
+    padding: 2.25rem 1.5rem;
+  }
+}

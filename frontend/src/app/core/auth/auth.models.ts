@@ -13,7 +13,7 @@ export interface AuthUser {
 // Landing page for each role after login, or when hitting a page the role can't access.
 export const ROLE_HOME: Record<UserRole, string> = {
   ADMIN: '/admin/dashboard',
-  ORGANIZER: '/organizer/dashboard',
+  ORGANIZER: '/events',
   STAFF: '/staff/scanner',
   ATTENDEE: '/events',
 };

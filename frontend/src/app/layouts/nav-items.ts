@@ -18,11 +18,13 @@ export const STAFF_GUEST_NAV: NavItem[] = [
 ];
 
 export const STAFF_NAV: NavItem[] = [
+  { label: 'Events', path: '/events' },
   { label: 'Scanner', path: '/staff/scanner' },
   { label: 'Profile', path: '/profile' },
 ];
 
 export const ORGANIZER_NAV: NavItem[] = [
+  { label: 'Events', path: '/events' },
   { label: 'Dashboard', path: '/organizer/dashboard' },
   { label: 'Profile', path: '/profile' },
 ];

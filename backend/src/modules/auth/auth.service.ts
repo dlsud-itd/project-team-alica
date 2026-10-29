@@ -81,11 +81,15 @@ export class AuthService {
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
     if (!dto.email || !dto.fullName || !dto.password) {
-      throw new BadRequestException('Full name, email, and password are required');
+      throw new BadRequestException(
+        'Full name, email, and password are required',
+      );
     }
 
     if (dto.password.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters long');
+      throw new BadRequestException(
+        'Password must be at least 8 characters long',
+      );
     }
 
     const email = dto.email.trim().toLowerCase();
@@ -156,7 +160,9 @@ export class AuthService {
         affiliation: user.affiliation,
       };
     } catch {
-      throw new UnauthorizedException('Invalid or expired authentication token');
+      throw new UnauthorizedException(
+        'Invalid or expired authentication token',
+      );
     }
   }
 

@@ -17,7 +17,8 @@ describe('AuthService', () => {
   const mockUser = {
     id: 'usr-attendee-alen',
     email: 'amc.umandal@gmail.com',
-    passwordHash: '$2b$10$wB5W.3W/1tV4rBwYqZfX/O4mKq9g7O7R/0fH0q0g5P6G9V4Q2Z0kS',
+    passwordHash:
+      '$2b$10$wB5W.3W/1tV4rBwYqZfX/O4mKq9g7O7R/0fH0q0g5P6G9V4Q2Z0kS',
     fullName: 'Alen Mikel Umandal',
     role: UserRole.ATTENDEE,
     studentId: '2023-01982-MN-0',

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { OrganizerDashboard } from './dashboard.component';
 
 describe('OrganizerDashboard', () => {
@@ -8,6 +9,7 @@ describe('OrganizerDashboard', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [OrganizerDashboard],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(OrganizerDashboard);

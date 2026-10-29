@@ -1,0 +1,165 @@
+<main class="registrants-page">
+  <a class="back-link" routerLink="/organizer/dashboard">
+    <span aria-hidden="true">←</span> Back to events
+  </a>
+
+  @if (event(); as currentEvent) {
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">EVENT MANAGEMENT</p>
+        <h1>Registrants</h1>
+        <p class="event-name">{{ currentEvent.name }}</p>
+      </div>
+      <button class="export-button" type="button" (click)="exportRegistrants()">
+        <span aria-hidden="true">↓</span>
+        Export attendees
+      </button>
+    </header>
+
+    <section class="stats-row" aria-label="Registration summary">
+      <div class="stat-card">
+        <span class="stat-dot registered-dot" aria-hidden="true"></span>
+        <span>Registered</span>
+        <strong>{{ registeredCount() }}</strong>
+      </div>
+      <div class="stat-card">
+        <span class="stat-dot checked-in-dot" aria-hidden="true"></span>
+        <span>Checked in</span>
+        <strong>{{ checkedInCount() }}</strong>
+      </div>
+      <div class="stat-card total-stat">
+        <span>Total sign-ups</span>
+        <strong>{{ allEventAttendees().length }}</strong>
+      </div>
+    </section>
+
+    <section class="attendees-card">
+      <div class="table-heading">
+        <div>
+          <h2>Attendee list</h2>
+          <p>Search attendees and manage check-in status.</p>
+        </div>
+        <label class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <span class="sr-only">Search by attendee name, email, or ticket ID</span>
+          <input
+            type="search"
+            [formControl]="searchControl"
+            placeholder="Search name, email, ticket ID"
+          />
+          @if (searchControl.value) {
+            <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">
+              ×
+            </button>
+          }
+        </label>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Attendee</th>
+              <th scope="col">Ticket ID</th>
+              <th scope="col">Registered</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (attendee of attendees(); track attendee.id) {
+              <tr>
+                <td>
+                  <div class="attendee-cell">
+                    <span class="avatar" aria-hidden="true">{{ attendee.full_name.slice(0, 1) }}</span>
+                    <span class="attendee-name">
+                      <strong>{{ attendee.full_name }}</strong>
+                      <small>{{ attendee.email }}</small>
+                    </span>
+                  </div>
+                </td>
+                <td class="ticket-id">{{ attendee.ticket_id }}</td>
+                <td class="registered-date">{{ attendee.registered_at | date: 'MMM d, y' }}</td>
+                <td>
+                  <span class="status-badge" [class]="statusClass(attendee.status)">
+                    <span class="badge-dot" aria-hidden="true"></span>
+                    {{ attendee.status }}
+                  </span>
+                </td>
+                <td class="actions-cell">
+                  <details class="action-menu">
+                    <summary aria-label="Attendee actions">•••</summary>
+                    <div class="menu-items">
+                      <button
+                        type="button"
+                        [disabled]="attendee.status === 'Cancelled'"
+                        (click)="toggleCheckIn(attendee)"
+                      >
+                        {{ attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in' }}
+                      </button>
+                      <button type="button" (click)="selectedRegistrant.set(attendee)">
+                        View details
+                      </button>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td class="empty-cell" colspan="5">
+                  <strong>{{ searchControl.value ? 'No matching attendees' : 'No registrants yet' }}</strong>
+                  <span>
+                    {{
+                      searchControl.value
+                        ? 'Try another name, email address, or ticket ID.'
+                        : 'Attendees who register for this event will appear here.'
+                    }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="table-footer">
+        Showing {{ attendees().length }} of {{ allEventAttendees().length }} attendees
+      </footer>
+    </section>
+  } @else {
+    <section class="not-found">
+      <h1>Event not found</h1>
+      <p>This event is unavailable or is not assigned to your organizer account.</p>
+      <a routerLink="/organizer/dashboard">Return to dashboard</a>
+    </section>
+  }
+</main>
+
+@if (selectedRegistrant(); as attendee) {
+  <div class="dialog-backdrop" (click)="selectedRegistrant.set(null)">
+    <section
+      class="details-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="attendee-details-title"
+      (click)="$event.stopPropagation()"
+    >
+      <button
+        class="close-dialog"
+        type="button"
+        aria-label="Close attendee details"
+        (click)="selectedRegistrant.set(null)"
+      >
+        ×
+      </button>
+      <p class="eyebrow">ATTENDEE DETAILS</p>
+      <h2 id="attendee-details-title">{{ attendee.full_name }}</h2>
+      <dl>
+        <div><dt>Email</dt><dd>{{ attendee.email }}</dd></div>
+        <div><dt>Ticket ID</dt><dd>{{ attendee.ticket_id }}</dd></div>
+        <div><dt>Registration date</dt><dd>{{ attendee.registered_at | date: 'medium' }}</dd></div>
+        <div><dt>Status</dt><dd>{{ attendee.status }}</dd></div>
+      </dl>
+    </section>
+  </div>
+}

@@ -44,12 +44,14 @@ export class AuthService {
     }
   }
 
-  logout(): void {
+  logout(redirectTo: string | null = '/login'): void {
     this.session.set(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {}
-    this.router.navigateByUrl('/login');
+    if (redirectTo) {
+      this.router.navigateByUrl(redirectTo);
+    }
   }
 
   hasRole(...roles: UserRole[]): boolean {

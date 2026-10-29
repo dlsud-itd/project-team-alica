@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { HealthModule } from './health/health.module.js';
 import { EventsModule } from './modules/events/events.module.js';
 import { RegistrationsModule } from './modules/registrations/registrations.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 
 @Module({
   imports: [
@@ -16,9 +17,10 @@ import { RegistrationsModule } from './modules/registrations/registrations.modul
     HealthModule,
     EventsModule,
     RegistrationsModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
-  exports: [EventsModule, RegistrationsModule],
+  exports: [EventsModule, RegistrationsModule, AuthModule],
 })
 export class AppModule {}

@@ -75,82 +75,45 @@ export class Login implements OnInit {
 
     const { email, password } = this.loginForm.getRawValue();
 
-    // Check invalid test case
-    if (password.includes('Wrong') || password.includes('invalid')) {
-      this.errorMessage = 'Invalid email or password';
-      this.loginForm.patchValue({ password: '' });
-      this.isLoading = false;
-      return;
-    }
+    this.auth.login({ email, password }).subscribe({
+      next: (res) => {
+        const { user, token } = res.data;
+        this.auth.setSession(user, token);
 
-    // Role-based authentication: unified login for all roles
-    let role: UserRole = 'ATTENDEE';
-    let fullName = 'Alen Mikel Umandal';
-    let studentId = '2023-01982-MN-0';
-    let affiliation = 'College of Science and Computer Studies';
+        // Store profile for digital pass & profile page
+        const profileData = {
+          id: user.id,
+          ticketCode: 'CHK-2026-9812A',
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          status: 'ACTIVE',
+          identificationNumber: user.studentId || '2023-01982-MN-0',
+          affiliation:
+            user.affiliation || 'College of Science and Computer Studies',
+          qrPayload: 'CHK-2026-9812A',
+          issuedAt: new Date().toISOString(),
+        };
 
-    if (email === 'organizer@alica.ph' || email === 'organizer@example.com') {
-      role = 'ORGANIZER';
-      fullName = 'Campus Organizer';
-      affiliation = 'University Student Council';
-    } else if (email === 'staff@checkpoint.ph') {
-      role = 'STAFF';
-      fullName = 'Station Operator';
-      affiliation = 'Event Operations Team';
-    } else if (email === 'admin@dlsud.edu.ph') {
-      role = 'ADMIN';
-      fullName = 'System Administrator';
-      affiliation = 'Information & Communications Technology';
-    } else {
-      // Custom Attendee login
-      const stored = localStorage.getItem('checkpoint_user');
-      if (stored) {
         try {
-          const parsed = JSON.parse(stored);
-          if (parsed.fullName && parsed.email === email) {
-            fullName = parsed.fullName;
-          }
-          if (parsed.studentId) studentId = parsed.studentId;
-          if (parsed.affiliation) affiliation = parsed.affiliation;
+          localStorage.setItem('checkpoint_user', JSON.stringify(profileData));
+          localStorage.setItem('user_profile', JSON.stringify(profileData));
         } catch {}
-      }
-    }
 
-    const userRoleIds: Record<UserRole, string> = {
-      ATTENDEE: 'usr-attendee-alen',
-      ORGANIZER: 'usr-organizer-campus',
-      STAFF: 'usr-staff-station',
-      ADMIN: 'usr-admin-system',
-    };
-
-    const authUser: AuthUser = {
-      id: userRoleIds[role] || ('usr-' + role.toLowerCase()),
-      email,
-      fullName,
-      role,
-    };
-
-    // Save profile for digital pass & profile page
-    const profileData = {
-      id: authUser.id,
-      ticketCode: 'CHK-2026-9812A',
-      fullName,
-      email,
-      role,
-      status: 'ACTIVE',
-      identificationNumber: studentId,
-      affiliation,
-      qrPayload: 'CHK-2026-9812A',
-      issuedAt: '2026-10-23T10:00:00.000Z',
-    };
-    try {
-      localStorage.setItem('checkpoint_user', JSON.stringify(profileData));
-    } catch {}
-
-    this.auth.setSession(authUser, 'mock-jwt-token-' + Date.now());
-    this.successMessage = 'Authentication successful! Redirecting...';
-    this.isLoading = false;
-    this.router.navigate(['/events']);
+        this.successMessage = 'Authentication successful! Redirecting...';
+        this.isLoading = false;
+        this.router.navigate([this.auth.homeUrl()]);
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.errorMessage =
+          err?.error?.message ??
+          (err?.status === 0
+            ? 'Unable to connect to the authentication server.'
+            : 'Invalid email or password');
+        this.loginForm.patchValue({ password: '' });
+      },
+    });
   }
 
   signInWithGoogle(): void {

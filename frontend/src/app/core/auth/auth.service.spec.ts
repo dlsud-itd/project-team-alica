@@ -44,6 +44,34 @@ describe('AuthService', () => {
     req.flush({ success: true });
   });
 
+  it('should post login payload', () => {
+    const payload = {
+      email: 'amc.umandal@gmail.com',
+      password: 'SecurePassword123!',
+    };
+
+    service.login(payload).subscribe((res) => {
+      expect(res.success).toBe(true);
+      expect(res.data.token).toBe('token-xyz');
+    });
+
+    const req = httpMock.expectOne(`${service['api']}/auth/login`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(payload);
+    req.flush({
+      success: true,
+      data: {
+        user: {
+          id: 'usr-attendee-alen',
+          email: 'amc.umandal@gmail.com',
+          fullName: 'Alen Mikel Umandal',
+          role: 'ATTENDEE',
+        },
+        token: 'token-xyz',
+      },
+    });
+  });
+
   it('should clear session and storage on logout', () => {
     const user: AuthUser = {
       id: 'usr-1',

@@ -1,4 +1,6 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
 import { EventRegistrant, OrganizerEvent, UUID } from './organizer.models';
 
 const MOCK_EVENTS: OrganizerEvent[] = [
@@ -95,6 +97,9 @@ const MOCK_REGISTRANTS: EventRegistrant[] = [
 
 @Injectable({ providedIn: 'root' })
 export class OrganizerEventsService {
+  private readonly http = inject(HttpClient);
+  private readonly api = environment.apiUrl;
+
   private readonly eventState = signal<OrganizerEvent[]>(MOCK_EVENTS);
   private readonly registrantState = signal<EventRegistrant[]>(MOCK_REGISTRANTS);
 
@@ -105,11 +110,68 @@ export class OrganizerEventsService {
     this.eventState().reduce((total, event) => total + event.registrations_count, 0),
   );
 
+  constructor() {
+    this.loadEvents();
+  }
+
+  loadEvents(): void {
+    this.http.get<{ success: boolean; data: any[] }>(`${this.api}/events`).subscribe({
+      next: (res) => {
+        if (!res?.data || !Array.isArray(res.data)) return;
+        const apiEvents: OrganizerEvent[] = res.data.map((ev) => ({
+          id: ev.id,
+          organizer_id: ev.organizerId || 'usr-organizer-campus',
+          name: ev.title,
+          starts_at: ev.dateLabel || new Date().toISOString(),
+          ends_at: ev.timeLabel || new Date().toISOString(),
+          venue: ev.venue || 'Campus Venue',
+          city: 'Dasmarinas, Cavite',
+          registrations_count: ev.spotsTaken ?? 0,
+          capacity: ev.spotsTotal ?? 100,
+          status: ev.status === 'LIVE_TODAY' ? 'In progress' : 'Upcoming',
+        }));
+
+        // Merge with mock events so mock fixture routes remain functional
+        const merged = [...apiEvents];
+        for (const mock of MOCK_EVENTS) {
+          if (!merged.some((e) => e.id === mock.id)) {
+            merged.push(mock);
+          }
+        }
+        this.eventState.set(merged);
+      },
+      error: () => {
+        // Fallback to MOCK_EVENTS when offline or testing
+        this.eventState.set(MOCK_EVENTS);
+      },
+    });
+  }
+
+  loadRegistrants(eventId: UUID): void {
+    this.http
+      .get<{ success: boolean; data: EventRegistrant[] }>(
+        `${this.api}/registrations/event/${eventId}`,
+      )
+      .subscribe({
+        next: (res) => {
+          if (!res?.data || !Array.isArray(res.data)) return;
+          this.registrantState.update((current) => {
+            const others = current.filter((r) => r.event_id !== eventId);
+            return [...others, ...res.data];
+          });
+        },
+        error: () => {
+          // Retain current registrants on offline/fallback
+        },
+      });
+  }
+
   eventById(eventId: UUID): OrganizerEvent | undefined {
     return this.eventState().find((event) => event.id === eventId);
   }
 
   toggleCheckIn(registrantId: UUID): void {
+    // 1. Optimistic UI update
     this.registrantState.update((registrants) =>
       registrants.map((registrant) => {
         if (registrant.id !== registrantId || registrant.status === 'Cancelled') {
@@ -122,5 +184,24 @@ export class OrganizerEventsService {
         };
       }),
     );
+
+    // 2. Persist to backend database
+    this.http
+      .patch<{ success: boolean; data: EventRegistrant }>(
+        `${this.api}/registrations/${registrantId}/toggle-check-in`,
+        {},
+      )
+      .subscribe({
+        next: (res) => {
+          if (res?.data) {
+            this.registrantState.update((registrants) =>
+              registrants.map((r) => (r.id === registrantId ? res.data : r)),
+            );
+          }
+        },
+        error: () => {
+          // If offline or testing with mock IDs, preserve optimistic state
+        },
+      });
   }
 }

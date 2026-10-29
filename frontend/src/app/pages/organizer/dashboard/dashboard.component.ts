@@ -1,5 +1,5 @@
 import { DatePipe, PercentPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, Injector, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -13,15 +13,20 @@ import { OrganizerEventsService } from '../../../core/organizer/organizer-events
 })
 export class OrganizerDashboard {
   private readonly organizerEvents = inject(OrganizerEventsService);
+  private readonly injector = inject(Injector);
 
   readonly now = new Date();
   readonly events = this.organizerEvents.events;
   readonly totalRegistrations = this.organizerEvents.totalRegistrations;
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly statusControl = new FormControl('All statuses', { nonNullable: true });
-  private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
+  private readonly searchText = toSignal(this.searchControl.valueChanges, {
+    initialValue: '',
+    injector: this.injector,
+  });
   private readonly selectedStatus = toSignal(this.statusControl.valueChanges, {
     initialValue: 'All statuses',
+    injector: this.injector,
   });
   readonly filteredEvents = computed(() => {
     const query = this.searchText().trim().toLocaleLowerCase();

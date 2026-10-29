@@ -1,5 +1,12 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  Injector,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -16,17 +23,21 @@ import { OrganizerEventsService } from '../../../core/organizer/organizer-events
   styleUrl: './registrants.component.scss',
   templateUrl: './registrants.component.html',
 })
-export class OrganizerRegistrants {
+export class OrganizerRegistrants implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly organizerEvents = inject(OrganizerEventsService);
+  private readonly injector = inject(Injector);
 
   readonly eventId = toSignal(
     this.route.paramMap.pipe(map((params) => params.get('eventId') ?? '')),
-    { initialValue: '' },
+    { initialValue: '', injector: this.injector },
   );
   readonly event = computed(() => this.organizerEvents.eventById(this.eventId()));
   readonly searchControl = new FormControl('', { nonNullable: true });
-  private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
+  private readonly searchText = toSignal(this.searchControl.valueChanges, {
+    initialValue: '',
+    injector: this.injector,
+  });
   readonly attendees = computed(() =>
     this.organizerEvents
       .registrants()
@@ -52,6 +63,13 @@ export class OrganizerRegistrants {
   readonly checkedInCount = computed(
     () => this.allEventAttendees().filter((registrant) => registrant.status === 'Checked In').length,
   );
+
+  ngOnInit(): void {
+    const id = this.eventId();
+    if (id) {
+      this.organizerEvents.loadRegistrants(id);
+    }
+  }
 
   toggleCheckIn(registrant: EventRegistrant): void {
     this.organizerEvents.toggleCheckIn(registrant.id);

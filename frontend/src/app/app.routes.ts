@@ -66,6 +66,13 @@ export const routes: Routes = [
             (m) => m.OrganizerDashboard,
           ),
       },
+      {
+        path: 'events/:eventId/registrants',
+        loadComponent: () =>
+          import('./pages/organizer/registrants/registrants.component').then(
+            (m) => m.OrganizerRegistrants,
+          ),
+      },
     ],
   },
 

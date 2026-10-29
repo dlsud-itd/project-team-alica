@@ -1,1 +1,195 @@
-<p>dashboard works!</p>
+<div class="dashboard-shell">
+  <header class="brand-bar">
+    <a class="brand" routerLink="/organizer/dashboard" aria-label="Checkpoint organizer dashboard">
+      <span class="brand-mark" aria-hidden="true">C</span>
+      <span class="brand-copy">
+        <strong>Checkpoint</strong>
+        <small>Event Attendance &amp; Certification</small>
+      </span>
+    </a>
+    <div class="account-chip">
+      <span class="online-dot" aria-hidden="true"></span>
+      <span>ORGANIZER</span>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">ORGANIZER WORKSPACE</p>
+        <h1>Organizer: Event Dashboard</h1>
+        <p class="subtitle">Your events, registrations, and attendee activity at a glance.</p>
+      </div>
+      <span class="today">{{ now | date: 'EEEE, MMMM d, y' }}</span>
+    </header>
+
+    @if (notice()) {
+      <p class="notice" role="status">{{ notice() }}</p>
+    }
+
+    <section class="summary-grid" aria-label="Event summary">
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>ASSIGNED EVENTS</span>
+          <span class="summary-icon events-icon" aria-hidden="true">▦</span>
+        </div>
+        <strong class="summary-value">{{ events().length }}</strong>
+        <small>Events in your workspace</small>
+      </article>
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>TOTAL REGISTRATIONS</span>
+          <span class="summary-icon registration-icon" aria-hidden="true">↗</span>
+        </div>
+        <strong class="summary-value">{{ totalRegistrations() }}</strong>
+        <small>Across all assigned events</small>
+      </article>
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>UPCOMING EVENTS</span>
+          <span class="summary-icon upcoming-icon" aria-hidden="true">◷</span>
+        </div>
+        <strong class="summary-value">{{ upcomingEvents() }}</strong>
+        <small>Ready for attendee check-in</small>
+      </article>
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>OPEN SEATS</span>
+          <span class="summary-icon seats-icon" aria-hidden="true">＋</span>
+        </div>
+        <strong class="summary-value">{{ openSeats() }}</strong>
+        <small>Remaining registration capacity</small>
+      </article>
+    </section>
+
+    <section class="events-section">
+      <div class="section-heading">
+        <div>
+          <h2>Event roster</h2>
+          <p>Review event details and manage attendee registrations.</p>
+        </div>
+        <span class="event-count">{{ filteredEvents().length }} of {{ events().length }} events</span>
+      </div>
+
+      <div class="toolbar">
+        <label class="search-box">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <span class="sr-only">Search by event name or location</span>
+          <input
+            type="search"
+            [formControl]="searchControl"
+            placeholder="Search event or location"
+          />
+          @if (searchControl.value) {
+            <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">
+              ×
+            </button>
+          }
+        </label>
+        <label class="status-filter">
+          <span class="sr-only">Filter events by status</span>
+          <select [formControl]="statusControl">
+            <option>All statuses</option>
+            <option>Upcoming</option>
+            <option>In progress</option>
+            <option>Completed</option>
+          </select>
+        </label>
+      </div>
+
+      @if (filteredEvents().length) {
+        <div class="event-table-wrap">
+          <table class="event-table">
+            <thead>
+              <tr>
+                <th scope="col">EVENT</th>
+                <th scope="col">DATE &amp; LOCATION</th>
+                <th scope="col">REGISTRATIONS</th>
+                <th scope="col">STATUS</th>
+                <th scope="col"><span class="sr-only">ACTIONS</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (event of filteredEvents(); track event.id) {
+                <tr>
+                  <td>
+                    <div class="event-name-cell">
+                      <span class="event-avatar" aria-hidden="true">{{ event.name.slice(0, 1) }}</span>
+                      <span class="event-name-copy">
+                        <strong>{{ event.name }}</strong>
+                        <small>{{ event.city }}</small>
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="date-cell">
+                      <strong>{{ event.starts_at | date: 'MMM d, y' }}</strong>
+                      <small>{{ event.venue }} · {{ event.starts_at | date: 'h:mm a' }}</small>
+                    </div>
+                  </td>
+                  <td class="registration-cell">
+                    <div class="registration-numbers">
+                      <strong>{{ event.registrations_count }}</strong>
+                      <span> / {{ event.capacity }}</span>
+                    </div>
+                    <div
+                      class="progress-track"
+                      role="progressbar"
+                      [attr.aria-label]="event.name + ' registration capacity'"
+                      [attr.aria-valuenow]="event.registrations_count"
+                      [attr.aria-valuemin]="0"
+                      [attr.aria-valuemax]="event.capacity"
+                    >
+                      <span
+                        class="progress-fill"
+                        [style.width.%]="registrationProgress(event.registrations_count, event.capacity) * 100"
+                      ></span>
+                    </div>
+                    <small>{{ registrationProgress(event.registrations_count, event.capacity) | percent }} capacity</small>
+                  </td>
+                  <td>
+                    <span class="event-status" [class]="{
+                        'status-upcoming': event.status === 'Upcoming',
+                        'status-live': event.status === 'In progress',
+                        'status-completed': event.status === 'Completed'
+                      }">
+                      <span class="status-dot" aria-hidden="true"></span>
+                      {{ event.status }}
+                    </span>
+                  </td>
+                  <td class="actions-cell">
+                    <button
+                      class="button button-secondary"
+                      type="button"
+                      (click)="showEditNotice(event.name)"
+                    >
+                      Edit
+                    </button>
+                    <a
+                      class="button button-primary"
+                      [routerLink]="['/organizer/events', event.id, 'registrants']"
+                    >
+                      Registrants <span aria-hidden="true">→</span>
+                    </a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="empty-state">
+          <span aria-hidden="true">⌕</span>
+          <h3>{{ events().length ? 'No matching events' : 'No events assigned yet' }}</h3>
+          <p>
+            {{
+              events().length
+                ? 'Try a different search or status filter.'
+                : 'Events assigned to your account will appear here.'
+            }}
+          </p>
+        </div>
+      }
+    </section>
+  </main>
+</div>

@@ -1,4 +1,19 @@
-// Leave room so content isn't hidden behind the floating nav.
-.page {
-  padding-bottom: 6rem;
+// Staff Shell Layout Styling
+
+.staff-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-page, #f1f5f3);
+}
+
+.page-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+
+  // On mobile, leave bottom clearance so the floating dock doesn't obscure content.
+  @media (max-width: 767px) {
+    padding-bottom: 5.5rem;
+  }
 }

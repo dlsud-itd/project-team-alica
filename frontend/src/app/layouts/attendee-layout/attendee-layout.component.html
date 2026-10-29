@@ -1,4 +1,12 @@
-<div class="page">
-  <router-outlet />
+<div class="attendee-shell">
+  <!-- Checkpoint Global Top Navbar -->
+  <app-navbar />
+
+  <!-- Page Content Outlet -->
+  <main class="page-content">
+    <router-outlet />
+  </main>
+
+  <!-- Mobile Floating Dock (hidden on desktop >=768px) -->
+  <app-bottom-nav [items]="navItems" />
 </div>
-<app-bottom-nav [items]="navItems" />

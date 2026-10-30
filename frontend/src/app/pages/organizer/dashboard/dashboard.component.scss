@@ -9,77 +9,11 @@
   color: #202b2a;
 }
 
-.brand-bar {
-  display: flex;
-  min-height: 64px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2.5rem;
-  border-bottom: 1px solid #e7ebea;
-  background: #fff;
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  color: inherit;
-  text-decoration: none;
-}
-
-.brand-mark {
-  display: grid;
-  width: 31px;
-  height: 31px;
-  place-items: center;
-  border-radius: 8px;
-  color: white;
-  background: #14785f;
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.brand-copy {
-  display: grid;
-  gap: 0.08rem;
-}
-
-.brand-copy strong {
-  color: #155e4b;
-  font-size: 0.85rem;
-  line-height: 1.1;
-}
-
-.brand-copy small {
-  color: #7d8582;
-  font-size: 0.59rem;
-}
-
-.account-chip {
-  display: inline-flex;
-  min-height: 27px;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0 0.65rem;
-  border: 1px solid #e7ece9;
-  border-radius: 999px;
-  color: #286d56;
-  background: #fff;
-  font-size: 0.61rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.online-dot,
 .status-dot {
   width: 7px;
   height: 7px;
   flex: 0 0 7px;
   border-radius: 50%;
-}
-
-.online-dot {
-  background: #24a77a;
 }
 
 .dashboard {
@@ -580,11 +514,6 @@ h1 {
 }
 
 @media (max-width: 760px) {
-  .brand-bar {
-    min-height: 58px;
-    padding: 0 1rem;
-  }
-
   .dashboard {
     padding: 1.35rem 1rem 5.5rem;
   }

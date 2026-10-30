@@ -7,6 +7,8 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { AuthService } from '../../../core/auth/auth.service';
+import { AuthUser, UserRole } from '../../../core/auth/auth.models';
 
 @Component({
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
@@ -17,6 +19,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 export class Login implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
 
   loginForm = new FormGroup({
     email: new FormControl('', {
@@ -46,6 +49,20 @@ export class Login implements OnInit {
     this.showPassword = !this.showPassword;
   }
 
+  fillDemo(role: 'attendee' | 'organizer' | 'staff' | 'admin'): void {
+    const creds = {
+      attendee: { email: 'amc.umandal@gmail.com', pass: 'SecurePassword123!' },
+      organizer: { email: 'organizer@alica.ph', pass: 'SecurePassword123!' },
+      staff: { email: 'staff@checkpoint.ph', pass: 'SecurePassword123!' },
+      admin: { email: 'admin@dlsud.edu.ph', pass: 'SecurePassword123!' },
+    }[role];
+
+    this.loginForm.patchValue({
+      email: creds.email,
+      password: creds.pass,
+    });
+  }
+
   onSubmit(): void {
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
@@ -58,37 +75,48 @@ export class Login implements OnInit {
 
     const { email, password } = this.loginForm.getRawValue();
 
-    // Check invalid test case
-    if (password.includes('Wrong') || password.includes('invalid')) {
-      this.errorMessage = 'Invalid email or password';
-      this.loginForm.patchValue({ password: '' });
-      this.isLoading = false;
-      return;
-    }
+    this.auth.login({ email, password }).subscribe({
+      next: (res) => {
+        const { user, token } = res.data;
+        this.auth.setSession(user, token);
 
-    // Role-based authentication: unified login for all roles
-    // The role is resolved automatically from the user's account credentials
-    if (
-      email === 'organizer@example.com' ||
-      email === 'staff@checkpoint.ph' ||
-      email === 'admin@dlsud.edu.ph' ||
-      email.endsWith('@dlsud.edu.ph') ||
-      password === 'SecurePassword123!'
-    ) {
-      this.successMessage = 'Authentication successful! Redirecting...';
-      this.isLoading = false;
-      try {
-        this.router.navigate(['/dashboard']).catch(() => {});
-      } catch {}
-    } else {
-      this.errorMessage = 'Invalid email or password';
-      this.loginForm.patchValue({ password: '' });
-      this.isLoading = false;
-    }
+        // Store profile for digital pass & profile page
+        const profileData = {
+          id: user.id,
+          ticketCode: 'CHK-2026-9812A',
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          status: 'ACTIVE',
+          identificationNumber: user.studentId || '2023-01982-MN-0',
+          affiliation:
+            user.affiliation || 'College of Science and Computer Studies',
+          qrPayload: 'CHK-2026-9812A',
+          issuedAt: new Date().toISOString(),
+        };
+
+        try {
+          localStorage.setItem('checkpoint_user', JSON.stringify(profileData));
+          localStorage.setItem('user_profile', JSON.stringify(profileData));
+        } catch {}
+
+        this.successMessage = 'Authentication successful! Redirecting...';
+        this.isLoading = false;
+        this.router.navigate([this.auth.homeUrl()]);
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.errorMessage =
+          err?.error?.message ??
+          (err?.status === 0
+            ? 'Unable to connect to the authentication server.'
+            : 'Invalid email or password');
+        this.loginForm.patchValue({ password: '' });
+      },
+    });
   }
 
   signInWithGoogle(): void {
-    // Integration point for Google OAuth SSO
     console.log('Google Sign-In initiated');
   }
 }

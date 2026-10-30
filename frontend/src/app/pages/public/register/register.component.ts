@@ -39,7 +39,9 @@ export class RegisterComponent {
     this.loading = true;
     this.errorMsg = '';
 
-    this.auth.register(this.form.getRawValue()).subscribe({
+    const val = this.form.getRawValue();
+
+    this.auth.register(val).subscribe({
       next: () => {
         this.router.navigate(['/login'], { queryParams: { registered: true } });
       },
@@ -49,4 +51,4 @@ export class RegisterComponent {
       },
     });
   }
-}
+}

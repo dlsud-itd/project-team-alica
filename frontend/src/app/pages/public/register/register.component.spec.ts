@@ -49,7 +49,20 @@ describe('RegisterComponent', () => {
   });
 
   it('should register and redirect on successful submit', () => {
-    vi.spyOn(authService, 'register').mockReturnValue(of({ success: true }));
+    vi.spyOn(authService, 'register').mockReturnValue(
+      of({
+        success: true,
+        data: {
+          user: {
+            id: 'usr-new-id',
+            email: 'juan@example.com',
+            fullName: 'Juan Dela Cruz',
+            role: 'ATTENDEE',
+          },
+          token: 'token-reg-123',
+        },
+      }),
+    );
 
     component.form.patchValue({
       fullName: 'Juan Dela Cruz',

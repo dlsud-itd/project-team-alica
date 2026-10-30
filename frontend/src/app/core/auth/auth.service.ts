@@ -9,7 +9,22 @@ export type RegisterPayload = {
   fullName: string;
   email: string;
   password: string;
+  studentId?: string;
+  affiliation?: string;
 };
+
+export type LoginPayload = {
+  email: string;
+  password: string;
+};
+
+export interface AuthResponse {
+  success: boolean;
+  data: {
+    user: AuthUser;
+    token: string;
+  };
+}
 
 const STORAGE_KEY = 'checkpoint.session';
 
@@ -29,8 +44,12 @@ export class AuthService {
   readonly token = computed(() => this.session()?.token ?? null);
   readonly isAuthenticated = computed(() => this.session() !== null);
 
-  register(data: RegisterPayload): Observable<unknown> {
-    return this.http.post(`${this.api}/auth/register`, data);
+  login(data: LoginPayload): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.api}/auth/login`, data);
+  }
+
+  register(data: RegisterPayload): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.api}/auth/register`, data);
   }
 
   /** Call this after a successful login/register API response. */
@@ -44,12 +63,14 @@ export class AuthService {
     }
   }
 
-  logout(): void {
+  logout(redirectTo: string | null = '/login'): void {
     this.session.set(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {}
-    this.router.navigateByUrl('/login');
+    if (redirectTo) {
+      this.router.navigateByUrl(redirectTo);
+    }
   }
 
   hasRole(...roles: UserRole[]): boolean {

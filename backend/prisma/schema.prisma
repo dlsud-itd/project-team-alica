@@ -1,11 +1,191 @@
 // Prisma Schema for Checkpoint (Team ALICA)
-// Database: PostgreSQL
+// Database: PostgreSQL (Supabase)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ATTENDEE
+  STAFF
+  ORGANIZER
+  ADMIN
+}
+
+enum TicketType {
+  STUDENT
+  REGULAR
+  VIP
+  SPEAKER
+  ORGANIZER
+}
+
+enum TicketStatus {
+  REGISTERED
+  CHECKED_IN
+  CANCELLED
+}
+
+enum CheckpointType {
+  MAIN_ENTRY
+  SESSION
+  BOOTH
+  EXIT
+}
+
+enum ScanResult {
+  SUCCESS
+  DUPLICATE
+  WARNING_NO_MAIN_ENTRY
+  INVALID_TICKET
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  role         UserRole  @default(ATTENDEE)
+  studentId    String?
+  affiliation  String?
+  isActive     Boolean   @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  organizedEvents       Event[]           @relation("OrganizedEvents")
+  tickets               Ticket[]
+  eventStaffAssignments EventStaff[]
+  checkpointAssignments CheckpointStaff[]
+  scannedLogs           AttendanceLog[]   @relation("ScannedByStaff")
+
+  @@map("users")
+}
+
+model Event {
+  id           String    @id @default(uuid())
+  title        String
+  slug         String    @unique
+  description  String?
+  venueName    String
+  startDate    DateTime
+  endDate      DateTime
+  capacity     Int?
+  allowWalkIns Boolean   @default(false)
+  isActive     Boolean   @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  organizerId String
+  organizer   User   @relation("OrganizedEvents", fields: [organizerId], references: [id], onDelete: Restrict)
+
+  checkpoints Checkpoint[]
+  tickets     Ticket[]
+  staff       EventStaff[]
+
+  @@map("events")
+}
+
+model EventStaff {
+  id         String   @id @default(uuid())
+  eventId    String
+  userId     String
+  assignedAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("event_staff")
+}
+
+model Checkpoint {
+  id                 String         @id @default(uuid())
+  eventId            String
+  name               String
+  location           String?
+  type               CheckpointType @default(MAIN_ENTRY)
+  allowMultipleScans Boolean        @default(false)
+  requireMainEntry   Boolean        @default(false)
+  isActive           Boolean        @default(true)
+  deletedAt          DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  event          Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  assignedStaff  CheckpointStaff[]
+  attendanceLogs AttendanceLog[]
+
+  @@map("checkpoints")
+}
+
+model CheckpointStaff {
+  id           String   @id @default(uuid())
+  checkpointId String
+  userId       String
+  assignedAt   DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  checkpoint Checkpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([checkpointId, userId])
+  @@map("checkpoint_staff")
+}
+
+model Ticket {
+  id             String       @id @default(uuid())
+  eventId        String
+  userId         String?
+  firstName      String
+  lastName       String
+  email          String
+  studentId      String?
+  affiliation    String?
+  ticketType     TicketType   @default(STUDENT)
+  ticketCode     String       @unique
+  qrPayload      String
+  status         TicketStatus @default(REGISTERED)
+  firstScannedAt DateTime?
+  lastScannedAt  DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  attendanceLogs AttendanceLog[]
+
+  @@unique([eventId, email])
+  @@map("tickets")
+}
+
+model AttendanceLog {
+  id              String     @id @default(uuid())
+  ticketId        String?
+  ticketCode      String
+  checkpointId    String
+  scannedByUserId String
+  scannedAt       DateTime   @default(now())
+  scanDate        DateTime   @default(now())
+  scanResult      ScanResult @default(SUCCESS)
+  deviceInfo      String?
+  notes           String?
+  createdAt       DateTime   @default(now())
+
+  ticket     Ticket?    @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  checkpoint Checkpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  scannedBy  User       @relation("ScannedByStaff", fields: [scannedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([checkpointId, scannedAt])
+  @@index([ticketCode, scannedAt])
+  @@map("attendance_logs")
 }

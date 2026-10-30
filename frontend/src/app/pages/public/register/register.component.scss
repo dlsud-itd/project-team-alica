@@ -25,7 +25,41 @@
 }
 
 .brand-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.btn-back-events {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-slate-medium, #6b6b6b);
+  text-decoration: none;
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+
+  .back-icon {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    max-width: 16px !important;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+  }
+
+  &:hover {
+    color: var(--color-forest-green, #0f6e56);
+    background-color: var(--color-mint-subtle, #f1f5f3);
+
+    .back-icon {
+      transform: translateX(-2px);
+    }
+  }
 }
 
 .brand-link {

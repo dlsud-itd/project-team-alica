@@ -4,7 +4,7 @@ import { guestGuard, roleGuard } from './core/auth/auth.guards';
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'events' },
 
-  // Public
+  // Public & Authenticated Shared Views
   {
     path: '',
     loadComponent: () =>
@@ -17,7 +17,12 @@ export const routes: Routes = [
       {
         path: 'profile',
         loadComponent: () =>
-          import('./pages/profile/profile.component').then((m) => m.Profile),
+          import('./user_profile/user_profile.component').then((m) => m.UserProfileComponent),
+      },
+      {
+        path: 'profile/:ticketCode',
+        loadComponent: () =>
+          import('./user_profile/user_profile.component').then((m) => m.UserProfileComponent),
       },
     ],
   },

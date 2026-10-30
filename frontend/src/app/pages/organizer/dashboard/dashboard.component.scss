@@ -819,3 +819,140 @@ h1 {
     gap: 0.85rem;
   }
 }
+
+/* Delete / danger actions */
+.button-danger {
+  border-color: #f1d4d1;
+  color: #b42318;
+  background: #fff;
+
+  &:hover {
+    border-color: #d92d20;
+    background: #fef3f2;
+  }
+}
+
+.button-danger-ghost {
+  border-color: transparent;
+  color: #b42318;
+  background: transparent;
+
+  &:hover {
+    background: #fef3f2;
+  }
+}
+
+.button-danger-solid {
+  color: #fff;
+  background: #c4321f;
+
+  &:hover {
+    background: #a52716;
+  }
+}
+
+.button-danger:focus-visible,
+.button-danger-ghost:focus-visible,
+.button-danger-solid:focus-visible {
+  outline-color: rgba(196, 50, 31, 0.28);
+}
+
+.edit-dialog-actions .delete-left {
+  margin-right: auto;
+}
+
+/* Confirmation dialog (sits above the edit dialog) */
+.confirm-backdrop {
+  z-index: 1100;
+}
+
+.confirm-dialog {
+  width: min(420px, 100%);
+  text-align: center;
+
+  h2 {
+    margin-bottom: 0.4rem;
+    color: #1b2523;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    margin-bottom: 1.4rem;
+    color: #5d6864;
+    font-size: 0.74rem;
+    line-height: 1.55;
+  }
+
+  strong {
+    color: #26302e;
+  }
+}
+
+.confirm-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 0.85rem;
+  place-items: center;
+  border-radius: 50%;
+  color: #c4321f;
+  background: #fdecea;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
+
+  .button {
+    min-height: 36px;
+    padding: 0.5rem 1.1rem;
+    font-size: 0.72rem;
+    border-radius: 7px;
+  }
+}
+
+/* Readability bump */
+.brand-copy small { font-size: 0.68rem; }
+.account-chip { font-size: 0.68rem; }
+.eyebrow { font-size: 0.7rem; }
+.subtitle { font-size: 0.85rem; }
+.today { font-size: 0.78rem; }
+.summary-topline { font-size: 0.66rem; }
+.summary-card > small { font-size: 0.68rem; }
+.section-heading h2 { font-size: 1rem; }
+.section-heading p { font-size: 0.75rem; }
+.event-count { font-size: 0.68rem; }
+.search-box input { font-size: 0.78rem; }
+.status-filter select { font-size: 0.76rem; }
+.event-table th { font-size: 0.65rem; }
+.event-table td { font-size: 0.75rem; }
+.event-name-copy strong,
+.date-cell strong { font-size: 0.78rem; }
+.date-cell small { font-size: 0.68rem; }
+.registration-numbers { font-size: 0.72rem; }
+.registration-cell > small { font-size: 0.64rem; }
+.event-status { font-size: 0.68rem; }
+.button { font-size: 0.68rem; min-height: 32px; padding: 0.35rem 0.7rem; }
+
+/* Row hover */
+.event-table tbody tr {
+  transition: background-color 120ms ease;
+
+  &:hover { background: #fafcfb; }
+}
+
+/* Calmer Delete in the table row */
+.actions-cell .button-danger {
+  border-color: transparent;
+  color: #8a4b45;
+
+  &:hover {
+    border-color: #f1d4d1;
+    color: #b42318;
+    background: #fef3f2;
+  }
+}

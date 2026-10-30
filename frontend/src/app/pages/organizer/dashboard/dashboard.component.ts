@@ -1,5 +1,5 @@
 import { DatePipe, PercentPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -31,6 +31,8 @@ export class OrganizerDashboard {
   readonly now = new Date();
   readonly events = this.organizerEvents.events;
   readonly totalRegistrations = this.organizerEvents.totalRegistrations;
+  readonly loading = this.organizerEvents.loading;
+  readonly loadError = this.organizerEvents.error;
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly statusControl = new FormControl('All statuses', { nonNullable: true });
   private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
@@ -45,8 +47,7 @@ export class OrganizerDashboard {
       const matchesQuery =
         !query ||
         event.name.toLocaleLowerCase().includes(query) ||
-        event.venue.toLocaleLowerCase().includes(query) ||
-        event.city.toLocaleLowerCase().includes(query);
+        event.venue.toLocaleLowerCase().includes(query);
       const matchesStatus = status === 'All statuses' || event.status === status;
       return matchesQuery && matchesStatus;
     });
@@ -66,10 +67,12 @@ export class OrganizerDashboard {
   readonly editingEvent = signal<OrganizerEvent | null>(null);
   readonly editErrorMessage = signal('');
 
+  // Delete Event State
+  readonly deletingEvent = signal<OrganizerEvent | null>(null);
+
   readonly editForm = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     venue: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    city: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     starts_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     ends_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     capacity: new FormControl<number>(10, {
@@ -86,6 +89,10 @@ export class OrganizerDashboard {
     return capacity > 0 ? Math.min(registered / capacity, 1) : 0;
   }
 
+  reloadEvents(): void {
+    this.organizerEvents.load();
+  }
+
   showEditNotice(eventName: string): void {
     this.notice.set(`Event editing for "${eventName}" is coming soon.`);
   }
@@ -96,7 +103,6 @@ export class OrganizerDashboard {
     this.editForm.patchValue({
       name: event.name,
       venue: event.venue,
-      city: event.city,
       starts_at: toDateTimeLocalInput(event.starts_at),
       ends_at: toDateTimeLocalInput(event.ends_at),
       capacity: event.capacity,
@@ -146,7 +152,6 @@ export class OrganizerDashboard {
     this.organizerEvents.updateEvent(currentEvent.id, {
       name: updatedName,
       venue: raw.venue.trim(),
-      city: raw.city.trim(),
       starts_at: startDate.toISOString(),
       ends_at: endDate.toISOString(),
       capacity: Number(raw.capacity),
@@ -155,5 +160,32 @@ export class OrganizerDashboard {
 
     this.notice.set(`Event "${updatedName}" updated successfully.`);
     this.closeEdit();
+  }
+
+  openDelete(event: OrganizerEvent): void {
+    this.deletingEvent.set(event);
+  }
+
+  closeDelete(): void {
+    this.deletingEvent.set(null);
+  }
+
+  confirmDelete(): void {
+    const target = this.deletingEvent();
+    if (!target) return;
+
+    this.organizerEvents.deleteEvent(target.id);
+    this.notice.set(`Event "${target.name}" was deleted.`);
+    this.closeDelete();
+    this.closeEdit();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.deletingEvent()) {
+      this.closeDelete();
+    } else if (this.editingEvent()) {
+      this.closeEdit();
+    }
   }
 }

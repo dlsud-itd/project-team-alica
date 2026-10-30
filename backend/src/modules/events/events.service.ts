@@ -21,11 +21,98 @@ export interface EventResponseDto {
   registeredUserIds?: string[];
 }
 
+export interface OrganizerEventDto {
+  id: string;
+  organizer_id: string;
+  name: string;
+  starts_at: string;
+  ends_at: string;
+  venue: string;
+  registrations_count: number;
+  capacity: number;
+  status: 'Upcoming' | 'In progress' | 'Completed';
+}
+
+export interface OrganizerRegistrantDto {
+  id: string;
+  event_id: string;
+  attendee_id: string | null;
+  full_name: string;
+  email: string;
+  ticket_id: string;
+  registered_at: string;
+  status: 'Registered' | 'Checked In' | 'Cancelled';
+}
+
+export interface OrganizerDashboardDto {
+  events: OrganizerEventDto[];
+  registrants: OrganizerRegistrantDto[];
+}
+
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async findForOrganizer(organizerId: string): Promise<OrganizerDashboardDto> {
+    const events = await this.prisma.event.findMany({
+      where: { organizerId, isActive: true },
+      include: {
+        tickets: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    const now = new Date();
+    const organizerEvents: OrganizerEventDto[] = events.map((event) => {
+      const start = event.startDate;
+      const end = event.endDate;
+      let status: OrganizerEventDto['status'] = 'Upcoming';
+
+      if (now >= start && now <= end) {
+        status = 'In progress';
+      } else if (now > end) {
+        status = 'Completed';
+      }
+
+      return {
+        id: event.id,
+        organizer_id: event.organizerId,
+        name: event.title,
+        starts_at: start.toISOString(),
+        ends_at: end.toISOString(),
+        venue: event.venueName,
+        registrations_count: event.tickets.filter(
+          (ticket) => ticket.status !== 'CANCELLED',
+        ).length,
+        capacity: event.capacity ?? 100,
+        status,
+      };
+    });
+
+    const registrants: OrganizerRegistrantDto[] = events.flatMap((event) =>
+      event.tickets.map((ticket) => ({
+        id: ticket.id,
+        event_id: ticket.eventId,
+        attendee_id: ticket.userId,
+        full_name: `${ticket.firstName} ${ticket.lastName}`.trim(),
+        email: ticket.email,
+        ticket_id: ticket.ticketCode,
+        registered_at: ticket.createdAt.toISOString(),
+        status:
+          ticket.status === 'CHECKED_IN'
+            ? 'Checked In'
+            : ticket.status === 'CANCELLED'
+              ? 'Cancelled'
+              : 'Registered',
+      })),
+    );
+
+    return { events: organizerEvents, registrants };
+  }
 
   async findAll(): Promise<EventResponseDto[]> {
     const events = await this.prisma.event.findMany({

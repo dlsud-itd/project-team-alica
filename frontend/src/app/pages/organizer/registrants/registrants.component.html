@@ -3,7 +3,18 @@
     <span aria-hidden="true">←</span> Back to events
   </a>
 
-  @if (event(); as currentEvent) {
+  @if (loading()) {
+    <section class="not-found" role="status">
+      <h1>Loading event</h1>
+      <p>Loading organizer event information and registrants.</p>
+    </section>
+  } @else if (loadError()) {
+    <section class="not-found" role="alert">
+      <h1>Unable to load event</h1>
+      <p>{{ loadError() }}</p>
+      <button class="export-button" type="button" (click)="reloadEvents()">Retry</button>
+    </section>
+  } @else if (event(); as currentEvent) {
     <header class="page-header">
       <div>
         <p class="eyebrow">EVENT MANAGEMENT</p>

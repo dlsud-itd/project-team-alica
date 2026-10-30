@@ -1,4 +1,5 @@
 import { DatePipe, PercentPipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -28,6 +29,12 @@ function toDateTimeLocalInput(isoString: string): string {
 export class OrganizerDashboard {
   private readonly organizerEvents = inject(OrganizerEventsService);
 
+  constructor() {
+    this.organizerEvents.loadEvents().subscribe({
+      error: () => this.notice.set('Could not load your events. Please try again later.'),
+    });
+  }
+
   readonly now = new Date();
   readonly events = this.organizerEvents.events;
   readonly totalRegistrations = this.organizerEvents.totalRegistrations;
@@ -45,8 +52,7 @@ export class OrganizerDashboard {
       const matchesQuery =
         !query ||
         event.name.toLocaleLowerCase().includes(query) ||
-        event.venue.toLocaleLowerCase().includes(query) ||
-        event.city.toLocaleLowerCase().includes(query);
+        event.venue.toLocaleLowerCase().includes(query);
       const matchesStatus = status === 'All statuses' || event.status === status;
       return matchesQuery && matchesStatus;
     });
@@ -56,7 +62,9 @@ export class OrganizerDashboard {
   );
   readonly openSeats = computed(() =>
     this.events().reduce(
-      (total, event) => total + Math.max(event.capacity - event.registrations_count, 0),
+      (total, event) =>
+        total +
+        (event.capacity === null ? 0 : Math.max(event.capacity - event.registrations_count, 0)),
       0,
     ),
   );
@@ -65,25 +73,20 @@ export class OrganizerDashboard {
   // Edit Event State
   readonly editingEvent = signal<OrganizerEvent | null>(null);
   readonly editErrorMessage = signal('');
+  readonly isSaving = signal(false);
 
   readonly editForm = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     venue: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    city: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     starts_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     ends_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    capacity: new FormControl<number>(10, {
-      nonNullable: true,
+    capacity: new FormControl<number | null>(null, {
       validators: [Validators.required, Validators.min(1)],
-    }),
-    status: new FormControl<'Upcoming' | 'In progress' | 'Completed'>('Upcoming', {
-      nonNullable: true,
-      validators: [Validators.required],
     }),
   });
 
-  registrationProgress(registered: number, capacity: number): number {
-    return capacity > 0 ? Math.min(registered / capacity, 1) : 0;
+  registrationProgress(registered: number, capacity: number | null): number {
+    return capacity ? Math.min(registered / capacity, 1) : 0;
   }
 
   showEditNotice(eventName: string): void {
@@ -96,11 +99,9 @@ export class OrganizerDashboard {
     this.editForm.patchValue({
       name: event.name,
       venue: event.venue,
-      city: event.city,
       starts_at: toDateTimeLocalInput(event.starts_at),
       ends_at: toDateTimeLocalInput(event.ends_at),
       capacity: event.capacity,
-      status: event.status,
     });
   }
 
@@ -135,25 +136,35 @@ export class OrganizerDashboard {
       return;
     }
 
-    if (raw.capacity < currentEvent.registrations_count) {
+    const capacity = Number(raw.capacity);
+    if (capacity < currentEvent.registrations_count) {
       this.editErrorMessage.set(
         `Capacity cannot be lower than current registrations (${currentEvent.registrations_count}).`,
       );
       return;
     }
 
-    const updatedName = raw.name.trim();
-    this.organizerEvents.updateEvent(currentEvent.id, {
-      name: updatedName,
-      venue: raw.venue.trim(),
-      city: raw.city.trim(),
-      starts_at: startDate.toISOString(),
-      ends_at: endDate.toISOString(),
-      capacity: Number(raw.capacity),
-      status: raw.status,
-    });
-
-    this.notice.set(`Event "${updatedName}" updated successfully.`);
-    this.closeEdit();
+    this.isSaving.set(true);
+    this.organizerEvents
+      .updateEvent(currentEvent.id, {
+        name: raw.name.trim(),
+        venue: raw.venue.trim(),
+        starts_at: startDate.toISOString(),
+        ends_at: endDate.toISOString(),
+        capacity,
+      })
+      .subscribe({
+        next: (updated) => {
+          this.isSaving.set(false);
+          this.notice.set(`Event "${updated.name}" updated successfully.`);
+          this.closeEdit();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.isSaving.set(false);
+          this.editErrorMessage.set(
+            err.error?.message ?? 'Could not save changes. Please try again.',
+          );
+        },
+      });
   }
 }

@@ -1,9 +1,10 @@
 import { DatePipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { map } from 'rxjs';
+import { filter, map, switchMap } from 'rxjs';
 import {
   EventRegistrant,
   RegistrationStatus,
@@ -24,6 +25,27 @@ export class OrganizerRegistrants {
     this.route.paramMap.pipe(map((params) => params.get('eventId') ?? '')),
     { initialValue: '' },
   );
+  readonly eventsLoaded = this.organizerEvents.eventsLoaded;
+  readonly errorMessage = signal('');
+
+  constructor() {
+    if (!this.organizerEvents.eventsLoaded()) {
+      this.organizerEvents.loadEvents().subscribe({
+        error: () => this.errorMessage.set('Could not load your events. Please try again later.'),
+      });
+    }
+
+    this.route.paramMap
+      .pipe(
+        map((params) => params.get('eventId') ?? ''),
+        filter(Boolean),
+        switchMap((eventId) => this.organizerEvents.loadRegistrants(eventId)),
+        takeUntilDestroyed(),
+      )
+      .subscribe({
+        error: () => this.errorMessage.set('Could not load registrants. Please try again later.'),
+      });
+  }
   readonly event = computed(() => this.organizerEvents.eventById(this.eventId()));
   readonly searchControl = new FormControl('', { nonNullable: true });
   private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
@@ -54,7 +76,11 @@ export class OrganizerRegistrants {
   );
 
   toggleCheckIn(registrant: EventRegistrant): void {
-    this.organizerEvents.toggleCheckIn(registrant.id);
+    this.errorMessage.set('');
+    this.organizerEvents.toggleCheckIn(registrant).subscribe({
+      error: (err: HttpErrorResponse) =>
+        this.errorMessage.set(err.error?.message ?? 'Could not update check-in status.'),
+    });
   }
 
   statusClass(status: RegistrationStatus): string {

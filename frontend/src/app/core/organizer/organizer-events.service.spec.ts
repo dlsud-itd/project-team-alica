@@ -1,54 +1,90 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { environment } from '../../../environments/environment';
 import { OrganizerEventsService } from './organizer-events.service';
+import { EventRegistrant, OrganizerEvent } from './organizer.models';
+
+const API = `${environment.apiUrl}/events`;
+
+const EVENT: OrganizerEvent = {
+  id: 'evt-1',
+  organizer_id: 'usr-org',
+  name: 'Tech Summit',
+  starts_at: '2026-11-15T00:00:00.000Z',
+  ends_at: '2026-11-15T09:00:00.000Z',
+  venue: 'Gymnasium',
+  registrations_count: 2,
+  capacity: 10,
+  status: 'Upcoming',
+};
+
+const REGISTRANT: EventRegistrant = {
+  id: 'tkt-1',
+  event_id: 'evt-1',
+  attendee_id: 'usr-1',
+  full_name: 'Alyssa Santos',
+  email: 'alyssa@example.com',
+  ticket_id: 'CHK-2026-1234A',
+  registered_at: '2026-10-12T02:15:00.000Z',
+  status: 'Registered',
+};
 
 describe('OrganizerEventsService', () => {
   let service: OrganizerEventsService;
+  let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({});
-    service = TestBed.inject(OrganizerEventsService);
-  });
-
-  it('should be created and have initial mock events', () => {
-    expect(service).toBeTruthy();
-    expect(service.events().length).toBeGreaterThan(0);
-    expect(service.totalRegistrations()).toBeGreaterThan(0);
-  });
-
-  it('should find an event by id', () => {
-    const firstEvent = service.events()[0];
-    const found = service.eventById(firstEvent.id);
-    expect(found).toEqual(firstEvent);
-  });
-
-  it('should update event fields with updateEvent', () => {
-    const firstEvent = service.events()[0];
-    service.updateEvent(firstEvent.id, {
-      name: 'Hackathon 2026 Updated',
-      capacity: 50,
-      venue: 'Main Auditorium',
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
     });
-
-    const updated = service.eventById(firstEvent.id);
-    expect(updated?.name).toBe('Hackathon 2026 Updated');
-    expect(updated?.capacity).toBe(50);
-    expect(updated?.venue).toBe('Main Auditorium');
-    // non-updated fields should be preserved
-    expect(updated?.city).toBe(firstEvent.city);
+    service = TestBed.inject(OrganizerEventsService);
+    httpMock = TestBed.inject(HttpTestingController);
   });
 
-  it('should toggle registrant check-in status', () => {
-    const registrants = service.registrants();
-    const target = registrants.find((r) => r.status === 'Registered');
-    if (!target) return;
+  afterEach(() => httpMock.verify());
 
-    service.toggleCheckIn(target.id);
-    const updated = service.registrants().find((r) => r.id === target.id);
-    expect(updated?.status).toBe('Checked In');
+  it('should start empty until events are loaded', () => {
+    expect(service.events()).toEqual([]);
+    expect(service.eventsLoaded()).toBe(false);
+  });
 
-    service.toggleCheckIn(target.id);
-    const toggledBack = service.registrants().find((r) => r.id === target.id);
-    expect(toggledBack?.status).toBe('Registered');
+  it('should load the organizer events from the API', () => {
+    service.loadEvents().subscribe();
+    httpMock.expectOne(`${API}/mine`).flush({ success: true, data: [EVENT] });
+
+    expect(service.events()).toEqual([EVENT]);
+    expect(service.eventsLoaded()).toBe(true);
+    expect(service.totalRegistrations()).toBe(2);
+    expect(service.eventById('evt-1')).toEqual(EVENT);
+  });
+
+  it('should PATCH event changes and store the updated event', () => {
+    service.loadEvents().subscribe();
+    httpMock.expectOne(`${API}/mine`).flush({ success: true, data: [EVENT] });
+
+    service.updateEvent('evt-1', { name: 'Tech Summit Updated', capacity: 50 }).subscribe();
+    const req = httpMock.expectOne(`${API}/evt-1`);
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ name: 'Tech Summit Updated', capacity: 50 });
+    req.flush({ success: true, data: { ...EVENT, name: 'Tech Summit Updated', capacity: 50 } });
+
+    expect(service.eventById('evt-1')?.name).toBe('Tech Summit Updated');
+    expect(service.eventById('evt-1')?.capacity).toBe(50);
+  });
+
+  it('should load registrants and toggle check-in through the API', () => {
+    service.loadRegistrants('evt-1').subscribe();
+    httpMock
+      .expectOne(`${API}/evt-1/registrants`)
+      .flush({ success: true, data: [REGISTRANT] });
+    expect(service.registrants()).toEqual([REGISTRANT]);
+
+    service.toggleCheckIn(REGISTRANT).subscribe();
+    const req = httpMock.expectOne(`${API}/evt-1/registrants/tkt-1/check-in`);
+    expect(req.request.method).toBe('PATCH');
+    req.flush({ success: true, data: { ...REGISTRANT, status: 'Checked In' } });
+
+    expect(service.registrants()[0].status).toBe('Checked In');
   });
 });
-

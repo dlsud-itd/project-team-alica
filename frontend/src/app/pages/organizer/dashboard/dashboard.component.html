@@ -120,7 +120,6 @@
                       <span class="event-avatar" aria-hidden="true">{{ event.name.slice(0, 1) }}</span>
                       <span class="event-name-copy">
                         <strong>{{ event.name }}</strong>
-                        <small>{{ event.city }}</small>
                       </span>
                     </div>
                   </td>
@@ -133,7 +132,7 @@
                   <td class="registration-cell">
                     <div class="registration-numbers">
                       <strong>{{ event.registrations_count }}</strong>
-                      <span> / {{ event.capacity }}</span>
+                      <span> / {{ event.capacity ?? '∞' }}</span>
                     </div>
                     <div
                       class="progress-track"
@@ -245,27 +244,15 @@
           />
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="event-venue">Venue</label>
-            <input
-              id="event-venue"
-              type="text"
-              formControlName="venue"
-              placeholder="e.g. Henry Sy Sr. Hall"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="event-city">City / Campus</label>
-            <input
-              id="event-city"
-              type="text"
-              formControlName="city"
-              placeholder="e.g. Dasmarinas, Cavite"
-              required
-            />
-          </div>
+        <div class="form-group">
+          <label for="event-venue">Venue</label>
+          <input
+            id="event-venue"
+            type="text"
+            formControlName="venue"
+            placeholder="e.g. Henry Sy Sr. Hall"
+            required
+          />
         </div>
 
         <div class="form-row">
@@ -289,28 +276,18 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="event-capacity">
-              Total Capacity
-              <span class="field-hint">({{ activeEvent.registrations_count }} registered)</span>
-            </label>
-            <input
-              id="event-capacity"
-              type="number"
-              formControlName="capacity"
-              [min]="activeEvent.registrations_count || 1"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="event-status">Status</label>
-            <select id="event-status" formControlName="status">
-              <option value="Upcoming">Upcoming</option>
-              <option value="In progress">In progress</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
+        <div class="form-group">
+          <label for="event-capacity">
+            Total Capacity
+            <span class="field-hint">({{ activeEvent.registrations_count }} registered)</span>
+          </label>
+          <input
+            id="event-capacity"
+            type="number"
+            formControlName="capacity"
+            [min]="activeEvent.registrations_count || 1"
+            required
+          />
         </div>
 
         <div class="edit-dialog-actions">
@@ -324,9 +301,9 @@
           <button
             class="button button-primary"
             type="submit"
-            [disabled]="editForm.invalid"
+            [disabled]="editForm.invalid || isSaving()"
           >
-            Save changes
+            {{ isSaving() ? 'Saving…' : 'Save changes' }}
           </button>
         </div>
       </form>

@@ -125,7 +125,7 @@
               title="Click to copy Unique ID">
             <span class="pill-label">UNIQUE ID</span>
             <span class="pill-code" id="unique_ticket_code_display">
-              {{ isCodeCopied ? 'Copied to Clipboard!' : userProfile.ticketCode }}
+              {{ isCodeCopied ? 'Copied to Clipboard!' : userProfile.ticketCode || 'No ticket yet' }}
             </span>
           </button>
 

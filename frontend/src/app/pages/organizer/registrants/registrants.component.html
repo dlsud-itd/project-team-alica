@@ -3,6 +3,10 @@
     <span aria-hidden="true">←</span> Back to events
   </a>
 
+  @if (errorMessage()) {
+    <p class="error-banner" role="alert">{{ errorMessage() }}</p>
+  }
+
   @if (event(); as currentEvent) {
     <header class="page-header">
       <div>
@@ -125,6 +129,10 @@
       <footer class="table-footer">
         Showing {{ attendees().length }} of {{ allEventAttendees().length }} attendees
       </footer>
+    </section>
+  } @else if (!eventsLoaded()) {
+    <section class="not-found" aria-busy="true">
+      <h1>Loading event…</h1>
     </section>
   } @else {
     <section class="not-found">

@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../../core/auth/auth.service';
 import { environment } from '../../../../environments/environment';
 
@@ -60,89 +60,7 @@ export class Events implements OnInit {
   readonly searchQuery = signal('');
   readonly selectedCategory = signal<CategoryFilter>('ALL');
 
-  // Seeded campus events showcase synced with Supabase seed schema
-  readonly events = signal<EventCardData[]>([
-    {
-      id: 'evt-tech-summit-2026',
-      slug: 'bsit-tech-summit-2026',
-      title: 'BSIT Tech Summit 2026',
-      description:
-        'Annual flagship conference bringing student developers, industry tech leaders, and multi-stop innovation booths together.',
-      category: 'CONFERENCE',
-      categoryLabel: 'Conference',
-      dateLabel: 'Today, Nov 15 - 17, 2026',
-      timeLabel: '8:00 AM - 5:00 PM',
-      venue: 'Main Campus Gymnasium',
-      spotsTotal: 500,
-      spotsTaken: 412,
-      status: 'LIVE_TODAY',
-      statusLabel: 'Happening Today',
-      organizerName: 'College of Information Technology',
-      organizerId: 'usr-organizer-campus',
-      staffIds: ['usr-staff-station'],
-      registeredUserIds: ['usr-attendee-alen'],
-    },
-    {
-      id: 'evt-ai-hackathon-2026',
-      slug: 'codesprint-hackathon-2026',
-      title: 'CodeSprint Campus Hackathon',
-      description:
-        '24-hour collaborative sprint tackling campus automation, rapid API integration, and AI-assisted tooling.',
-      category: 'HACKATHON',
-      categoryLabel: 'Hackathon',
-      dateLabel: 'Nov 22 - 23, 2026',
-      timeLabel: '9:00 AM Start',
-      venue: 'Computer Studies Lab 301 & 302',
-      spotsTotal: 120,
-      spotsTaken: 108,
-      status: 'CLOSING_SOON',
-      statusLabel: '12 Spots Left',
-      organizerName: 'DLSU-D IT Society',
-      organizerId: 'usr-organizer-campus',
-      staffIds: [],
-      registeredUserIds: [],
-    },
-    {
-      id: 'a8c3498d-26d5-4b1a-926f-39dd49c9e703',
-      slug: 'cloud-microservices-workshop',
-      title: 'Modern Cloud & Microservices Masterclass',
-      description:
-        'Hands-on workshop exploring containerized deployments, edge routing, and resilient PostgreSQL architectures.',
-      category: 'WORKSHOP',
-      categoryLabel: 'Workshop',
-      dateLabel: 'Dec 05, 2026',
-      timeLabel: '1:00 PM - 4:30 PM',
-      venue: 'Engineering Hall Room 204',
-      spotsTotal: 60,
-      spotsTaken: 34,
-      status: 'OPEN',
-      statusLabel: 'Registration Open',
-      organizerName: 'Developer Student Guild',
-      organizerId: 'usr-other-guild',
-      staffIds: ['usr-staff-station'],
-      registeredUserIds: [],
-    },
-    {
-      id: 'b9d4509e-37e6-4c2b-937a-40ee50d0f804',
-      slug: 'ai-robotics-expo-2026',
-      title: 'AI & Autonomous Systems Expo',
-      description:
-        'Interactive showcase of student capstone innovations, robotics demonstrations, and automated checkpoint scanning.',
-      category: 'EXPO',
-      categoryLabel: 'Expo',
-      dateLabel: 'Dec 12, 2026',
-      timeLabel: '10:00 AM - 4:00 PM',
-      venue: 'Student Activity Center',
-      spotsTotal: 300,
-      spotsTaken: 185,
-      status: 'OPEN',
-      statusLabel: 'Registration Open',
-      organizerName: 'Center for Innovation',
-      organizerId: 'usr-other-center',
-      staffIds: [],
-      registeredUserIds: [],
-    },
-  ]);
+  readonly events = signal<EventCardData[]>([]);
 
   ngOnInit(): void {
     this.loadEventsWithCache();
@@ -169,13 +87,13 @@ export class Events implements OnInit {
       )
       .subscribe({
         next: (res) => {
-          if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          if (res?.success && Array.isArray(res.data)) {
             this.events.set(res.data);
             this.setCachedEvents(res.data);
           }
         },
         error: () => {
-          // Graceful fallback to initial or cached events on offline/unreachable backend
+          // Keep showing cached events (if any) while the backend is unreachable
         },
       });
   }
@@ -211,29 +129,17 @@ export class Events implements OnInit {
     }
 
     // Event organizer (created/managed by user)
-    if (
-      event.organizerId &&
-      (event.organizerId === user.id ||
-        (user.role === 'ORGANIZER' && event.organizerId === 'usr-organizer-campus'))
-    ) {
+    if (event.organizerId === user.id) {
       return 'ORGANIZER';
     }
 
     // Assigned Checkpoint / Event staff
-    if (
-      event.staffIds &&
-      (event.staffIds.includes(user.id) ||
-        (user.role === 'STAFF' && event.staffIds.includes('usr-staff-station')))
-    ) {
+    if (event.staffIds?.includes(user.id)) {
       return 'STAFF';
     }
 
     // Registered attendee with an active ticket pass
-    if (
-      event.registeredUserIds &&
-      (event.registeredUserIds.includes(user.id) ||
-        (user.role === 'ATTENDEE' && event.registeredUserIds.includes('usr-attendee-alen')))
-    ) {
+    if (event.registeredUserIds?.includes(user.id)) {
       return 'REGISTERED';
     }
 
@@ -269,6 +175,7 @@ export class Events implements OnInit {
   // Modal State
   readonly activeRsvpEvent = signal<EventCardData | null>(null);
   readonly isSubmitting = signal(false);
+  readonly rsvpError = signal('');
   readonly rsvpSuccess = signal<{ ticketCode: string; attendeeName: string } | null>(null);
   readonly copyFeedback = signal(false);
 
@@ -295,6 +202,7 @@ export class Events implements OnInit {
   openRsvp(event: EventCardData): void {
     this.activeRsvpEvent.set(event);
     this.rsvpSuccess.set(null);
+    this.rsvpError.set('');
     this.copyFeedback.set(false);
 
     // Pre-populate if user is already authenticated
@@ -329,10 +237,10 @@ export class Events implements OnInit {
     if (!currentEvent) return;
 
     this.isSubmitting.set(true);
+    this.rsvpError.set('');
 
     const formVal = this.rsvpForm.getRawValue();
     const currentUser = this.auth.user();
-    const currentUserId = currentUser?.id ?? 'usr-attendee-alen';
 
     const payload = {
       eventId: currentEvent.id,
@@ -355,32 +263,17 @@ export class Events implements OnInit {
       .subscribe({
         next: (res) => {
           this.isSubmitting.set(false);
-          const ticketCode =
-            res?.data?.ticketCode ||
-            `CHK-2026-${Math.floor(1000 + Math.random() * 9000)}A`;
-          const attendeeName = res?.data?.attendeeName || formVal.fullName;
-
           this.handleRsvpSuccess(
             currentEvent,
-            ticketCode,
-            attendeeName,
-            currentUserId,
-            formVal,
+            res.data.ticketCode,
+            res.data.attendeeName,
+            currentUser?.id,
           );
         },
-        error: () => {
-          // Resilient fallback: optimistic registration even if server is offline
+        error: (err: HttpErrorResponse) => {
           this.isSubmitting.set(false);
-          const randomSuffix =
-            Math.floor(1000 + Math.random() * 9000).toString() + 'A';
-          const ticketCode = `CHK-2026-${randomSuffix}`;
-
-          this.handleRsvpSuccess(
-            currentEvent,
-            ticketCode,
-            formVal.fullName,
-            currentUserId,
-            formVal,
+          this.rsvpError.set(
+            err.error?.message ?? 'Could not complete your RSVP. Please try again.',
           );
         },
       });
@@ -390,48 +283,29 @@ export class Events implements OnInit {
     event: EventCardData,
     ticketCode: string,
     attendeeName: string,
-    userId: string,
-    formVal: { fullName: string; email: string; studentId: string },
+    userId: string | undefined,
   ): void {
     this.rsvpSuccess.set({
       ticketCode,
       attendeeName,
     });
 
-    // Update event card spots and registered status
+    // Reflect the new registration on the card until the next refresh from the API
     this.events.update((list) => {
       const updated = list.map((ev) =>
         ev.id === event.id
           ? {
               ...ev,
               spotsTaken: Math.min(ev.spotsTotal, ev.spotsTaken + 1),
-              registeredUserIds: Array.from(
-                new Set([...(ev.registeredUserIds ?? []), userId]),
-              ),
+              registeredUserIds: userId
+                ? Array.from(new Set([...(ev.registeredUserIds ?? []), userId]))
+                : ev.registeredUserIds,
             }
           : ev,
       );
       this.setCachedEvents(updated);
       return updated;
     });
-
-    // Save digital pass for instant profile rendering (<5ms, zero network latency)
-    try {
-      const profileData = {
-        id: userId,
-        ticketCode,
-        fullName: formVal.fullName,
-        email: formVal.email,
-        role: 'ATTENDEE',
-        status: 'ACTIVE',
-        identificationNumber: formVal.studentId,
-        eventName: event.title,
-        issuedAt: new Date().toISOString(),
-        qrPayload: ticketCode,
-      };
-      localStorage.setItem('checkpoint_user', JSON.stringify(profileData));
-      localStorage.setItem('registered_attendee', JSON.stringify(profileData));
-    } catch {}
   }
 
   copyTicketCode(): void {

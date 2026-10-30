@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RegistrationsController } from './registrations.controller.js';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RegistrationsService } from './registrations.service.js';
 
 describe('RegistrationsController', () => {
@@ -39,7 +40,10 @@ describe('RegistrationsController', () => {
           useValue: mockService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<RegistrationsController>(RegistrationsController);
     service = module.get<RegistrationsService>(RegistrationsService);

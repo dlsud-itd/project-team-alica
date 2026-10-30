@@ -1,14 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventsController } from './events.controller.js';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { EventsService } from './events.service.js';
 
 describe('EventsController', () => {
   let controller: EventsController;
-  let service: EventsService;
+  let mockEventsService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
-    const mockEventsService = {
+    mockEventsService = {
       findAll: vi.fn().mockResolvedValue([
         {
           id: 'evt-1',
@@ -30,6 +31,20 @@ describe('EventsController', () => {
           registeredUserIds: [],
         },
       ]),
+      findForOrganizer: vi.fn().mockResolvedValue([
+        {
+          id: 'evt-1',
+          organizer_id: 'usr-org',
+          name: 'Test Event',
+          starts_at: '2026-11-15T00:00:00.000Z',
+          ends_at: '2026-11-15T09:00:00.000Z',
+          venue: 'Main Gym',
+          registrations_count: 10,
+          capacity: 100,
+          status: 'Upcoming',
+        },
+      ]),
+      findRegistrants: vi.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -40,10 +55,12 @@ describe('EventsController', () => {
           useValue: mockEventsService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<EventsController>(EventsController);
-    service = module.get<EventsService>(EventsService);
   });
 
   it('should be defined', () => {
@@ -55,6 +72,31 @@ describe('EventsController', () => {
     expect(res.success).toBe(true);
     expect(res.data.length).toBe(1);
     expect(res.data[0].id).toBe('evt-1');
+  });
+
+  it('should return the current organizer events', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const res = await controller.getMyEvents(user);
+    expect(res.success).toBe(true);
+    expect(res.data[0].organizer_id).toBe('usr-org');
+    expect(mockEventsService.findForOrganizer).toHaveBeenCalledWith(user);
+  });
+
+  it('should return registrants for an event', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const res = await controller.getRegistrants(user, 'evt-1');
+    expect(res.success).toBe(true);
+    expect(mockEventsService.findRegistrants).toHaveBeenCalledWith(user, 'evt-1');
   });
 });
 

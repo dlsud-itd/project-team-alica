@@ -1,4 +1,14 @@
-import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import type { UserSummaryDto } from '../auth/auth.service.js';
 import {
   RegistrationsService,
   CreateRegistrationDto,
@@ -15,6 +25,18 @@ export class RegistrationsController {
     @Body() dto: CreateRegistrationDto,
   ): Promise<{ success: boolean; data: RegistrationResponseDto }> {
     const data = await this.service.create(dto);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMine(
+    @CurrentUser() user: UserSummaryDto,
+  ): Promise<{ success: boolean; data: TicketProfileDto }> {
+    const data = await this.service.findForUser(user);
     return {
       success: true,
       data,

@@ -24,7 +24,10 @@
     </header>
 
     @if (notice()) {
-      <p class="notice" role="status">{{ notice() }}</p>
+      <div class="notice" role="status">
+        <span>{{ notice() }}</span>
+        <button type="button" class="notice-close" (click)="notice.set('')" aria-label="Dismiss notice">×</button>
+      </div>
     }
 
     <section class="summary-grid" aria-label="Event summary">
@@ -161,7 +164,7 @@
                     <button
                       class="button button-secondary"
                       type="button"
-                      (click)="showEditNotice(event.name)"
+                      (click)="openEdit(event)"
                     >
                       Edit
                     </button>
@@ -193,3 +196,140 @@
     </section>
   </main>
 </div>
+
+@if (editingEvent(); as activeEvent) {
+  <div
+    class="dialog-backdrop"
+    (click)="closeEdit()"
+    (keydown.escape)="closeEdit()"
+    tabindex="-1"
+  >
+    <section
+      class="edit-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="edit-dialog-header">
+        <div>
+          <p class="eyebrow">EVENT MANAGEMENT</p>
+          <h2 id="edit-dialog-title">Edit Event</h2>
+          <p class="dialog-subtitle">Update event details, timing, and capacity.</p>
+        </div>
+        <button
+          class="close-dialog"
+          type="button"
+          aria-label="Close edit dialog"
+          (click)="closeEdit()"
+        >
+          ×
+        </button>
+      </div>
+
+      @if (editErrorMessage()) {
+        <div class="edit-alert" role="alert">
+          {{ editErrorMessage() }}
+        </div>
+      }
+
+      <form [formGroup]="editForm" (ngSubmit)="saveEdit()" class="edit-form">
+        <div class="form-group">
+          <label for="event-name">Event Title</label>
+          <input
+            id="event-name"
+            type="text"
+            formControlName="name"
+            placeholder="e.g. DLSU-D Tech Summit 2026"
+            required
+          />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-venue">Venue</label>
+            <input
+              id="event-venue"
+              type="text"
+              formControlName="venue"
+              placeholder="e.g. Henry Sy Sr. Hall"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="event-city">City / Campus</label>
+            <input
+              id="event-city"
+              type="text"
+              formControlName="city"
+              placeholder="e.g. Dasmarinas, Cavite"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-starts-at">Starts At</label>
+            <input
+              id="event-starts-at"
+              type="datetime-local"
+              formControlName="starts_at"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="event-ends-at">Ends At</label>
+            <input
+              id="event-ends-at"
+              type="datetime-local"
+              formControlName="ends_at"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-capacity">
+              Total Capacity
+              <span class="field-hint">({{ activeEvent.registrations_count }} registered)</span>
+            </label>
+            <input
+              id="event-capacity"
+              type="number"
+              formControlName="capacity"
+              [min]="activeEvent.registrations_count || 1"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="event-status">Status</label>
+            <select id="event-status" formControlName="status">
+              <option value="Upcoming">Upcoming</option>
+              <option value="In progress">In progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="edit-dialog-actions">
+          <button
+            class="button button-secondary"
+            type="button"
+            (click)="closeEdit()"
+          >
+            Cancel
+          </button>
+          <button
+            class="button button-primary"
+            type="submit"
+            [disabled]="editForm.invalid"
+          >
+            Save changes
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}

@@ -109,6 +109,21 @@ export class OrganizerEventsService {
     return this.eventState().find((event) => event.id === eventId);
   }
 
+  updateEvent(eventId: UUID, changes: Partial<OrganizerEvent>): void {
+    this.eventState.update((events) =>
+      events.map((event) => {
+        if (event.id !== eventId) {
+          return event;
+        }
+
+        return {
+          ...event,
+          ...changes,
+        };
+      }),
+    );
+  }
+
   toggleCheckIn(registrantId: UUID): void {
     this.registrantState.update((registrants) =>
       registrants.map((registrant) => {

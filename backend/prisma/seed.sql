@@ -24,7 +24,7 @@ INSERT INTO "public"."events" (
 ) VALUES
   ('evt-tech-summit-2026', 'DLSU-D Tech Summit 2026', 'tech-summit-2026', 'Annual flagship technology gathering uniting student innovators, industry keynote speakers, and project demonstrations.', 'Ugnayang La Salle Gymnasium', '2026-11-15 08:00:00', '2026-11-15 17:00:00', 500, true, true, 'usr-organizer-campus', NOW(), NOW()),
   ('evt-ai-hackathon-2026', 'AI & Agentic Systems Hackathon', 'ai-hackathon-2026', '24-hour hackathon focused on building intelligent agent workflows, modern AI tools, and autonomous coding systems.', 'CBAA ICT Computer Labs', '2026-11-22 09:00:00', '2026-11-23 18:00:00', 150, false, true, 'usr-organizer-campus', NOW(), NOW()),
-  ('evt-leadership-conclave-2026', 'University Leadership Conclave', 'leadership-conclave-2026', 'Symposium for student leaders, organization officers, and committee chairs on governance and event management.', 'Villarosa Convention Hall', '2026-11-30 13:00:00', '2026-11-30 18:00:00', 300, true, true, 'usr-organizer-campus', NOW(), NOW())
+  ('evt-leadership-conclave-2026', 'University Leadership Conclave', 'leadership-conclave-2026', 'Symposium for student leaders, organization officers, and committee chairs on governance and event management.', 'Test Convention Hall', '2026-11-30 13:00:00', '2026-11-30 18:00:00', 300, true, true, 'usr-organizer-campus', NOW(), NOW())
 ON CONFLICT ("slug") DO UPDATE SET
   "title" = EXCLUDED."title",
   "venueName" = EXCLUDED."venueName",

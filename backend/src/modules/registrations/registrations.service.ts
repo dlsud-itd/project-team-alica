@@ -3,9 +3,10 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { TicketStatus, type Ticket } from '@prisma/client';
+import { TicketStatus, type Event, type Ticket } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
 
@@ -39,6 +40,25 @@ export interface TicketProfileDto {
   eventName?: string;
   issuedAt: string;
   qrPayload: string;
+}
+
+export interface AttendeeRsvpDto {
+  ticketId: string;
+  ticketCode: string;
+  qrPayload: string;
+  ticketType: string;
+  status: 'Registered' | 'Checked In' | 'Cancelled';
+  registeredAt: string;
+  firstScannedAt: string | null;
+  eventId: string;
+  eventName: string;
+  eventSlug: string;
+  venue: string;
+  startsAt: string;
+  endsAt: string;
+  category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  categoryLabel: string;
+  description: string;
 }
 
 @Injectable()
@@ -110,32 +130,34 @@ export class RegistrationsService {
         ticketType: 'STUDENT',
         ticketCode,
         qrPayload: ticketCode,
-        status: 'REGISTERED',
       },
     });
 
     return {
       ticketCode: ticket.ticketCode,
       qrPayload: ticket.qrPayload,
-      attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
+      attendeeName: `${firstName} ${lastName}`.trim(),
       eventId: ticket.eventId,
       status: ticket.status,
     };
   }
 
-  /** The user's most recent active ticket, or their account details if they have none. */
   async findForUser(user: UserSummaryDto): Promise<TicketProfileDto> {
     const ticket = await this.prisma.ticket.findFirst({
-      where: { userId: user.id, status: { not: 'CANCELLED' } },
-      include: { event: { select: { title: true } } },
+      where: {
+        OR: [{ userId: user.id }, { email: user.email }],
+      },
+      include: {
+        event: { select: { title: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
     if (ticket) {
-      return { ...this.toTicketProfile(ticket), role: user.role };
+      return this.toTicketProfile(ticket);
     }
 
-    const nameParts = user.fullName.trim().split(/\s+/);
+    const nameParts = user.fullName.split(' ');
     return {
       id: user.id,
       ticketCode: '',
@@ -150,6 +172,53 @@ export class RegistrationsService {
       issuedAt: new Date().toISOString(),
       qrPayload: user.id,
     };
+  }
+
+  async findMine(user: UserSummaryDto): Promise<AttendeeRsvpDto[]> {
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        OR: [{ userId: user.id }, { email: user.email }],
+      },
+      include: {
+        event: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return tickets.map((t) => this.toAttendeeRsvp(t, t.event));
+  }
+
+  async cancelRsvp(
+    user: UserSummaryDto,
+    ticketCode: string,
+  ): Promise<AttendeeRsvpDto> {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { ticketCode },
+      include: { event: true },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket '${ticketCode}' not found`);
+    }
+
+    const isOwner =
+      ticket.userId === user.id ||
+      ticket.email.toLowerCase() === user.email.toLowerCase();
+    if (!isOwner && user.role !== 'ADMIN') {
+      throw new ForbiddenException('You do not own this ticket');
+    }
+
+    if (ticket.status === TicketStatus.CANCELLED) {
+      throw new BadRequestException('This registration is already cancelled');
+    }
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { status: TicketStatus.CANCELLED },
+      include: { event: true },
+    });
+
+    return this.toAttendeeRsvp(updated, updated.event);
   }
 
   async findByTicketCode(ticketCode: string): Promise<TicketProfileDto> {
@@ -167,6 +236,57 @@ export class RegistrationsService {
     }
 
     return this.toTicketProfile(ticket);
+  }
+
+  private toAttendeeRsvp(ticket: Ticket, event: Event): AttendeeRsvpDto {
+    const lowerSlug = (event.slug + ' ' + event.title).toLowerCase();
+    let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
+      'CONFERENCE';
+    let categoryLabel = 'Conference';
+
+    if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+      category = 'HACKATHON';
+      categoryLabel = 'Hackathon';
+    } else if (
+      lowerSlug.includes('workshop') ||
+      lowerSlug.includes('masterclass')
+    ) {
+      category = 'WORKSHOP';
+      categoryLabel = 'Workshop';
+    } else if (
+      lowerSlug.includes('expo') ||
+      lowerSlug.includes('demo') ||
+      lowerSlug.includes('showcase')
+    ) {
+      category = 'EXPO';
+      categoryLabel = 'Expos & Demos';
+    }
+
+    let statusLabel: 'Registered' | 'Checked In' | 'Cancelled' = 'Registered';
+    if (ticket.status === TicketStatus.CHECKED_IN) {
+      statusLabel = 'Checked In';
+    } else if (ticket.status === TicketStatus.CANCELLED) {
+      statusLabel = 'Cancelled';
+    }
+
+    return {
+      ticketId: ticket.id,
+      ticketCode: ticket.ticketCode,
+      qrPayload: ticket.qrPayload,
+      ticketType: ticket.ticketType,
+      status: statusLabel,
+      registeredAt: ticket.createdAt.toISOString(),
+      firstScannedAt: ticket.firstScannedAt?.toISOString() ?? null,
+      eventId: event.id,
+      eventName: event.title,
+      eventSlug: event.slug,
+      venue: event.venueName,
+      startsAt: event.startDate.toISOString(),
+      endsAt: event.endDate.toISOString(),
+      category,
+      categoryLabel,
+      description: event.description ?? '',
+    };
   }
 
   private toTicketProfile(

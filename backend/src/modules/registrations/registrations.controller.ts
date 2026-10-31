@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   Param,
   UseGuards,
@@ -14,6 +15,7 @@ import {
   CreateRegistrationDto,
   RegistrationResponseDto,
   TicketProfileDto,
+  AttendeeRsvpDto,
 } from './registrations.service.js';
 
 @Controller('registrations')
@@ -43,6 +45,31 @@ export class RegistrationsController {
     };
   }
 
+  @Get('mine')
+  @UseGuards(JwtAuthGuard)
+  async getMyRsvps(
+    @CurrentUser() user: UserSummaryDto,
+  ): Promise<{ success: boolean; data: AttendeeRsvpDto[] }> {
+    const data = await this.service.findMine(user);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Patch(':ticketCode/cancel')
+  @UseGuards(JwtAuthGuard)
+  async cancelRsvp(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('ticketCode') ticketCode: string,
+  ): Promise<{ success: boolean; data: AttendeeRsvpDto }> {
+    const data = await this.service.cancelRsvp(user, ticketCode);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get(':ticketCode')
   async getByTicketCode(
     @Param('ticketCode') ticketCode: string,
@@ -54,4 +81,3 @@ export class RegistrationsController {
     };
   }
 }
-

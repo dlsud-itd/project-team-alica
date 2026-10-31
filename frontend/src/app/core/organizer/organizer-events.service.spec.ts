@@ -116,6 +116,35 @@ describe('OrganizerEventsService', () => {
     expect(service.registrants()[0].status).toBe('Checked In');
   });
 
+  it('should cancel a registrant through the API and update state', () => {
+    service.loadRegistrants('evt-1').subscribe();
+    httpMock
+      .expectOne(`${API}/evt-1/registrants`)
+      .flush({ success: true, data: [REGISTRANT] });
+
+    service.cancelRegistrant('evt-1', 'tkt-1').subscribe();
+    const req = httpMock.expectOne(`${API}/evt-1/registrants/tkt-1/cancel`);
+    expect(req.request.method).toBe('PATCH');
+    req.flush({ success: true, data: { ...REGISTRANT, status: 'Cancelled' } });
+
+    expect(service.registrants()[0].status).toBe('Cancelled');
+  });
+
+  it('should restore a registrant through the API and update state', () => {
+    const cancelledRegistrant = { ...REGISTRANT, status: 'Cancelled' as const };
+    service.loadRegistrants('evt-1').subscribe();
+    httpMock
+      .expectOne(`${API}/evt-1/registrants`)
+      .flush({ success: true, data: [cancelledRegistrant] });
+
+    service.restoreRegistrant('evt-1', 'tkt-1').subscribe();
+    const req = httpMock.expectOne(`${API}/evt-1/registrants/tkt-1/restore`);
+    expect(req.request.method).toBe('PATCH');
+    req.flush({ success: true, data: { ...cancelledRegistrant, status: 'Registered' } });
+
+    expect(service.registrants()[0].status).toBe('Registered');
+  });
+
   it('should expose loading and error state while loading events', () => {
     service.loadEvents().subscribe({ error: () => undefined });
     expect(service.loading()).toBe(true);

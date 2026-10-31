@@ -153,7 +153,7 @@
               <th scope="col">Ticket ID</th>
               <th scope="col">Registered</th>
               <th scope="col">Status</th>
-              <th scope="col"><span class="sr-only">Actions</span></th>
+              <th scope="col" class="th-actions"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -177,41 +177,79 @@
                   </span>
                 </td>
                 <td class="actions-cell">
-                  <details class="action-menu">
-                    <summary aria-label="Attendee actions">•••</summary>
-                    <div class="menu-items">
-                      <button type="button" (click)="openQrPass(attendee)">
-                        View QR Pass
-                      </button>
-                      <button
-                        type="button"
-                        [disabled]="attendee.status === 'Cancelled'"
-                        (click)="toggleCheckIn(attendee)"
-                      >
-                        {{ attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in' }}
-                      </button>
-                      @if (attendee.status !== 'Cancelled') {
-                        <button
-                          type="button"
-                          class="menu-btn-danger"
-                          (click)="confirmCancel(attendee)"
-                        >
-                          Cancel registration
-                        </button>
+                  <div class="row-actions">
+                    <!-- Quick Check-in Button -->
+                    <button
+                      type="button"
+                      class="btn-checkin-quick"
+                      [class.checked-in]="attendee.status === 'Checked In'"
+                      [disabled]="attendee.status === 'Cancelled'"
+                      (click)="toggleCheckIn(attendee)"
+                      [title]="attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in'"
+                    >
+                      @if (attendee.status === 'Checked In') {
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>Checked in</span>
                       } @else {
+                        <span>Check in</span>
+                      }
+                    </button>
+
+                    <!-- Quick QR Pass Icon Button -->
+                    <button
+                      type="button"
+                      class="btn-icon-qr"
+                      (click)="openQrPass(attendee)"
+                      title="View QR Pass"
+                      aria-label="View QR Pass"
+                    >
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                      </svg>
+                    </button>
+
+                    <!-- Dropdown Menu -->
+                    <details class="action-menu">
+                      <summary aria-label="Attendee actions">•••</summary>
+                      <div class="menu-items">
+                        <button type="button" (click)="openQrPass(attendee)">
+                          View QR Pass
+                        </button>
                         <button
                           type="button"
-                          class="menu-btn-restore"
-                          (click)="confirmRestore(attendee)"
+                          [disabled]="attendee.status === 'Cancelled'"
+                          (click)="toggleCheckIn(attendee)"
                         >
-                          Restore registration
+                          {{ attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in' }}
                         </button>
-                      }
-                      <button type="button" (click)="selectedRegistrant.set(attendee)">
-                        View details
-                      </button>
-                    </div>
-                  </details>
+                        @if (attendee.status !== 'Cancelled') {
+                          <button
+                            type="button"
+                            class="menu-btn-danger"
+                            (click)="confirmCancel(attendee)"
+                          >
+                            Cancel registration
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            class="menu-btn-restore"
+                            (click)="confirmRestore(attendee)"
+                          >
+                            Restore registration
+                          </button>
+                        }
+                        <button type="button" (click)="selectedRegistrant.set(attendee); closeActionMenus()">
+                          View details
+                        </button>
+                      </div>
+                    </details>
+                  </div>
                 </td>
               </tr>
             } @empty {

@@ -104,7 +104,17 @@ export class OrganizerRegistrants {
     this.statusFilter.set(filterVal);
   }
 
+  closeActionMenus(): void {
+    if (typeof document !== 'undefined') {
+      const openMenus = document.querySelectorAll<HTMLDetailsElement>('details.action-menu[open]');
+      openMenus.forEach((el) => {
+        el.open = false;
+      });
+    }
+  }
+
   toggleCheckIn(registrant: EventRegistrant): void {
+    this.closeActionMenus();
     this.errorMessage.set('');
     this.successMessage.set('');
     this.organizerEvents.toggleCheckIn(registrant).subscribe({
@@ -120,6 +130,7 @@ export class OrganizerRegistrants {
   }
 
   openQrPass(registrant: EventRegistrant): void {
+    this.closeActionMenus();
     this.activeQrRegistrant.set(registrant);
     this.qrLoading.set(true);
     this.qrDataUrl.set('');
@@ -158,6 +169,7 @@ export class OrganizerRegistrants {
   }
 
   confirmCancel(registrant: EventRegistrant): void {
+    this.closeActionMenus();
     this.cancellingRegistrant.set(registrant);
     this.errorMessage.set('');
   }
@@ -190,6 +202,7 @@ export class OrganizerRegistrants {
   }
 
   confirmRestore(registrant: EventRegistrant): void {
+    this.closeActionMenus();
     this.restoringRegistrant.set(registrant);
     this.errorMessage.set('');
   }

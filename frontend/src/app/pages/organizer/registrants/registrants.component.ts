@@ -25,6 +25,8 @@ export class OrganizerRegistrants {
     { initialValue: '' },
   );
   readonly event = computed(() => this.organizerEvents.eventById(this.eventId()));
+  readonly loading = this.organizerEvents.loading;
+  readonly loadError = this.organizerEvents.error;
   readonly searchControl = new FormControl('', { nonNullable: true });
   private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
   readonly attendees = computed(() =>
@@ -55,6 +57,10 @@ export class OrganizerRegistrants {
 
   toggleCheckIn(registrant: EventRegistrant): void {
     this.organizerEvents.toggleCheckIn(registrant.id);
+  }
+
+  reloadEvents(): void {
+    this.organizerEvents.load();
   }
 
   statusClass(status: RegistrationStatus): string {

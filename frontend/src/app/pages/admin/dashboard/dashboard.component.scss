@@ -1,0 +1,124 @@
+// Admin-only additions on top of the shared organizer dashboard styles.
+
+.rejected-icon {
+  color: #a23b3b;
+  background: #fdecec;
+}
+
+.toolbar {
+  justify-content: space-between;
+}
+
+.tabs {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid #e1e6e4;
+  border-radius: 8px;
+  background: #f7f9f8;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 28px;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 6px;
+  color: #5d6864;
+  background: transparent;
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+
+  &:hover {
+    color: #14785f;
+  }
+
+  &:focus-visible {
+    outline: 3px solid rgba(15, 110, 86, 0.22);
+    outline-offset: 1px;
+  }
+}
+
+.tab-active {
+  color: #14785f;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(27, 44, 38, 0.08);
+}
+
+.tab-count {
+  min-width: 18px;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  color: #567168;
+  background: #e6efeb;
+  font-size: 0.56rem;
+  text-align: center;
+}
+
+.review-dialog {
+  width: min(640px, 100%);
+}
+
+.review-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+
+  small {
+    color: #7b8581;
+    font-size: 0.64rem;
+  }
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1rem;
+  margin: 0 0 1.2rem;
+  padding: 1rem;
+  border: 1px solid #edf0ef;
+  border-radius: 10px;
+  background: #f9fbfa;
+
+  dt {
+    margin-bottom: 0.2rem;
+    color: #78817e;
+    font-size: 0.57rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin: 0;
+    color: #2b3532;
+    font-size: 0.72rem;
+    white-space: pre-line;
+  }
+}
+
+.detail-wide {
+  grid-column: 1 / -1;
+}
+
+.button-danger {
+  border-color: #f1c4c4;
+  color: #a23b3b;
+  background: #fff;
+
+  &:hover:not(:disabled) {
+    border-color: #a23b3b;
+    background: #fdf2f2;
+  }
+}
+
+.edit-dialog-actions .button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,17 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventsController } from './events.controller.js';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { EventsService } from './events.service.js';
-import { AuthService } from '../auth/auth.service.js';
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 describe('EventsController', () => {
   let controller: EventsController;
-  let service: EventsService;
-  let authService: AuthService;
+  let mockEventsService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
-    const mockEventsService = {
+    mockEventsService = {
       findAll: vi.fn().mockResolvedValue([
         {
           id: 'evt-1',
@@ -33,16 +31,23 @@ describe('EventsController', () => {
           registeredUserIds: [],
         },
       ]),
-      findForOrganizer: vi.fn().mockResolvedValue({
-        events: [],
-        registrants: [],
-      }),
-    };
-    const mockAuthService = {
-      getMe: vi.fn().mockResolvedValue({
-        id: 'organizer-1',
-        role: 'ORGANIZER',
-      }),
+      findForOrganizer: vi.fn().mockResolvedValue([
+        {
+          id: 'evt-1',
+          organizer_id: 'usr-org',
+          name: 'Test Event',
+          starts_at: '2026-11-15T00:00:00.000Z',
+          ends_at: '2026-11-15T09:00:00.000Z',
+          venue: 'Main Gym',
+          registrations_count: 10,
+          capacity: 100,
+          status: 'Upcoming',
+        },
+      ]),
+      findRegistrants: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: 'evt-new', approval_status: 'Pending' }),
+      findAllForAdmin: vi.fn().mockResolvedValue([]),
+      review: vi.fn().mockResolvedValue({ id: 'evt-1', approval_status: 'Approved' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -52,16 +57,13 @@ describe('EventsController', () => {
           provide: EventsService,
           useValue: mockEventsService,
         },
-        {
-          provide: AuthService,
-          useValue: mockAuthService,
-        },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<EventsController>(EventsController);
-    service = module.get<EventsService>(EventsService);
-    authService = module.get<AuthService>(AuthService);
   });
 
   it('should be defined', () => {
@@ -75,27 +77,65 @@ describe('EventsController', () => {
     expect(res.data[0].id).toBe('evt-1');
   });
 
-  it('should return events for the authenticated organizer', async () => {
-    const res = await controller.getOrganizerEvents('Bearer valid-token');
-
-    expect(res).toEqual({ success: true, data: { events: [], registrants: [] } });
-    expect(service.findForOrganizer).toHaveBeenCalledWith('organizer-1');
+  it('should return the current organizer events', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const res = await controller.getMyEvents(user);
+    expect(res.success).toBe(true);
+    expect(res.data[0].organizer_id).toBe('usr-org');
+    expect(mockEventsService.findForOrganizer).toHaveBeenCalledWith(user);
   });
 
-  it('should reject organizer data requests without an authorization header', async () => {
-    await expect(controller.getOrganizerEvents()).rejects.toThrow(UnauthorizedException);
+  it('should return registrants for an event', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const res = await controller.getRegistrants(user, 'evt-1');
+    expect(res.success).toBe(true);
+    expect(mockEventsService.findRegistrants).toHaveBeenCalledWith(user, 'evt-1');
   });
 
-  it('should reject organizer data requests from non-organizers', async () => {
-    vi.spyOn(authService, 'getMe').mockResolvedValue({
-      id: 'attendee-1',
-      role: 'ATTENDEE',
-      email: 'attendee@example.com',
-      fullName: 'Attendee',
+  it('should submit a new event for review', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const dto = {
+      name: 'New Event',
+      venue: 'Hall',
+      starts_at: '2027-01-01T09:00:00Z',
+      ends_at: '2027-01-01T10:00:00Z',
+      capacity: 20,
+    };
+    const res = await controller.createEvent(user, dto);
+    expect(res.data.approval_status).toBe('Pending');
+    expect(mockEventsService.create).toHaveBeenCalledWith(user, dto);
+  });
+
+  it('should pass admin list filters and review decisions to the service', async () => {
+    const admin = {
+      id: 'usr-admin',
+      email: 'admin@dlsud.edu.ph',
+      fullName: 'System Administrator',
+      role: 'ADMIN' as const,
+    };
+    await controller.getAdminEvents(admin, 'pending');
+    expect(mockEventsService.findAllForAdmin).toHaveBeenCalledWith(admin, 'pending');
+
+    const res = await controller.reviewEvent(admin, 'evt-1', { decision: 'APPROVED' });
+    expect(res.data.approval_status).toBe('Approved');
+    expect(mockEventsService.review).toHaveBeenCalledWith(admin, 'evt-1', {
+      decision: 'APPROVED',
     });
-
-    await expect(controller.getOrganizerEvents('Bearer valid-token')).rejects.toThrow(
-      ForbiddenException,
-    );
   });
 });
+

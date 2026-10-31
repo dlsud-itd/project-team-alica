@@ -22,6 +22,17 @@
   color: var(--color-primary);
 }
 
+.error-banner {
+  margin: 0 0 1.25rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #f8b4b4;
+  border-radius: 8px;
+  color: #9b1c1c;
+  background: #fdf2f2;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
 .page-header,
 .table-heading {
   display: flex;

@@ -5,8 +5,59 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
-import { Events } from './events.component';
+import { EventCardData, Events } from './events.component';
 import { AuthService } from '../../../core/auth/auth.service';
+
+function apiEvent(
+  overrides: Partial<EventCardData> & Pick<EventCardData, 'id' | 'title' | 'category'>,
+): EventCardData {
+  return {
+    slug: overrides.id,
+    description: '',
+    categoryLabel: overrides.category,
+    dateLabel: 'Nov 15, 2026',
+    timeLabel: '8:00 AM - 5:00 PM',
+    venue: 'Gymnasium',
+    spotsTotal: 100,
+    spotsTaken: 10,
+    status: 'OPEN',
+    statusLabel: 'Registration Open',
+    organizerName: 'Campus Organizer',
+    staffIds: [],
+    registeredUserIds: [],
+    ...overrides,
+  };
+}
+
+// Shape returned by GET /events
+const API_EVENTS: EventCardData[] = [
+  apiEvent({
+    id: 'evt-tech-summit-2026',
+    title: 'DLSU-D Tech Summit 2026',
+    category: 'CONFERENCE',
+    organizerId: 'usr-organizer-campus',
+    staffIds: ['usr-staff-station'],
+    registeredUserIds: ['usr-attendee-alen'],
+  }),
+  apiEvent({
+    id: 'evt-ai-hackathon-2026',
+    title: 'AI & Agentic Systems Hackathon',
+    category: 'HACKATHON',
+    organizerId: 'usr-organizer-campus',
+  }),
+  apiEvent({
+    id: 'evt-cloud-workshop',
+    title: 'Cloud Masterclass',
+    category: 'WORKSHOP',
+    organizerId: 'usr-other-guild',
+  }),
+  apiEvent({
+    id: 'evt-robotics-expo',
+    title: 'Robotics Expo',
+    category: 'EXPO',
+    organizerId: 'usr-other-center',
+  }),
+];
 
 describe('Events Component', () => {
   let component: Events;
@@ -34,9 +85,9 @@ describe('Events Component', () => {
     component = fixture.componentInstance;
     await fixture.whenStable();
 
-    // Handle any initial SWR load request if made
-    const reqs = httpMock.match((req) => req.url.includes('/events'));
-    reqs.forEach((r) => r.flush({ success: true, data: [] }));
+    httpMock
+      .expectOne((req) => req.url.endsWith('/events'))
+      .flush({ success: true, data: API_EVENTS });
   });
 
   afterEach(() => {
@@ -48,8 +99,8 @@ describe('Events Component', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should list all initial seeded events', () => {
-    expect(component.events().length).toBeGreaterThan(0);
+  it('should list all events returned by the API', () => {
+    expect(component.events()).toEqual(API_EVENTS);
     expect(component.filteredEvents().length).toBe(component.events().length);
   });
 

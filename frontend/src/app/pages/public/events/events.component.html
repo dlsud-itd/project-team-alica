@@ -362,6 +362,10 @@
               }
             </div>
 
+            @if (rsvpError()) {
+              <span class="field-error" role="alert">{{ rsvpError() }}</span>
+            }
+
             <!-- Modal Action Buttons -->
             <div class="modal-actions">
               <button type="button" class="btn-cancel" (click)="closeModal()">

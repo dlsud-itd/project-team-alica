@@ -80,26 +80,6 @@ export class Login implements OnInit {
         const { user, token } = res.data;
         this.auth.setSession(user, token);
 
-        // Store profile for digital pass & profile page
-        const profileData = {
-          id: user.id,
-          ticketCode: 'CHK-2026-9812A',
-          fullName: user.fullName,
-          email: user.email,
-          role: user.role,
-          status: 'ACTIVE',
-          identificationNumber: user.studentId || '2023-01982-MN-0',
-          affiliation:
-            user.affiliation || 'College of Science and Computer Studies',
-          qrPayload: 'CHK-2026-9812A',
-          issuedAt: new Date().toISOString(),
-        };
-
-        try {
-          localStorage.setItem('checkpoint_user', JSON.stringify(profileData));
-          localStorage.setItem('user_profile', JSON.stringify(profileData));
-        } catch {}
-
         this.successMessage = 'Authentication successful! Redirecting...';
         this.isLoading = false;
         this.router.navigate([this.auth.homeUrl()]);

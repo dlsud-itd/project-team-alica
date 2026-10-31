@@ -2,9 +2,12 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
+import type { Ticket } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import type { UserSummaryDto } from '../auth/auth.service.js';
 
 export class CreateRegistrationDto {
   eventId!: string;
@@ -57,8 +60,21 @@ export class RegistrationsService {
       where: { id: dto.eventId },
     });
 
-    if (!event) {
+    // Events awaiting (or denied) admin approval are not open for registration.
+    if (
+      !event ||
+      !event.isActive ||
+      event.deletedAt ||
+      event.approvalStatus !== 'APPROVED'
+    ) {
       throw new NotFoundException(`Event with ID '${dto.eventId}' not found`);
+    }
+
+    const existing = await this.prisma.ticket.findUnique({
+      where: { eventId_email: { eventId: dto.eventId, email: dto.email } },
+    });
+    if (existing) {
+      throw new ConflictException('This email is already registered for this event');
     }
 
     // Split fullName into firstName and lastName
@@ -95,6 +111,35 @@ export class RegistrationsService {
     };
   }
 
+  /** The user's most recent active ticket, or their account details if they have none. */
+  async findForUser(user: UserSummaryDto): Promise<TicketProfileDto> {
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { userId: user.id, status: { not: 'CANCELLED' } },
+      include: { event: { select: { title: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (ticket) {
+      return { ...this.toTicketProfile(ticket), role: user.role };
+    }
+
+    const nameParts = user.fullName.trim().split(/\s+/);
+    return {
+      id: user.id,
+      ticketCode: '',
+      fullName: user.fullName,
+      firstName: nameParts[0] ?? '',
+      lastName: nameParts.slice(1).join(' '),
+      email: user.email,
+      phoneNumber: '',
+      role: user.role,
+      status: 'PENDING',
+      identificationNumber: user.studentId || undefined,
+      issuedAt: new Date().toISOString(),
+      qrPayload: user.id,
+    };
+  }
+
   async findByTicketCode(ticketCode: string): Promise<TicketProfileDto> {
     const ticket = await this.prisma.ticket.findUnique({
       where: { ticketCode },
@@ -109,6 +154,12 @@ export class RegistrationsService {
       );
     }
 
+    return this.toTicketProfile(ticket);
+  }
+
+  private toTicketProfile(
+    ticket: Ticket & { event: { title: string } | null },
+  ): TicketProfileDto {
     return {
       id: ticket.id,
       ticketCode: ticket.ticketCode,

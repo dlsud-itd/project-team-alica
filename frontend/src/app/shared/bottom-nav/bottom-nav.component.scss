@@ -4,6 +4,11 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
+
+  // Hidden on desktop; top navbar handles desktop navigation
+  @media (min-width: 768px) {
+    display: none;
+  }
 }
 
 nav {

@@ -73,12 +73,8 @@ export class Events implements OnInit {
    */
   private loadEventsWithCache(): void {
     const cached = this.getCachedEvents();
-    if (cached) {
+    if (cached && Array.isArray(cached.events) && cached.events.length > 0) {
       this.events.set(cached.events);
-      const isFresh = Date.now() - cached.timestamp < CACHE_TTL_MS;
-      if (isFresh) {
-        return; // Cache is still fresh; zero unnecessary DB calls
-      }
     }
 
     this.http

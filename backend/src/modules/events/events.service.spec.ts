@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { EventApprovalStatus } from '@prisma/client';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { EventApprovalStatus, TicketStatus } from '@prisma/client';
 import { EventsService } from './events.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
@@ -65,7 +65,11 @@ describe('EventsService', () => {
         findUnique: vi.fn().mockResolvedValue(null),
         update: vi.fn(),
       },
-      ticket: { count: vi.fn().mockResolvedValue(0) },
+      ticket: {
+        count: vi.fn().mockResolvedValue(0),
+        findFirst: vi.fn(),
+        update: vi.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -178,5 +182,89 @@ describe('EventsService', () => {
     expect(prisma.event.findMany.mock.calls[0][0].where.approvalStatus).toBe(
       EventApprovalStatus.APPROVED,
     );
+  });
+
+  describe('cancelRegistrant and restoreRegistrant', () => {
+    const mockTicket = {
+      id: 'tkt-1',
+      eventId: 'evt-1',
+      firstName: 'Alice',
+      lastName: 'Smith',
+      email: 'alice@example.com',
+      studentId: '2023-1234',
+      ticketCode: 'CHK-2026-ALICE',
+      status: TicketStatus.REGISTERED,
+      createdAt: new Date(),
+    };
+
+    it('cancels registrant for an owned event', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent());
+      prisma.ticket.findFirst.mockResolvedValue(mockTicket);
+      prisma.ticket.update.mockResolvedValue({
+        ...mockTicket,
+        status: TicketStatus.CANCELLED,
+      });
+
+      const res = await service.cancelRegistrant(ORGANIZER, 'evt-1', 'tkt-1');
+      expect(res.status).toBe('Cancelled');
+      expect(prisma.ticket.update).toHaveBeenCalledWith({
+        where: { id: 'tkt-1' },
+        data: { status: TicketStatus.CANCELLED },
+      });
+    });
+
+    it('rejects cancellation if registrant already cancelled', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent());
+      prisma.ticket.findFirst.mockResolvedValue({
+        ...mockTicket,
+        status: TicketStatus.CANCELLED,
+      });
+
+      await expect(
+        service.cancelRegistrant(ORGANIZER, 'evt-1', 'tkt-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('restores a cancelled registrant when capacity is available', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent({ capacity: 100 }));
+      prisma.ticket.findFirst.mockResolvedValue({
+        ...mockTicket,
+        status: TicketStatus.CANCELLED,
+      });
+      prisma.ticket.count.mockResolvedValue(50);
+      prisma.ticket.update.mockResolvedValue({
+        ...mockTicket,
+        status: TicketStatus.REGISTERED,
+      });
+
+      const res = await service.restoreRegistrant(ORGANIZER, 'evt-1', 'tkt-1');
+      expect(res.status).toBe('Registered');
+      expect(prisma.ticket.update).toHaveBeenCalledWith({
+        where: { id: 'tkt-1' },
+        data: { status: TicketStatus.REGISTERED },
+      });
+    });
+
+    it('rejects restore if event is at capacity', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent({ capacity: 100 }));
+      prisma.ticket.findFirst.mockResolvedValue({
+        ...mockTicket,
+        status: TicketStatus.CANCELLED,
+      });
+      prisma.ticket.count.mockResolvedValue(100);
+
+      await expect(
+        service.restoreRegistrant(ORGANIZER, 'evt-1', 'tkt-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects restore if registrant is not cancelled', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent());
+      prisma.ticket.findFirst.mockResolvedValue(mockTicket);
+
+      await expect(
+        service.restoreRegistrant(ORGANIZER, 'evt-1', 'tkt-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });

@@ -45,6 +45,16 @@ describe('EventsController', () => {
         },
       ]),
       findRegistrants: vi.fn().mockResolvedValue([]),
+      cancelRegistrant: vi.fn().mockResolvedValue({
+        id: 'tkt-1',
+        name: 'Alice Smith',
+        status: 'Cancelled',
+      }),
+      restoreRegistrant: vi.fn().mockResolvedValue({
+        id: 'tkt-1',
+        name: 'Alice Smith',
+        status: 'Registered',
+      }),
       create: vi.fn().mockResolvedValue({ id: 'evt-new', approval_status: 'Pending' }),
       findAllForAdmin: vi.fn().mockResolvedValue([]),
       review: vi.fn().mockResolvedValue({ id: 'evt-1', approval_status: 'Approved' }),
@@ -102,6 +112,32 @@ describe('EventsController', () => {
     expect(mockEventsService.findRegistrants).toHaveBeenCalledWith(user, 'evt-1');
   });
 
+  it('should cancel a registrant', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const res = await controller.cancelRegistrant(user, 'evt-1', 'tkt-1');
+    expect(res.success).toBe(true);
+    expect(res.data.status).toBe('Cancelled');
+    expect(mockEventsService.cancelRegistrant).toHaveBeenCalledWith(user, 'evt-1', 'tkt-1');
+  });
+
+  it('should restore a registrant', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const res = await controller.restoreRegistrant(user, 'evt-1', 'tkt-1');
+    expect(res.success).toBe(true);
+    expect(res.data.status).toBe('Registered');
+    expect(mockEventsService.restoreRegistrant).toHaveBeenCalledWith(user, 'evt-1', 'tkt-1');
+  });
+
   it('should submit a new event for review', async () => {
     const user = {
       id: 'usr-org',
@@ -138,4 +174,3 @@ describe('EventsController', () => {
     });
   });
 });
-

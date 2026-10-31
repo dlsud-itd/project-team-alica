@@ -125,4 +125,36 @@ export class OrganizerEventsService {
         ),
       );
   }
+
+  cancelRegistrant(eventId: UUID, registrantId: UUID): Observable<EventRegistrant> {
+    return this.http
+      .patch<ApiResponse<EventRegistrant>>(
+        `${this.api}/${eventId}/registrants/${registrantId}/cancel`,
+        {},
+      )
+      .pipe(
+        map((res) => res.data),
+        tap((updated) =>
+          this.registrantState.update((registrants) =>
+            registrants.map((current) => (current.id === updated.id ? updated : current)),
+          ),
+        ),
+      );
+  }
+
+  restoreRegistrant(eventId: UUID, registrantId: UUID): Observable<EventRegistrant> {
+    return this.http
+      .patch<ApiResponse<EventRegistrant>>(
+        `${this.api}/${eventId}/registrants/${registrantId}/restore`,
+        {},
+      )
+      .pipe(
+        map((res) => res.data),
+        tap((updated) =>
+          this.registrantState.update((registrants) =>
+            registrants.map((current) => (current.id === updated.id ? updated : current)),
+          ),
+        ),
+      );
+  }
 }

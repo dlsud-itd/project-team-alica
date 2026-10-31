@@ -1,10 +1,31 @@
 <main class="registrants-page">
   <a class="back-link" routerLink="/organizer/dashboard">
-    <span aria-hidden="true">←</span> Back to events
+    <svg class="nav-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="19" y1="12" x2="5" y2="12"></line>
+      <polyline points="12 19 5 12 12 5"></polyline>
+    </svg>
+    Back to events
   </a>
 
   @if (errorMessage()) {
-    <p class="error-banner" role="alert">{{ errorMessage() }}</p>
+    <div class="alert-banner error-banner" role="alert">
+      <svg class="alert-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <span>{{ errorMessage() }}</span>
+    </div>
+  }
+
+  @if (successMessage()) {
+    <div class="alert-banner success-banner" role="status">
+      <svg class="alert-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+      <span>{{ successMessage() }}</span>
+    </div>
   }
 
   @if (loading()) {
@@ -21,12 +42,15 @@
   } @else if (event(); as currentEvent) {
     <header class="page-header">
       <div>
-        <p class="eyebrow">EVENT MANAGEMENT</p>
         <h1>Registrants</h1>
         <p class="event-name">{{ currentEvent.name }}</p>
       </div>
       <button class="export-button" type="button" (click)="exportRegistrants()">
-        <span aria-hidden="true">↓</span>
+        <svg class="export-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
         Export attendees
       </button>
     </header>
@@ -42,6 +66,11 @@
         <span>Checked in</span>
         <strong>{{ checkedInCount() }}</strong>
       </div>
+      <div class="stat-card">
+        <span class="stat-dot cancelled-dot" aria-hidden="true"></span>
+        <span>Cancelled</span>
+        <strong>{{ cancelledCount() }}</strong>
+      </div>
       <div class="stat-card total-stat">
         <span>Total sign-ups</span>
         <strong>{{ allEventAttendees().length }}</strong>
@@ -52,22 +81,68 @@
       <div class="table-heading">
         <div>
           <h2>Attendee list</h2>
-          <p>Search attendees and manage check-in status.</p>
+          <p>Search attendees, view QR tickets, and manage RSVP status.</p>
         </div>
-        <label class="search-box">
-          <span aria-hidden="true">⌕</span>
-          <span class="sr-only">Search by attendee name, email, or ticket ID</span>
-          <input
-            type="search"
-            [formControl]="searchControl"
-            placeholder="Search name, email, ticket ID"
-          />
-          @if (searchControl.value) {
-            <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">
-              ×
+
+        <div class="heading-controls">
+          <!-- Status Filter Tabs -->
+          <div class="filter-group" role="tablist" aria-label="Filter attendees by status">
+            <button
+              type="button"
+              class="filter-pill"
+              [class.active]="statusFilter() === 'ALL'"
+              (click)="setStatusFilter('ALL')"
+            >
+              All ({{ allEventAttendees().length }})
             </button>
-          }
-        </label>
+            <button
+              type="button"
+              class="filter-pill"
+              [class.active]="statusFilter() === 'Registered'"
+              (click)="setStatusFilter('Registered')"
+            >
+              Registered ({{ registeredCount() }})
+            </button>
+            <button
+              type="button"
+              class="filter-pill"
+              [class.active]="statusFilter() === 'Checked In'"
+              (click)="setStatusFilter('Checked In')"
+            >
+              Checked In ({{ checkedInCount() }})
+            </button>
+            <button
+              type="button"
+              class="filter-pill"
+              [class.active]="statusFilter() === 'Cancelled'"
+              (click)="setStatusFilter('Cancelled')"
+            >
+              Cancelled ({{ cancelledCount() }})
+            </button>
+          </div>
+
+          <!-- Search Box -->
+          <label class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span class="sr-only">Search by attendee name, email, or ticket ID</span>
+            <input
+              type="search"
+              [formControl]="searchControl"
+              placeholder="Search name, email, ticket ID"
+            />
+            @if (searchControl.value) {
+              <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            }
+          </label>
+        </div>
       </div>
 
       <div class="table-scroll">
@@ -105,6 +180,9 @@
                   <details class="action-menu">
                     <summary aria-label="Attendee actions">•••</summary>
                     <div class="menu-items">
+                      <button type="button" (click)="openQrPass(attendee)">
+                        View QR Pass
+                      </button>
                       <button
                         type="button"
                         [disabled]="attendee.status === 'Cancelled'"
@@ -112,6 +190,23 @@
                       >
                         {{ attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in' }}
                       </button>
+                      @if (attendee.status !== 'Cancelled') {
+                        <button
+                          type="button"
+                          class="menu-btn-danger"
+                          (click)="confirmCancel(attendee)"
+                        >
+                          Cancel registration
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="menu-btn-restore"
+                          (click)="confirmRestore(attendee)"
+                        >
+                          Restore registration
+                        </button>
+                      }
                       <button type="button" (click)="selectedRegistrant.set(attendee)">
                         View details
                       </button>
@@ -122,11 +217,11 @@
             } @empty {
               <tr>
                 <td class="empty-cell" colspan="5">
-                  <strong>{{ searchControl.value ? 'No matching attendees' : 'No registrants yet' }}</strong>
+                  <strong>{{ searchControl.value || statusFilter() !== 'ALL' ? 'No matching attendees' : 'No registrants yet' }}</strong>
                   <span>
                     {{
-                      searchControl.value
-                        ? 'Try another name, email address, or ticket ID.'
+                      searchControl.value || statusFilter() !== 'ALL'
+                        ? 'Try clearing the search or changing your status filter.'
                         : 'Attendees who register for this event will appear here.'
                     }}
                   </span>
@@ -154,6 +249,67 @@
   }
 </main>
 
+<!-- QR Pass Modal -->
+@if (activeQrRegistrant(); as qrAttendee) {
+  <div class="dialog-backdrop" (click)="closeQrPass()">
+    <section
+      class="details-dialog qr-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="qr-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <button
+        class="close-dialog"
+        type="button"
+        aria-label="Close QR pass"
+        (click)="closeQrPass()"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+
+      <h2 id="qr-dialog-title">{{ qrAttendee.full_name }}</h2>
+      <p class="dialog-subtitle">Digital QR Pass • {{ qrAttendee.ticket_id }}</p>
+
+      <div class="qr-image-wrapper">
+        @if (qrLoading()) {
+          <div class="qr-loading-spinner" aria-busy="true">Generating QR…</div>
+        } @else if (qrDataUrl()) {
+          <img [src]="qrDataUrl()" [alt]="'QR ticket for ' + qrAttendee.full_name" class="qr-image" />
+        }
+      </div>
+
+      <div class="qr-status-pill">
+        <span class="status-badge" [class]="statusClass(qrAttendee.status)">
+          <span class="badge-dot" aria-hidden="true"></span>
+          {{ qrAttendee.status }}
+        </span>
+      </div>
+
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="downloadQr(qrAttendee)"
+          [disabled]="!qrDataUrl()"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download QR
+        </button>
+        <button type="button" class="btn-primary" (click)="closeQrPass()">Done</button>
+      </div>
+    </section>
+  </div>
+}
+
+<!-- Details Dialog -->
 @if (selectedRegistrant(); as attendee) {
   <div class="dialog-backdrop" (click)="selectedRegistrant.set(null)">
     <section
@@ -169,16 +325,134 @@
         aria-label="Close attendee details"
         (click)="selectedRegistrant.set(null)"
       >
-        ×
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
       </button>
-      <p class="eyebrow">ATTENDEE DETAILS</p>
+
       <h2 id="attendee-details-title">{{ attendee.full_name }}</h2>
       <dl>
         <div><dt>Email</dt><dd>{{ attendee.email }}</dd></div>
-        <div><dt>Ticket ID</dt><dd>{{ attendee.ticket_id }}</dd></div>
+        <div><dt>Ticket ID</dt><dd class="ticket-id">{{ attendee.ticket_id }}</dd></div>
         <div><dt>Registration date</dt><dd>{{ attendee.registered_at | date: 'medium' }}</dd></div>
-        <div><dt>Status</dt><dd>{{ attendee.status }}</dd></div>
+        <div>
+          <dt>Status</dt>
+          <dd>
+            <span class="status-badge" [class]="statusClass(attendee.status)">
+              <span class="badge-dot" aria-hidden="true"></span>
+              {{ attendee.status }}
+            </span>
+          </dd>
+        </div>
       </dl>
+
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="openQrPass(attendee); selectedRegistrant.set(null)"
+        >
+          View QR Pass
+        </button>
+        @if (attendee.status !== 'Cancelled') {
+          <button
+            type="button"
+            class="btn-danger"
+            (click)="confirmCancel(attendee); selectedRegistrant.set(null)"
+          >
+            Cancel RSVP
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="btn-primary"
+            (click)="confirmRestore(attendee); selectedRegistrant.set(null)"
+          >
+            Restore RSVP
+          </button>
+        }
+      </div>
+    </section>
+  </div>
+}
+
+<!-- Cancel Confirmation Modal -->
+@if (cancellingRegistrant(); as toCancel) {
+  <div class="dialog-backdrop" (click)="dismissCancelDialog()">
+    <section
+      class="details-dialog confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="cancel-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="cancel-dialog-title">Cancel RSVP?</h2>
+      <p class="confirm-message">
+        Are you sure you want to cancel the registration for <strong>{{ toCancel.full_name }}</strong> ({{ toCancel.ticket_id }})?
+      </p>
+      <p class="confirm-note">
+        This releases 1 reserved seat back to the event capacity. The attendee will no longer be able to check in with this ticket.
+      </p>
+
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="actionLoading()"
+          (click)="dismissCancelDialog()"
+        >
+          Keep active
+        </button>
+        <button
+          type="button"
+          class="btn-danger"
+          [disabled]="actionLoading()"
+          (click)="executeCancel()"
+        >
+          {{ actionLoading() ? 'Cancelling…' : 'Yes, cancel registration' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}
+
+<!-- Restore Confirmation Modal -->
+@if (restoringRegistrant(); as toRestore) {
+  <div class="dialog-backdrop" (click)="dismissRestoreDialog()">
+    <section
+      class="details-dialog confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="restore-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="restore-dialog-title">Restore RSVP?</h2>
+      <p class="confirm-message">
+        Restore active registration status for <strong>{{ toRestore.full_name }}</strong> ({{ toRestore.ticket_id }})?
+      </p>
+      <p class="confirm-note">
+        This will reactivate their ticket and count 1 seat toward this event's capacity.
+      </p>
+
+      <div class="dialog-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="actionLoading()"
+          (click)="dismissRestoreDialog()"
+        >
+          Keep cancelled
+        </button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="actionLoading()"
+          (click)="executeRestore()"
+        >
+          {{ actionLoading() ? 'Restoring…' : 'Restore registration' }}
+        </button>
+      </div>
     </section>
   </div>
 }

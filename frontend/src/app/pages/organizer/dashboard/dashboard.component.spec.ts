@@ -227,4 +227,16 @@ describe('OrganizerDashboard', () => {
       expect(component.creating()).toBe(true);
     });
   });
+
+  it('should remove an event after the delete is confirmed', () => {
+    const targetEvent = component.events()[0];
+    component.openDelete(targetEvent);
+    expect(component.deletingEvent()).toEqual(targetEvent);
+
+    component.confirmDelete();
+
+    expect(component.deletingEvent()).toBeNull();
+    expect(component.events()).toEqual([]);
+    expect(component.notice()).toContain(targetEvent.name);
+  });
 });

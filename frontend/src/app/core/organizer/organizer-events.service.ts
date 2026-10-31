@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
+import { Observable, finalize, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   EventRegistrant,
@@ -26,6 +26,8 @@ export class OrganizerEventsService {
   readonly registrants = this.registrantState.asReadonly();
   /** True once the organizer's events have been fetched at least once. */
   readonly eventsLoaded = this.eventsLoadedState.asReadonly();
+  readonly loading = signal(false);
+  readonly error = signal('');
 
   readonly totalRegistrations = computed(() =>
     this.eventState().reduce((total, event) => total + event.registrations_count, 0),
@@ -36,6 +38,8 @@ export class OrganizerEventsService {
   }
 
   loadEvents(): Observable<OrganizerEvent[]> {
+    this.loading.set(true);
+    this.error.set('');
     return this.http.get<ApiResponse<OrganizerEvent[]>>(`${this.api}/mine`).pipe(
       map((res) => res.data),
       tap({
@@ -43,8 +47,17 @@ export class OrganizerEventsService {
           this.eventState.set(events);
           this.eventsLoadedState.set(true);
         },
-        error: () => this.eventsLoadedState.set(true),
+        error: (err: { error?: { message?: unknown } }) => {
+          const message = err.error?.message;
+          this.error.set(
+            typeof message === 'string'
+              ? message
+              : 'Unable to load organizer events. Check the backend connection and try again.',
+          );
+          this.eventsLoadedState.set(true);
+        },
       }),
+      finalize(() => this.loading.set(false)),
     );
   }
 
@@ -86,6 +99,14 @@ export class OrganizerEventsService {
           events.map((event) => (event.id === eventId ? updated : event)),
         ),
       ),
+    );
+  }
+
+  // Local only for now: there is no delete endpoint yet, so the event returns on the next load.
+  deleteEvent(eventId: UUID): void {
+    this.eventState.update((events) => events.filter((event) => event.id !== eventId));
+    this.registrantState.update((registrants) =>
+      registrants.filter((registrant) => registrant.event_id !== eventId),
     );
   }
 

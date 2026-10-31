@@ -30,9 +30,7 @@ export class OrganizerRegistrants {
 
   constructor() {
     if (!this.organizerEvents.eventsLoaded()) {
-      this.organizerEvents.loadEvents().subscribe({
-        error: () => this.errorMessage.set('Could not load your events. Please try again later.'),
-      });
+      this.reloadEvents();
     }
 
     this.route.paramMap
@@ -47,6 +45,8 @@ export class OrganizerRegistrants {
       });
   }
   readonly event = computed(() => this.organizerEvents.eventById(this.eventId()));
+  readonly loading = this.organizerEvents.loading;
+  readonly loadError = this.organizerEvents.error;
   readonly searchControl = new FormControl('', { nonNullable: true });
   private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
   readonly attendees = computed(() =>
@@ -81,6 +81,11 @@ export class OrganizerRegistrants {
       error: (err: HttpErrorResponse) =>
         this.errorMessage.set(err.error?.message ?? 'Could not update check-in status.'),
     });
+  }
+
+  // Load failures surface through the service's error signal (shown with a Retry button).
+  reloadEvents(): void {
+    this.organizerEvents.loadEvents().subscribe({ error: () => undefined });
   }
 
   statusClass(status: RegistrationStatus): string {

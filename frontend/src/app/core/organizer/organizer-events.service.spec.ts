@@ -115,4 +115,28 @@ describe('OrganizerEventsService', () => {
 
     expect(service.registrants()[0].status).toBe('Checked In');
   });
+
+  it('should expose loading and error state while loading events', () => {
+    service.loadEvents().subscribe({ error: () => undefined });
+    expect(service.loading()).toBe(true);
+
+    httpMock
+      .expectOne(`${API}/mine`)
+      .flush({ message: 'Organizer access is required' }, { status: 403, statusText: 'Forbidden' });
+
+    expect(service.loading()).toBe(false);
+    expect(service.error()).toBe('Organizer access is required');
+  });
+
+  it('should remove a deleted event and its registrants', () => {
+    service.loadEvents().subscribe();
+    httpMock.expectOne(`${API}/mine`).flush({ success: true, data: [EVENT] });
+    service.loadRegistrants('evt-1').subscribe();
+    httpMock.expectOne(`${API}/evt-1/registrants`).flush({ success: true, data: [REGISTRANT] });
+
+    service.deleteEvent('evt-1');
+
+    expect(service.events()).toEqual([]);
+    expect(service.registrants()).toEqual([]);
+  });
 });

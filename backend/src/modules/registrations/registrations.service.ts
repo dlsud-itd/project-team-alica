@@ -5,7 +5,7 @@ import {
   ConflictException,
   Logger,
 } from '@nestjs/common';
-import type { Ticket } from '@prisma/client';
+import { TicketStatus, type Ticket } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
 
@@ -75,6 +75,18 @@ export class RegistrationsService {
     });
     if (existing) {
       throw new ConflictException('This email is already registered for this event');
+    }
+
+    if (event.capacity) {
+      const spotsTaken = await this.prisma.ticket.count({
+        where: {
+          eventId: dto.eventId,
+          status: { not: TicketStatus.CANCELLED },
+        },
+      });
+      if (spotsTaken >= event.capacity) {
+        throw new BadRequestException('This event has reached full capacity');
+      }
     }
 
     // Split fullName into firstName and lastName

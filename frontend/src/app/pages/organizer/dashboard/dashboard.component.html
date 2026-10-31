@@ -74,6 +74,17 @@
         <span class="event-count">{{ filteredEvents().length }} of {{ events().length }} events</span>
       </div>
 
+      @if (loading()) {
+        <p class="empty-state" role="status">Loading your events…</p>
+      } @else if (loadError()) {
+        <div class="empty-state" role="alert">
+          <h3>Unable to load events</h3>
+          <p>{{ loadError() }}</p>
+          <button type="button" class="button button-secondary" (click)="reloadEvents()">
+            Retry
+          </button>
+        </div>
+      } @else {
       <div class="toolbar">
         <label class="search-box">
           <span class="search-icon" aria-hidden="true">⌕</span>
@@ -147,7 +158,7 @@
                         [style.width.%]="registrationProgress(event.registrations_count, event.capacity) * 100"
                       ></span>
                     </div>
-                    <small>{{ registrationProgress(event.registrations_count, event.capacity) | percent }} capacity</small>
+                    <small>{{ registrationProgress(event.registrations_count, event.capacity) | percent: '1.0-1' }} capacity</small>
                   </td>
                   <td>
                     <span class="event-status" [class]="{
@@ -166,6 +177,13 @@
                       (click)="openEdit(event)"
                     >
                       Edit
+                    </button>
+                    <button
+                      class="button button-danger"
+                      type="button"
+                      (click)="openDelete(event)"
+                    >
+                      Delete
                     </button>
                     <a
                       class="button button-primary"
@@ -192,17 +210,13 @@
           </p>
         </div>
       }
+      }
     </section>
   </main>
 </div>
 
 @if (editingEvent(); as activeEvent) {
-  <div
-    class="dialog-backdrop"
-    (click)="closeEdit()"
-    (keydown.escape)="closeEdit()"
-    tabindex="-1"
-  >
+  <div class="dialog-backdrop" (click)="closeEdit()">
     <section
       class="edit-dialog"
       role="dialog"
@@ -292,6 +306,13 @@
 
         <div class="edit-dialog-actions">
           <button
+            class="button button-danger-ghost delete-left"
+            type="button"
+            (click)="openDelete(activeEvent)"
+          >
+            Delete event
+          </button>
+          <button
             class="button button-secondary"
             type="button"
             (click)="closeEdit()"
@@ -307,6 +328,38 @@
           </button>
         </div>
       </form>
+    </section>
+  </div>
+}
+
+@if (deletingEvent(); as target) {
+  <div class="dialog-backdrop confirm-backdrop" (click)="closeDelete()">
+    <section
+      class="edit-dialog confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+      aria-describedby="delete-dialog-desc"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="confirm-icon" aria-hidden="true">!</div>
+      <h2 id="delete-dialog-title">Delete this event?</h2>
+      <p id="delete-dialog-desc">
+        You're about to delete <strong>{{ target.name }}</strong>.
+        @if (target.registrations_count) {
+          This will also remove its {{ target.registrations_count }}
+          {{ target.registrations_count === 1 ? 'registration' : 'registrations' }}.
+        }
+        This action can't be undone.
+      </p>
+      <div class="confirm-actions">
+        <button class="button button-secondary" type="button" (click)="closeDelete()">
+          Cancel
+        </button>
+        <button class="button button-danger-solid" type="button" (click)="confirmDelete()">
+          Yes, delete event
+        </button>
+      </div>
     </section>
   </div>
 }

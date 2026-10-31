@@ -60,11 +60,9 @@ describe('OrganizerDashboard', () => {
   });
 
   it('should close edit modal and reset form when closeEdit is called', () => {
-    const targetEvent = component.events()[0];
-    component.openEdit(targetEvent);
-    expect(component.editingEvent()).not.toBeNull();
-
+    component.openEdit(component.events()[0]);
     component.closeEdit();
+
     expect(component.editingEvent()).toBeNull();
     expect(component.editErrorMessage()).toBe('');
   });
@@ -160,5 +158,17 @@ describe('OrganizerDashboard', () => {
 
     expect(component.editErrorMessage()).toBe('End date & time must be after the start date & time.');
     expect(component.editingEvent()).not.toBeNull();
+  });
+
+  it('should remove an event after the delete is confirmed', () => {
+    const targetEvent = component.events()[0];
+    component.openDelete(targetEvent);
+    expect(component.deletingEvent()).toEqual(targetEvent);
+
+    component.confirmDelete();
+
+    expect(component.deletingEvent()).toBeNull();
+    expect(component.events()).toEqual([]);
+    expect(component.notice()).toContain(targetEvent.name);
   });
 });

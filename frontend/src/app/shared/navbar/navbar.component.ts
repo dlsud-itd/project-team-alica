@@ -23,3 +23,4 @@ export class NavbarComponent {
     this.auth.logout('/events');
   }
 }
+

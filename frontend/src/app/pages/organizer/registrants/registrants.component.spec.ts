@@ -33,3 +33,4 @@ describe('OrganizerRegistrants', () => {
     expect(component.statusClass('Registered')).toBe('status-registered');
   });
 });
+

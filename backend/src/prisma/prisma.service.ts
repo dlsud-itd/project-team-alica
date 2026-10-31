@@ -29,6 +29,7 @@ async function isPortOpen(
 async function resolveDatasourceConfig(): Promise<{
   url?: string;
   isLocal: boolean;
+  localReason?: string;
 }> {
   const isDev =
     process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
@@ -53,14 +54,31 @@ async function resolveDatasourceConfig(): Promise<{
     try {
       const probeClient = new PrismaClient({ datasourceUrl: candidate });
       await probeClient.$connect();
+
+      // Ensure the schema tables are actually initialized on this local DB
+      const result = await probeClient.$queryRaw<{ exists: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = 'users'
+        ) as exists;
+      `;
+
       await probeClient.$disconnect();
-      return { url: candidate, isLocal: true };
+
+      if (result[0]?.exists) {
+        return { url: candidate, isLocal: true };
+      }
     } catch {
       // Try next local candidate
     }
   }
 
-  return { url: undefined, isLocal: false };
+  return {
+    url: undefined,
+    isLocal: false,
+    localReason:
+      'Local PostgreSQL detected on port 5432, but schema is uninitialized (missing tables). Using remote database.',
+  };
 }
 
 const datasourceConfig = await resolveDatasourceConfig();
@@ -85,9 +103,12 @@ export class PrismaService
       await this.$connect();
       if (datasourceConfig.isLocal) {
         this.logger.log(
-          `Local PostgreSQL instance detected. Connected to local database: ${datasourceConfig.url}`,
+          `Local PostgreSQL instance detected and initialized. Connected to: ${datasourceConfig.url}`,
         );
       } else {
+        if (datasourceConfig.localReason) {
+          this.logger.warn(datasourceConfig.localReason);
+        }
         this.logger.log('Connected to remote PostgreSQL database successfully.');
       }
     } catch (error) {

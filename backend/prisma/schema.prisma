@@ -39,6 +39,12 @@ enum CheckpointType {
   EXIT
 }
 
+enum EventApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ScanResult {
   SUCCESS
   DUPLICATE
@@ -65,6 +71,7 @@ model User {
   eventStaffAssignments EventStaff[]
   checkpointAssignments CheckpointStaff[]
   scannedLogs           AttendanceLog[]   @relation("ScannedByStaff")
+  reviewedEvents        Event[]           @relation("ReviewedEvents")
 
   @@map("users")
 }
@@ -83,6 +90,14 @@ model Event {
   deletedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  // Organizer-submitted events start as PENDING until an admin reviews them.
+  // Defaults to APPROVED so pre-existing rows stay publicly listed.
+  approvalStatus EventApprovalStatus @default(APPROVED)
+  reviewNotes    String?
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedBy     User?               @relation("ReviewedEvents", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   organizerId String
   organizer   User   @relation("OrganizedEvents", fields: [organizerId], references: [id], onDelete: Restrict)

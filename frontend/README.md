@@ -58,6 +58,10 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 
 The organizer dashboard is available at `/organizer/dashboard`; an event's registrants are available at `/organizer/events/:eventId/registrants`. Organizer event and registrant types and the mock-backed data service live under `src/app/core/organizer/`. The service is the data-access boundary for replacing fixture data with Supabase queries.
 
+Organizers create events from the dashboard's **Create event** button. New events are saved as `Pending` and stay hidden from the public events page (and closed to registration) until an admin approves them. Rejected events show the admin's notes, and editing one resubmits it for review.
+
+The admin console at `/admin/dashboard` lists every event by approval status (Pending / Approved / Rejected / All) and opens a review dialog to approve or reject. Rejecting requires notes for the organizer. Its data service lives under `src/app/core/admin/`.
+
 When connecting Supabase, query `events` by the authenticated organizer UUID and rely on database Row Level Security policies to enforce ownership. Keep `organizer_id`, `event_id`, and `attendee_id` as UUID foreign keys, and apply the same ownership policy to registrant queries and mutations; client-side route guards are not a substitute for RLS.
 
 ## Additional Resources

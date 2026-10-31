@@ -17,6 +17,12 @@ const EVENT: OrganizerEvent = {
   registrations_count: 2,
   capacity: 10,
   status: 'Upcoming',
+  description: '',
+  allow_walk_ins: false,
+  approval_status: 'Approved',
+  review_notes: null,
+  reviewed_at: null,
+  submitted_at: '2026-10-01T00:00:00.000Z',
 };
 
 const REGISTRANT: EventRegistrant = {
@@ -71,6 +77,28 @@ describe('OrganizerEventsService', () => {
 
     expect(service.eventById('evt-1')?.name).toBe('Tech Summit Updated');
     expect(service.eventById('evt-1')?.capacity).toBe(50);
+  });
+
+  it('should POST a new event and add the pending event to the list', () => {
+    const draft = {
+      name: 'AI Workshop',
+      description: 'Hands-on session',
+      venue: 'Lab 1',
+      starts_at: '2026-12-01T01:00:00.000Z',
+      ends_at: '2026-12-01T04:00:00.000Z',
+      capacity: 40,
+      allow_walk_ins: false,
+    };
+    service.createEvent(draft).subscribe();
+    const req = httpMock.expectOne(API);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(draft);
+    req.flush({
+      success: true,
+      data: { ...EVENT, ...draft, id: 'evt-2', registrations_count: 0, approval_status: 'Pending' },
+    });
+
+    expect(service.eventById('evt-2')?.approval_status).toBe('Pending');
   });
 
   it('should load registrants and toggle check-in through the API', () => {

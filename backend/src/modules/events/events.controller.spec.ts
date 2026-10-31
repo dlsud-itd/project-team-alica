@@ -45,6 +45,9 @@ describe('EventsController', () => {
         },
       ]),
       findRegistrants: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: 'evt-new', approval_status: 'Pending' }),
+      findAllForAdmin: vi.fn().mockResolvedValue([]),
+      review: vi.fn().mockResolvedValue({ id: 'evt-1', approval_status: 'Approved' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -97,6 +100,42 @@ describe('EventsController', () => {
     const res = await controller.getRegistrants(user, 'evt-1');
     expect(res.success).toBe(true);
     expect(mockEventsService.findRegistrants).toHaveBeenCalledWith(user, 'evt-1');
+  });
+
+  it('should submit a new event for review', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+    const dto = {
+      name: 'New Event',
+      venue: 'Hall',
+      starts_at: '2027-01-01T09:00:00Z',
+      ends_at: '2027-01-01T10:00:00Z',
+      capacity: 20,
+    };
+    const res = await controller.createEvent(user, dto);
+    expect(res.data.approval_status).toBe('Pending');
+    expect(mockEventsService.create).toHaveBeenCalledWith(user, dto);
+  });
+
+  it('should pass admin list filters and review decisions to the service', async () => {
+    const admin = {
+      id: 'usr-admin',
+      email: 'admin@dlsud.edu.ph',
+      fullName: 'System Administrator',
+      role: 'ADMIN' as const,
+    };
+    await controller.getAdminEvents(admin, 'pending');
+    expect(mockEventsService.findAllForAdmin).toHaveBeenCalledWith(admin, 'pending');
+
+    const res = await controller.reviewEvent(admin, 'evt-1', { decision: 'APPROVED' });
+    expect(res.data.approval_status).toBe('Approved');
+    expect(mockEventsService.review).toHaveBeenCalledWith(admin, 'evt-1', {
+      decision: 'APPROVED',
+    });
   });
 });
 

@@ -4,6 +4,7 @@ import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   EventRegistrant,
+  NewOrganizerEvent,
   OrganizerEvent,
   OrganizerEventChanges,
   UUID,
@@ -63,6 +64,18 @@ export class OrganizerEventsService {
 
   eventById(eventId: UUID): OrganizerEvent | undefined {
     return this.eventState().find((event) => event.id === eventId);
+  }
+
+  /** Submits a new event; the API stores it as pending admin approval. */
+  createEvent(event: NewOrganizerEvent): Observable<OrganizerEvent> {
+    return this.http.post<ApiResponse<OrganizerEvent>>(this.api, event).pipe(
+      map((res) => res.data),
+      tap((created) =>
+        this.eventState.update((events) =>
+          [...events, created].sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+        ),
+      ),
+    );
   }
 
   updateEvent(eventId: UUID, changes: OrganizerEventChanges): Observable<OrganizerEvent> {

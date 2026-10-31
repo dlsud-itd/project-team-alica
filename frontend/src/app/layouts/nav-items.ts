@@ -30,8 +30,7 @@ export const ORGANIZER_NAV: NavItem[] = [
   { label: 'Profile', path: '/profile' },
 ];
 
-// The admin console itself is desktop-only with no floating nav; this is only
-// shown on shared pages (events, profile) so admins can get back to it.
+// Admins use the top header (shared/top-nav) instead; kept so every role has an entry.
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Events', path: '/events' },
   { label: 'Admin Console', path: '/admin/dashboard' },

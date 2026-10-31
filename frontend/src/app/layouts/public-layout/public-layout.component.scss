@@ -4,3 +4,8 @@
   padding-bottom: 6rem;
   background-color: var(--color-bg-page, #f1f5f3);
 }
+
+// No floating nav for admins, so no bottom gutter needed.
+.page-admin {
+  padding-bottom: 0;
+}

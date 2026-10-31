@@ -1,1 +1,280 @@
-<p>dashboard works!</p>
+<div class="dashboard-shell">
+  <main class="dashboard">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">ADMIN CONSOLE</p>
+        <h1>Admin: Event Review</h1>
+        <p class="subtitle">Review organizer submissions and oversee every event on the platform.</p>
+      </div>
+      <div class="header-actions">
+        <span class="today">{{ now | date: 'EEEE, MMMM d, y' }}</span>
+        <a class="button button-secondary button-create" routerLink="/events">View public events</a>
+      </div>
+    </header>
+
+    @if (notice()) {
+      <div class="notice" role="status">
+        <span>{{ notice() }}</span>
+        <button type="button" class="notice-close" (click)="notice.set('')" aria-label="Dismiss notice">×</button>
+      </div>
+    }
+
+    <section class="summary-grid" aria-label="Approval summary">
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>PENDING REVIEW</span>
+          <span class="summary-icon upcoming-icon" aria-hidden="true">◷</span>
+        </div>
+        <strong class="summary-value">{{ counts().Pending }}</strong>
+        <small>Waiting for your decision</small>
+      </article>
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>APPROVED</span>
+          <span class="summary-icon events-icon" aria-hidden="true">✓</span>
+        </div>
+        <strong class="summary-value">{{ counts().Approved }}</strong>
+        <small>Published to attendees</small>
+      </article>
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>REJECTED</span>
+          <span class="summary-icon rejected-icon" aria-hidden="true">×</span>
+        </div>
+        <strong class="summary-value">{{ counts().Rejected }}</strong>
+        <small>Returned to organizers</small>
+      </article>
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>TOTAL REGISTRATIONS</span>
+          <span class="summary-icon registration-icon" aria-hidden="true">↗</span>
+        </div>
+        <strong class="summary-value">{{ totalRegistrations() }}</strong>
+        <small>Across {{ counts().All }} events</small>
+      </article>
+    </section>
+
+    <section class="events-section">
+      <div class="section-heading">
+        <div>
+          <h2>Events</h2>
+          <p>Open an event to review its details and approve or reject it.</p>
+        </div>
+        <span class="event-count">{{ filteredEvents().length }} of {{ counts().All }} events</span>
+      </div>
+
+      <div class="toolbar">
+        <div class="tabs" role="tablist" aria-label="Filter by approval status">
+          @for (tab of tabs; track tab) {
+            <button
+              type="button"
+              role="tab"
+              class="tab"
+              [class.tab-active]="activeTab() === tab"
+              [attr.aria-selected]="activeTab() === tab"
+              (click)="activeTab.set(tab)"
+            >
+              {{ tab }} <span class="tab-count">{{ counts()[tab] }}</span>
+            </button>
+          }
+        </div>
+        <label class="search-box">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <span class="sr-only">Search by event, venue, or organizer</span>
+          <input type="search" [formControl]="searchControl" placeholder="Search event, venue, or organizer" />
+          @if (searchControl.value) {
+            <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">×</button>
+          }
+        </label>
+      </div>
+
+      @if (filteredEvents().length) {
+        <div class="event-table-wrap">
+          <table class="event-table">
+            <thead>
+              <tr>
+                <th scope="col">EVENT</th>
+                <th scope="col">ORGANIZER</th>
+                <th scope="col">DATE &amp; LOCATION</th>
+                <th scope="col">CAPACITY</th>
+                <th scope="col">SUBMITTED</th>
+                <th scope="col">APPROVAL</th>
+                <th scope="col"><span class="sr-only">ACTIONS</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (event of filteredEvents(); track event.id) {
+                <tr>
+                  <td>
+                    <div class="event-name-cell">
+                      <span class="event-avatar" aria-hidden="true">{{ event.name.slice(0, 1) }}</span>
+                      <span class="event-name-copy">
+                        <strong>{{ event.name }}</strong>
+                        <small [title]="event.description">{{ event.description || 'No description' }}</small>
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="date-cell">
+                      <strong>{{ event.organizer_name }}</strong>
+                      <small>{{ event.organizer_email }}</small>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="date-cell">
+                      <strong>{{ event.starts_at | date: 'MMM d, y' }}</strong>
+                      <small>{{ event.venue }} · {{ event.starts_at | date: 'h:mm a' }}</small>
+                    </div>
+                  </td>
+                  <td>{{ event.registrations_count }} / {{ event.capacity ?? '∞' }}</td>
+                  <td>{{ event.submitted_at | date: 'MMM d, y' }}</td>
+                  <td>
+                    <span class="approval-badge" [class]="'approval-' + event.approval_status.toLowerCase()">
+                      {{ event.approval_status === 'Pending' ? 'Pending review' : event.approval_status }}
+                    </span>
+                  </td>
+                  <td class="actions-cell">
+                    <button
+                      type="button"
+                      class="button"
+                      [class.button-primary]="event.approval_status === 'Pending'"
+                      [class.button-secondary]="event.approval_status !== 'Pending'"
+                      (click)="openReview(event)"
+                    >
+                      {{ event.approval_status === 'Pending' ? 'Review' : 'View' }}
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="empty-state">
+          <span aria-hidden="true">{{ activeTab() === 'Pending' ? '✓' : '⌕' }}</span>
+          <h3>
+            @if (!eventsLoaded()) {
+              Loading events…
+            } @else if (searchControl.value) {
+              No matching events
+            } @else if (activeTab() === 'Pending') {
+              All caught up
+            } @else {
+              No {{ activeTab() === 'All' ? '' : activeTab().toLowerCase() }} events
+            }
+          </h3>
+          <p>
+            {{
+              activeTab() === 'Pending' && !searchControl.value
+                ? 'New organizer submissions will appear here for review.'
+                : 'Try a different search or status tab.'
+            }}
+          </p>
+        </div>
+      }
+    </section>
+  </main>
+</div>
+
+@if (reviewingEvent(); as event) {
+  <div class="dialog-backdrop" (click)="closeReview()" (keydown.escape)="closeReview()" tabindex="-1">
+    <section
+      class="edit-dialog review-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="review-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="edit-dialog-header">
+        <div>
+          <p class="eyebrow">EVENT REVIEW</p>
+          <h2 id="review-dialog-title">{{ event.name }}</h2>
+          <p class="dialog-subtitle">
+            Submitted by {{ event.organizer_name }} on {{ event.submitted_at | date: 'MMM d, y, h:mm a' }}
+          </p>
+        </div>
+        <button class="close-dialog" type="button" aria-label="Close review dialog" (click)="closeReview()">×</button>
+      </div>
+
+      <div class="review-status-row">
+        <span class="approval-badge" [class]="'approval-' + event.approval_status.toLowerCase()">
+          {{ event.approval_status === 'Pending' ? 'Pending review' : event.approval_status }}
+        </span>
+        @if (event.reviewed_at) {
+          <small>Last reviewed {{ event.reviewed_at | date: 'MMM d, y, h:mm a' }}</small>
+        }
+      </div>
+
+      <dl class="detail-list">
+        <div class="detail-wide">
+          <dt>Description</dt>
+          <dd>{{ event.description || 'No description provided.' }}</dd>
+        </div>
+        <div>
+          <dt>Venue</dt>
+          <dd>{{ event.venue }}</dd>
+        </div>
+        <div>
+          <dt>Organizer</dt>
+          <dd>{{ event.organizer_name }} · {{ event.organizer_email }}</dd>
+        </div>
+        <div>
+          <dt>Starts</dt>
+          <dd>{{ event.starts_at | date: 'EEE, MMM d, y, h:mm a' }}</dd>
+        </div>
+        <div>
+          <dt>Ends</dt>
+          <dd>{{ event.ends_at | date: 'EEE, MMM d, y, h:mm a' }}</dd>
+        </div>
+        <div>
+          <dt>Capacity</dt>
+          <dd>{{ event.capacity ?? 'Unlimited' }} ({{ event.registrations_count }} registered)</dd>
+        </div>
+        <div>
+          <dt>Walk-ins</dt>
+          <dd>{{ event.allow_walk_ins ? 'Allowed' : 'Not allowed' }}</dd>
+        </div>
+      </dl>
+
+      @if (reviewError()) {
+        <div class="edit-alert" role="alert">{{ reviewError() }}</div>
+      }
+
+      <div class="edit-form">
+        <div class="form-group">
+          <label for="review-notes">
+            Notes for the organizer
+            <span class="field-hint">(required when rejecting)</span>
+          </label>
+          <textarea
+            id="review-notes"
+            rows="3"
+            [formControl]="reviewNotes"
+            placeholder="e.g. Please confirm the venue booking and adjust the end time."
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="edit-dialog-actions">
+        <button class="button button-secondary" type="button" (click)="closeReview()">Cancel</button>
+        <button
+          class="button button-danger"
+          type="button"
+          [disabled]="submittingDecision() !== null || event.approval_status === 'Rejected'"
+          (click)="submitReview('REJECTED')"
+        >
+          {{ submittingDecision() === 'REJECTED' ? 'Rejecting…' : 'Reject' }}
+        </button>
+        <button
+          class="button button-primary"
+          type="button"
+          [disabled]="submittingDecision() !== null || event.approval_status === 'Approved'"
+          (click)="submitReview('APPROVED')"
+        >
+          {{ submittingDecision() === 'APPROVED' ? 'Approving…' : 'Approve' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}

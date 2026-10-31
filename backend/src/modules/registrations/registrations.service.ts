@@ -60,7 +60,13 @@ export class RegistrationsService {
       where: { id: dto.eventId },
     });
 
-    if (!event) {
+    // Events awaiting (or denied) admin approval are not open for registration.
+    if (
+      !event ||
+      !event.isActive ||
+      event.deletedAt ||
+      event.approvalStatus !== 'APPROVED'
+    ) {
       throw new NotFoundException(`Event with ID '${dto.eventId}' not found`);
     }
 

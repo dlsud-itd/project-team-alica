@@ -36,6 +36,7 @@ export class OrganizerDashboard {
   }
 
   readonly now = new Date();
+  readonly minStart = toDateTimeLocalInput(new Date().toISOString());
   readonly events = this.organizerEvents.events;
   readonly totalRegistrations = this.organizerEvents.totalRegistrations;
   readonly searchControl = new FormControl('', { nonNullable: true });
@@ -53,12 +54,19 @@ export class OrganizerDashboard {
         !query ||
         event.name.toLocaleLowerCase().includes(query) ||
         event.venue.toLocaleLowerCase().includes(query);
-      const matchesStatus = status === 'All statuses' || event.status === status;
+      const matchesStatus =
+        status === 'All statuses' || event.status === status || event.approval_status === status;
       return matchesQuery && matchesStatus;
     });
   });
   readonly upcomingEvents = computed(
-    () => this.events().filter((event) => event.status === 'Upcoming').length,
+    () =>
+      this.events().filter(
+        (event) => event.status === 'Upcoming' && event.approval_status === 'Approved',
+      ).length,
+  );
+  readonly pendingEvents = computed(
+    () => this.events().filter((event) => event.approval_status === 'Pending').length,
   );
   readonly openSeats = computed(() =>
     this.events().reduce(
@@ -70,42 +78,54 @@ export class OrganizerDashboard {
   );
   readonly notice = signal('');
 
-  // Edit Event State
+  // Create / Edit Event dialog state. `creating` is the create mode;
+  // `editingEvent` is set when editing an existing event.
+  readonly creating = signal(false);
   readonly editingEvent = signal<OrganizerEvent | null>(null);
+  readonly dialogOpen = computed(() => this.creating() || this.editingEvent() !== null);
   readonly editErrorMessage = signal('');
   readonly isSaving = signal(false);
 
   readonly editForm = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    description: new FormControl('', { nonNullable: true }),
     venue: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     starts_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     ends_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     capacity: new FormControl<number | null>(null, {
       validators: [Validators.required, Validators.min(1)],
     }),
+    allow_walk_ins: new FormControl(false, { nonNullable: true }),
   });
 
   registrationProgress(registered: number, capacity: number | null): number {
     return capacity ? Math.min(registered / capacity, 1) : 0;
   }
 
-  showEditNotice(eventName: string): void {
-    this.notice.set(`Event editing for "${eventName}" is coming soon.`);
+  openCreate(): void {
+    this.editingEvent.set(null);
+    this.editErrorMessage.set('');
+    this.editForm.reset();
+    this.creating.set(true);
   }
 
   openEdit(event: OrganizerEvent): void {
+    this.creating.set(false);
     this.editingEvent.set(event);
     this.editErrorMessage.set('');
     this.editForm.patchValue({
       name: event.name,
+      description: event.description,
       venue: event.venue,
       starts_at: toDateTimeLocalInput(event.starts_at),
       ends_at: toDateTimeLocalInput(event.ends_at),
       capacity: event.capacity,
+      allow_walk_ins: event.allow_walk_ins,
     });
   }
 
   closeEdit(): void {
+    this.creating.set(false);
     this.editingEvent.set(null);
     this.editErrorMessage.set('');
     this.editForm.reset();
@@ -113,7 +133,7 @@ export class OrganizerDashboard {
 
   saveEdit(): void {
     const currentEvent = this.editingEvent();
-    if (!currentEvent) {
+    if (!currentEvent && !this.creating()) {
       return;
     }
 
@@ -136,35 +156,52 @@ export class OrganizerDashboard {
       return;
     }
 
+    if (!currentEvent && startDate <= new Date()) {
+      this.editErrorMessage.set('Start date & time must be in the future.');
+      return;
+    }
+
     const capacity = Number(raw.capacity);
-    if (capacity < currentEvent.registrations_count) {
+    if (currentEvent && capacity < currentEvent.registrations_count) {
       this.editErrorMessage.set(
         `Capacity cannot be lower than current registrations (${currentEvent.registrations_count}).`,
       );
       return;
     }
 
+    const payload = {
+      name: raw.name.trim(),
+      description: raw.description.trim(),
+      venue: raw.venue.trim(),
+      starts_at: startDate.toISOString(),
+      ends_at: endDate.toISOString(),
+      capacity,
+      allow_walk_ins: raw.allow_walk_ins,
+    };
+
     this.isSaving.set(true);
-    this.organizerEvents
-      .updateEvent(currentEvent.id, {
-        name: raw.name.trim(),
-        venue: raw.venue.trim(),
-        starts_at: startDate.toISOString(),
-        ends_at: endDate.toISOString(),
-        capacity,
-      })
-      .subscribe({
-        next: (updated) => {
-          this.isSaving.set(false);
-          this.notice.set(`Event "${updated.name}" updated successfully.`);
-          this.closeEdit();
-        },
-        error: (err: HttpErrorResponse) => {
-          this.isSaving.set(false);
-          this.editErrorMessage.set(
-            err.error?.message ?? 'Could not save changes. Please try again.',
-          );
-        },
-      });
+    const request = currentEvent
+      ? this.organizerEvents.updateEvent(currentEvent.id, payload)
+      : this.organizerEvents.createEvent(payload);
+
+    request.subscribe({
+      next: (saved) => {
+        this.isSaving.set(false);
+        if (!currentEvent) {
+          this.notice.set(`"${saved.name}" was submitted and is awaiting admin approval.`);
+        } else if (currentEvent.approval_status === 'Rejected' && saved.approval_status === 'Pending') {
+          this.notice.set(`"${saved.name}" was updated and resubmitted for admin approval.`);
+        } else {
+          this.notice.set(`Event "${saved.name}" updated successfully.`);
+        }
+        this.closeEdit();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.isSaving.set(false);
+        this.editErrorMessage.set(
+          err.error?.message ?? 'Could not save changes. Please try again.',
+        );
+      },
+    });
   }
 }

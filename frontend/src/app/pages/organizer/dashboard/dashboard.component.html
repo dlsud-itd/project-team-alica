@@ -6,7 +6,12 @@
         <h1>Organizer: Event Dashboard</h1>
         <p class="subtitle">Your events, registrations, and attendee activity at a glance.</p>
       </div>
-      <span class="today">{{ now | date: 'EEEE, MMMM d, y' }}</span>
+      <div class="header-actions">
+        <span class="today">{{ now | date: 'EEEE, MMMM d, y' }}</span>
+        <button class="button button-primary button-create" type="button" (click)="openCreate()">
+          <span aria-hidden="true">＋</span> Create event
+        </button>
+      </div>
     </header>
 
     @if (notice()) {
@@ -23,7 +28,7 @@
           <span class="summary-icon events-icon" aria-hidden="true">▦</span>
         </div>
         <strong class="summary-value">{{ events().length }}</strong>
-        <small>Events in your workspace</small>
+        <small>{{ pendingEvents() }} awaiting admin approval</small>
       </article>
       <article class="summary-card">
         <div class="summary-topline">
@@ -39,7 +44,7 @@
           <span class="summary-icon upcoming-icon" aria-hidden="true">◷</span>
         </div>
         <strong class="summary-value">{{ upcomingEvents() }}</strong>
-        <small>Ready for attendee check-in</small>
+        <small>Approved and ready for check-in</small>
       </article>
       <article class="summary-card">
         <div class="summary-topline">
@@ -79,9 +84,16 @@
           <span class="sr-only">Filter events by status</span>
           <select [formControl]="statusControl">
             <option>All statuses</option>
-            <option>Upcoming</option>
-            <option>In progress</option>
-            <option>Completed</option>
+            <optgroup label="Schedule">
+              <option>Upcoming</option>
+              <option>In progress</option>
+              <option>Completed</option>
+            </optgroup>
+            <optgroup label="Approval">
+              <option>Pending</option>
+              <option>Approved</option>
+              <option>Rejected</option>
+            </optgroup>
           </select>
         </label>
       </div>
@@ -95,6 +107,7 @@
                 <th scope="col">DATE &amp; LOCATION</th>
                 <th scope="col">REGISTRATIONS</th>
                 <th scope="col">STATUS</th>
+                <th scope="col">APPROVAL</th>
                 <th scope="col"><span class="sr-only">ACTIONS</span></th>
               </tr>
             </thead>
@@ -106,6 +119,11 @@
                       <span class="event-avatar" aria-hidden="true">{{ event.name.slice(0, 1) }}</span>
                       <span class="event-name-copy">
                         <strong>{{ event.name }}</strong>
+                        @if (event.approval_status === 'Rejected' && event.review_notes) {
+                          <small class="review-note" [title]="event.review_notes">
+                            Admin: {{ event.review_notes }}
+                          </small>
+                        }
                       </span>
                     </div>
                   </td>
@@ -145,13 +163,18 @@
                       {{ event.status }}
                     </span>
                   </td>
+                  <td>
+                    <span class="approval-badge" [class]="'approval-' + event.approval_status.toLowerCase()">
+                      {{ event.approval_status === 'Pending' ? 'Pending review' : event.approval_status }}
+                    </span>
+                  </td>
                   <td class="actions-cell">
                     <button
                       class="button button-secondary"
                       type="button"
                       (click)="openEdit(event)"
                     >
-                      Edit
+                      {{ event.approval_status === 'Rejected' ? 'Revise' : 'Edit' }}
                     </button>
                     <a
                       class="button button-primary"
@@ -173,7 +196,7 @@
             {{
               events().length
                 ? 'Try a different search or status filter.'
-                : 'Events assigned to your account will appear here.'
+                : 'Create an event and submit it for admin approval to get started.'
             }}
           </p>
         </div>
@@ -182,7 +205,7 @@
   </main>
 </div>
 
-@if (editingEvent(); as activeEvent) {
+@if (dialogOpen()) {
   <div
     class="dialog-backdrop"
     (click)="closeEdit()"
@@ -199,8 +222,14 @@
       <div class="edit-dialog-header">
         <div>
           <p class="eyebrow">EVENT MANAGEMENT</p>
-          <h2 id="edit-dialog-title">Edit Event</h2>
-          <p class="dialog-subtitle">Update event details, timing, and capacity.</p>
+          <h2 id="edit-dialog-title">{{ creating() ? 'Create Event' : 'Edit Event' }}</h2>
+          <p class="dialog-subtitle">
+            {{
+              creating()
+                ? 'Fill out the event details. An admin will review it before it is published.'
+                : 'Update event details, timing, and capacity.'
+            }}
+          </p>
         </div>
         <button
           class="close-dialog"
@@ -211,6 +240,13 @@
           ×
         </button>
       </div>
+
+      @if (editingEvent()?.approval_status === 'Rejected') {
+        <div class="review-alert" role="note">
+          <strong>Rejected by admin:</strong> {{ editingEvent()?.review_notes }}
+          <span>Saving your changes will resubmit this event for review.</span>
+        </div>
+      }
 
       @if (editErrorMessage()) {
         <div class="edit-alert" role="alert">
@@ -231,6 +267,18 @@
         </div>
 
         <div class="form-group">
+          <label for="event-description">
+            Description <span class="field-hint">(optional)</span>
+          </label>
+          <textarea
+            id="event-description"
+            formControlName="description"
+            rows="3"
+            placeholder="What is the event about, and who should attend?"
+          ></textarea>
+        </div>
+
+        <div class="form-group">
           <label for="event-venue">Venue</label>
           <input
             id="event-venue"
@@ -248,6 +296,7 @@
               id="event-starts-at"
               type="datetime-local"
               formControlName="starts_at"
+              [min]="creating() ? minStart : null"
               required
             />
           </div>
@@ -265,16 +314,27 @@
         <div class="form-group">
           <label for="event-capacity">
             Total Capacity
-            <span class="field-hint">({{ activeEvent.registrations_count }} registered)</span>
+            @if (editingEvent(); as activeEvent) {
+              <span class="field-hint">({{ activeEvent.registrations_count }} registered)</span>
+            }
           </label>
           <input
             id="event-capacity"
             type="number"
             formControlName="capacity"
-            [min]="activeEvent.registrations_count || 1"
+            [min]="editingEvent()?.registrations_count || 1"
+            placeholder="e.g. 150"
             required
           />
         </div>
+
+        <label class="checkbox-field">
+          <input type="checkbox" formControlName="allow_walk_ins" />
+          <span>
+            Allow walk-in registrations
+            <small>Attendees can register on-site at the venue.</small>
+          </span>
+        </label>
 
         <div class="edit-dialog-actions">
           <button
@@ -289,7 +349,11 @@
             type="submit"
             [disabled]="editForm.invalid || isSaving()"
           >
-            {{ isSaving() ? 'Saving…' : 'Save changes' }}
+            @if (creating()) {
+              {{ isSaving() ? 'Submitting…' : 'Submit for approval' }}
+            } @else {
+              {{ isSaving() ? 'Saving…' : 'Save changes' }}
+            }
           </button>
         </div>
       </form>

@@ -19,6 +19,12 @@ const EVENT: OrganizerEvent = {
   registrations_count: 4,
   capacity: 10,
   status: 'Upcoming',
+  description: '',
+  allow_walk_ins: false,
+  approval_status: 'Approved',
+  review_notes: null,
+  reviewed_at: null,
+  submitted_at: '2026-10-01T00:00:00.000Z',
 };
 
 describe('OrganizerDashboard', () => {
@@ -160,5 +166,65 @@ describe('OrganizerDashboard', () => {
 
     expect(component.editErrorMessage()).toBe('End date & time must be after the start date & time.');
     expect(component.editingEvent()).not.toBeNull();
+  });
+
+  describe('creating an event', () => {
+    const fillForm = (overrides: Record<string, unknown> = {}) =>
+      component.editForm.patchValue({
+        name: 'AI Workshop',
+        description: 'Hands-on agent building',
+        venue: 'CBAA Lab 1',
+        starts_at: '2099-12-01T09:00',
+        ends_at: '2099-12-01T12:00',
+        capacity: 40,
+        allow_walk_ins: true,
+        ...overrides,
+      });
+
+    it('should open an empty create dialog', () => {
+      component.openCreate();
+      expect(component.creating()).toBe(true);
+      expect(component.dialogOpen()).toBe(true);
+      expect(component.editingEvent()).toBeNull();
+      expect(component.editForm.value.name).toBe('');
+    });
+
+    it('should submit the new event for approval and show a notice', () => {
+      component.openCreate();
+      fillForm();
+      component.saveEdit();
+
+      const req = httpMock.expectOne(API);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toMatchObject({
+        name: 'AI Workshop',
+        venue: 'CBAA Lab 1',
+        capacity: 40,
+        allow_walk_ins: true,
+      });
+      req.flush({
+        success: true,
+        data: {
+          ...EVENT,
+          id: 'evt-2',
+          name: 'AI Workshop',
+          registrations_count: 0,
+          approval_status: 'Pending',
+        },
+      });
+
+      expect(component.dialogOpen()).toBe(false);
+      expect(component.notice()).toContain('awaiting admin approval');
+      expect(component.pendingEvents()).toBe(1);
+    });
+
+    it('should reject a start date in the past', () => {
+      component.openCreate();
+      fillForm({ starts_at: '2020-01-01T09:00', ends_at: '2020-01-01T12:00' });
+      component.saveEdit();
+
+      expect(component.editErrorMessage()).toBe('Start date & time must be in the future.');
+      expect(component.creating()).toBe(true);
+    });
   });
 });

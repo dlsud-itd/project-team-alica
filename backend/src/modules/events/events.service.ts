@@ -5,7 +5,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TicketStatus } from '@prisma/client';
+import {
+  Event,
+  EventApprovalStatus,
+  Prisma,
+  TicketStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
 
@@ -31,6 +36,7 @@ export interface EventResponseDto {
 
 export type OrganizerEventStatus = 'Upcoming' | 'In progress' | 'Completed';
 export type RegistrantStatus = 'Registered' | 'Checked In' | 'Cancelled';
+export type ApprovalStatusLabel = 'Pending' | 'Approved' | 'Rejected';
 
 export interface OrganizerEventDto {
   id: string;
@@ -42,6 +48,17 @@ export interface OrganizerEventDto {
   registrations_count: number;
   capacity: number | null;
   status: OrganizerEventStatus;
+  description: string;
+  allow_walk_ins: boolean;
+  approval_status: ApprovalStatusLabel;
+  review_notes: string | null;
+  reviewed_at: string | null;
+  submitted_at: string;
+}
+
+export interface AdminEventDto extends OrganizerEventDto {
+  organizer_name: string;
+  organizer_email: string;
 }
 
 export interface EventRegistrantDto {
@@ -57,10 +74,27 @@ export interface EventRegistrantDto {
 
 export class UpdateEventDto {
   name?: string;
+  description?: string;
   venue?: string;
   starts_at?: string;
   ends_at?: string;
   capacity?: number;
+  allow_walk_ins?: boolean;
+}
+
+export class CreateEventDto {
+  name!: string;
+  description?: string;
+  venue!: string;
+  starts_at!: string;
+  ends_at!: string;
+  capacity!: number;
+  allow_walk_ins?: boolean;
+}
+
+export class ReviewEventDto {
+  decision!: 'APPROVED' | 'REJECTED';
+  notes?: string;
 }
 
 const REGISTRANT_STATUS_LABELS: Record<TicketStatus, RegistrantStatus> = {
@@ -69,8 +103,22 @@ const REGISTRANT_STATUS_LABELS: Record<TicketStatus, RegistrantStatus> = {
   CANCELLED: 'Cancelled',
 };
 
+const APPROVAL_STATUS_LABELS: Record<
+  EventApprovalStatus,
+  ApprovalStatusLabel
+> = {
+  PENDING: 'Pending',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+};
+
 // Tickets that hold a seat (everything except cancelled).
 const ACTIVE_TICKET_FILTER = { status: { not: TicketStatus.CANCELLED } };
+
+const ADMIN_EVENT_INCLUDE = {
+  organizer: { select: { fullName: true, email: true } },
+  _count: { select: { tickets: { where: ACTIVE_TICKET_FILTER } } },
+} satisfies Prisma.EventInclude;
 
 @Injectable()
 export class EventsService {
@@ -78,9 +126,14 @@ export class EventsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Public listing: only active, admin-approved events. */
   async findAll(): Promise<EventResponseDto[]> {
     const events = await this.prisma.event.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        deletedAt: null,
+        approvalStatus: EventApprovalStatus.APPROVED,
+      },
       include: {
         organizer: {
           select: { id: true, fullName: true, affiliation: true },
@@ -197,6 +250,43 @@ export class EventsService {
     return events.map((ev) => this.toOrganizerEvent(ev, ev._count.tickets));
   }
 
+  /** Organizer submits a new event; it stays hidden until an admin approves it. */
+  async create(
+    user: UserSummaryDto,
+    dto: CreateEventDto,
+  ): Promise<OrganizerEventDto> {
+    this.assertOrganizerRole(user);
+
+    const title = this.requireText(dto.name, 'Event title is required');
+    const venueName = this.requireText(dto.venue, 'Venue is required');
+    const [startDate, endDate] = this.parseDateRange(
+      dto.starts_at,
+      dto.ends_at,
+    );
+    if (startDate <= new Date()) {
+      throw new BadRequestException('Start date & time must be in the future');
+    }
+    const capacity = this.parseCapacity(dto.capacity);
+
+    const event = await this.prisma.event.create({
+      data: {
+        title,
+        slug: await this.uniqueSlug(title),
+        description: dto.description?.trim() || null,
+        venueName,
+        startDate,
+        endDate,
+        capacity,
+        allowWalkIns: dto.allow_walk_ins ?? false,
+        approvalStatus: EventApprovalStatus.PENDING,
+        organizerId: user.id,
+      },
+    });
+
+    this.logger.log(`Event '${event.id}' submitted for review by ${user.id}`);
+    return this.toOrganizerEvent(event, 0);
+  }
+
   async update(
     user: UserSummaryDto,
     eventId: string,
@@ -206,41 +296,45 @@ export class EventsService {
     const data: Prisma.EventUpdateInput = {};
 
     if (dto.name !== undefined) {
-      const name = dto.name.trim();
-      if (!name) throw new BadRequestException('Event title is required');
-      data.title = name;
+      data.title = this.requireText(dto.name, 'Event title is required');
     }
 
     if (dto.venue !== undefined) {
-      const venue = dto.venue.trim();
-      if (!venue) throw new BadRequestException('Venue is required');
-      data.venueName = venue;
+      data.venueName = this.requireText(dto.venue, 'Venue is required');
     }
 
-    const startDate = dto.starts_at ? new Date(dto.starts_at) : event.startDate;
-    const endDate = dto.ends_at ? new Date(dto.ends_at) : event.endDate;
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      throw new BadRequestException('Please provide valid start and end dates');
+    if (dto.description !== undefined) {
+      data.description = dto.description.trim() || null;
     }
-    if (endDate <= startDate) {
-      throw new BadRequestException(
-        'End date & time must be after the start date & time',
-      );
+
+    if (dto.allow_walk_ins !== undefined) {
+      data.allowWalkIns = Boolean(dto.allow_walk_ins);
     }
+
+    const [startDate, endDate] = this.parseDateRange(
+      dto.starts_at ?? event.startDate.toISOString(),
+      dto.ends_at ?? event.endDate.toISOString(),
+    );
     data.startDate = startDate;
     data.endDate = endDate;
+
+    // Editing a rejected event resubmits it for admin review.
+    if (
+      user.role !== 'ADMIN' &&
+      event.approvalStatus === EventApprovalStatus.REJECTED
+    ) {
+      data.approvalStatus = EventApprovalStatus.PENDING;
+      data.reviewNotes = null;
+      data.reviewedAt = null;
+      data.reviewedBy = { disconnect: true };
+    }
 
     const registrationsCount = await this.prisma.ticket.count({
       where: { eventId, ...ACTIVE_TICKET_FILTER },
     });
 
     if (dto.capacity !== undefined) {
-      const capacity = Number(dto.capacity);
-      if (!Number.isInteger(capacity) || capacity < 1) {
-        throw new BadRequestException(
-          'Capacity must be a positive whole number',
-        );
-      }
+      const capacity = this.parseCapacity(dto.capacity);
       if (capacity < registrationsCount) {
         throw new BadRequestException(
           `Capacity cannot be lower than current registrations (${registrationsCount})`,
@@ -255,6 +349,72 @@ export class EventsService {
     });
 
     return this.toOrganizerEvent(updated, registrationsCount);
+  }
+
+  /** Every event for the admin console, optionally filtered by approval status. */
+  async findAllForAdmin(
+    user: UserSummaryDto,
+    status?: string,
+  ): Promise<AdminEventDto[]> {
+    this.assertAdminRole(user);
+
+    let approvalStatus: EventApprovalStatus | undefined;
+    if (status) {
+      const normalized = status.toUpperCase();
+      if (!(normalized in EventApprovalStatus)) {
+        throw new BadRequestException(`Unknown approval status '${status}'`);
+      }
+      approvalStatus = normalized as EventApprovalStatus;
+    }
+
+    const events = await this.prisma.event.findMany({
+      where: { deletedAt: null, ...(approvalStatus ? { approvalStatus } : {}) },
+      include: ADMIN_EVENT_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return events.map((ev) => this.toAdminEvent(ev, ev._count.tickets));
+  }
+
+  async review(
+    user: UserSummaryDto,
+    eventId: string,
+    dto: ReviewEventDto,
+  ): Promise<AdminEventDto> {
+    this.assertAdminRole(user);
+
+    if (dto.decision !== 'APPROVED' && dto.decision !== 'REJECTED') {
+      throw new BadRequestException(
+        "Decision must be either 'APPROVED' or 'REJECTED'",
+      );
+    }
+    const notes = dto.notes?.trim() || null;
+    if (dto.decision === 'REJECTED' && !notes) {
+      throw new BadRequestException(
+        'Please provide a reason so the organizer can revise the event',
+      );
+    }
+
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+    });
+    if (!event) {
+      throw new NotFoundException(`Event with ID '${eventId}' not found`);
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        approvalStatus: dto.decision,
+        reviewNotes: notes,
+        reviewedAt: new Date(),
+        reviewedById: user.id,
+      },
+      include: ADMIN_EVENT_INCLUDE,
+    });
+
+    this.logger.log(`Event '${eventId}' ${dto.decision} by ${user.id}`);
+    return this.toAdminEvent(updated, updated._count.tickets);
   }
 
   async findRegistrants(
@@ -312,6 +472,55 @@ export class EventsService {
     }
   }
 
+  private assertAdminRole(user: UserSummaryDto): void {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only administrators can review events');
+    }
+  }
+
+  private requireText(value: string | undefined, message: string): string {
+    const text = value?.trim();
+    if (!text) throw new BadRequestException(message);
+    return text;
+  }
+
+  private parseDateRange(startsAt?: string, endsAt?: string): [Date, Date] {
+    const startDate = new Date(startsAt ?? '');
+    const endDate = new Date(endsAt ?? '');
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      throw new BadRequestException('Please provide valid start and end dates');
+    }
+    if (endDate <= startDate) {
+      throw new BadRequestException(
+        'End date & time must be after the start date & time',
+      );
+    }
+    return [startDate, endDate];
+  }
+
+  private parseCapacity(value: unknown): number {
+    const capacity = Number(value);
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      throw new BadRequestException('Capacity must be a positive whole number');
+    }
+    return capacity;
+  }
+
+  private async uniqueSlug(title: string): Promise<string> {
+    const base =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60) || 'event';
+
+    let slug = base;
+    while (await this.prisma.event.findUnique({ where: { slug } })) {
+      slug = `${base}-${Math.random().toString(36).slice(2, 7)}`;
+    }
+    return slug;
+  }
+
   private async findManageableEvent(user: UserSummaryDto, eventId: string) {
     this.assertOrganizerRole(user);
 
@@ -328,15 +537,7 @@ export class EventsService {
   }
 
   private toOrganizerEvent(
-    ev: {
-      id: string;
-      organizerId: string;
-      title: string;
-      startDate: Date;
-      endDate: Date;
-      venueName: string;
-      capacity: number | null;
-    },
+    ev: Event,
     registrationsCount: number,
   ): OrganizerEventDto {
     const now = new Date();
@@ -357,6 +558,23 @@ export class EventsService {
       registrations_count: registrationsCount,
       capacity: ev.capacity,
       status,
+      description: ev.description ?? '',
+      allow_walk_ins: ev.allowWalkIns,
+      approval_status: APPROVAL_STATUS_LABELS[ev.approvalStatus],
+      review_notes: ev.reviewNotes,
+      reviewed_at: ev.reviewedAt?.toISOString() ?? null,
+      submitted_at: ev.createdAt.toISOString(),
+    };
+  }
+
+  private toAdminEvent(
+    ev: Event & { organizer: { fullName: string; email: string } },
+    registrationsCount: number,
+  ): AdminEventDto {
+    return {
+      ...this.toOrganizerEvent(ev, registrationsCount),
+      organizer_name: ev.organizer.fullName,
+      organizer_email: ev.organizer.email,
     };
   }
 

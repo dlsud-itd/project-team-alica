@@ -131,4 +131,40 @@ export class EventsController {
       data,
     };
   }
+
+  @Patch(':eventId/registrants/:registrantId/cancel')
+  @UseGuards(JwtAuthGuard)
+  async cancelRegistrant(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('registrantId') registrantId: string,
+  ): Promise<{ success: boolean; data: EventRegistrantDto }> {
+    const data = await this.eventsService.cancelRegistrant(
+      user,
+      eventId,
+      registrantId,
+    );
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Patch(':eventId/registrants/:registrantId/restore')
+  @UseGuards(JwtAuthGuard)
+  async restoreRegistrant(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('registrantId') registrantId: string,
+  ): Promise<{ success: boolean; data: EventRegistrantDto }> {
+    const data = await this.eventsService.restoreRegistrant(
+      user,
+      eventId,
+      registrantId,
+    );
+    return {
+      success: true,
+      data,
+    };
+  }
 }

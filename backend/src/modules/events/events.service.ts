@@ -466,6 +466,69 @@ export class EventsService {
     return this.toRegistrant(updated);
   }
 
+  async cancelRegistrant(
+    user: UserSummaryDto,
+    eventId: string,
+    registrantId: string,
+  ): Promise<EventRegistrantDto> {
+    await this.findManageableEvent(user, eventId);
+
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: registrantId, eventId },
+    });
+    if (!ticket) {
+      throw new NotFoundException(`Registrant '${registrantId}' not found`);
+    }
+    if (ticket.status === TicketStatus.CANCELLED) {
+      throw new BadRequestException('Registration is already cancelled');
+    }
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { status: TicketStatus.CANCELLED },
+    });
+
+    return this.toRegistrant(updated);
+  }
+
+  async restoreRegistrant(
+    user: UserSummaryDto,
+    eventId: string,
+    registrantId: string,
+  ): Promise<EventRegistrantDto> {
+    const event = await this.findManageableEvent(user, eventId);
+
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: registrantId, eventId },
+    });
+    if (!ticket) {
+      throw new NotFoundException(`Registrant '${registrantId}' not found`);
+    }
+    if (ticket.status !== TicketStatus.CANCELLED) {
+      throw new BadRequestException(
+        'Only cancelled registrations can be restored',
+      );
+    }
+
+    if (event.capacity) {
+      const spotsTaken = await this.prisma.ticket.count({
+        where: { eventId, status: { not: TicketStatus.CANCELLED } },
+      });
+      if (spotsTaken >= event.capacity) {
+        throw new BadRequestException(
+          'Event is at full capacity. Cannot restore registration.',
+        );
+      }
+    }
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { status: TicketStatus.REGISTERED },
+    });
+
+    return this.toRegistrant(updated);
+  }
+
   private assertOrganizerRole(user: UserSummaryDto): void {
     if (user.role !== 'ORGANIZER' && user.role !== 'ADMIN') {
       throw new ForbiddenException('Only organizers can manage events');

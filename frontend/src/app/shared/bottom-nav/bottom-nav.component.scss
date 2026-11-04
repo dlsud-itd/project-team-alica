@@ -1,0 +1,46 @@
+:host {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.15);
+}
+
+a {
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  &.active {
+    background: #111827;
+    color: #ffffff;
+  }
+}
+
+.separator {
+  width: 1px;
+  height: 1.25rem;
+  background: #e5e7eb;
+}

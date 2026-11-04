@@ -1,6 +1,14 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
 main {
   padding: 2rem;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 h1 {

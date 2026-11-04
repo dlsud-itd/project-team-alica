@@ -1,0 +1,11 @@
+@if (isAdmin()) {
+  <app-top-nav />
+  <div class="page page-admin">
+    <router-outlet />
+  </div>
+} @else {
+  <div class="page">
+    <router-outlet />
+  </div>
+  <app-bottom-nav [items]="navItems()" />
+}

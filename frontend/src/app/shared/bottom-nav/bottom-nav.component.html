@@ -1,0 +1,8 @@
+<nav aria-label="Main navigation">
+  @for (item of items(); track item.path; let last = $last) {
+    <a [routerLink]="item.path" routerLinkActive="active">{{ item.label }}</a>
+    @if (!last) {
+      <span class="separator" aria-hidden="true"></span>
+    }
+  }
+</nav>

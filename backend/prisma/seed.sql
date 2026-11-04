@@ -7,11 +7,13 @@ BEGIN;
 INSERT INTO "public"."users" (
   "id", "email", "passwordHash", "fullName", "role", "studentId", "affiliation", "isActive", "createdAt", "updatedAt"
 ) VALUES
-  ('usr-attendee-alen', 'amc.umandal@gmail.com', '$2b$10$wB5W.3W/1tV4rBwYqZfX/O4mKq9g7O7R/0fH0q0g5P6G9V4Q2Z0kS', 'Alen Mikel Umandal', 'ATTENDEE'::"UserRole", '2023-01982-MN-0', 'College of Science and Computer Studies', true, NOW(), NOW()),
-  ('usr-organizer-campus', 'organizer@alica.ph', '$2b$10$wB5W.3W/1tV4rBwYqZfX/O4mKq9g7O7R/0fH0q0g5P6G9V4Q2Z0kS', 'Campus Organizer', 'ORGANIZER'::"UserRole", NULL, 'University Student Council', true, NOW(), NOW()),
-  ('usr-staff-station', 'staff@checkpoint.ph', '$2b$10$wB5W.3W/1tV4rBwYqZfX/O4mKq9g7O7R/0fH0q0g5P6G9V4Q2Z0kS', 'Station Operator', 'STAFF'::"UserRole", NULL, 'Event Operations Team', true, NOW(), NOW()),
-  ('usr-admin-system', 'admin@dlsud.edu.ph', '$2b$10$wB5W.3W/1tV4rBwYqZfX/O4mKq9g7O7R/0fH0q0g5P6G9V4Q2Z0kS', 'System Administrator', 'ADMIN'::"UserRole", NULL, 'Information & Communications Technology', true, NOW(), NOW())
+  ('usr-attendee-alen', 'amc.umandal@gmail.com', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Alen Mikel Umandal', 'ATTENDEE'::"UserRole", '2023-01982-MN-0', 'College of Science and Computer Studies', true, NOW(), NOW()),
+  ('usr-organizer-campus', 'organizer@alica.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Campus Organizer', 'ORGANIZER'::"UserRole", NULL, 'University Student Council', true, NOW(), NOW()),
+  ('usr-organizer-example', 'organizer@example.com', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Campus Organizer', 'ORGANIZER'::"UserRole", NULL, 'University Student Council', true, NOW(), NOW()),
+  ('usr-staff-station', 'staff@checkpoint.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Station Operator', 'STAFF'::"UserRole", NULL, 'Event Operations Team', true, NOW(), NOW()),
+  ('usr-admin-system', 'admin@dlsud.edu.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'System Administrator', 'ADMIN'::"UserRole", NULL, 'Information & Communications Technology', true, NOW(), NOW())
 ON CONFLICT ("email") DO UPDATE SET
+  "passwordHash" = EXCLUDED."passwordHash",
   "fullName" = EXCLUDED."fullName",
   "role" = EXCLUDED."role",
   "studentId" = EXCLUDED."studentId",

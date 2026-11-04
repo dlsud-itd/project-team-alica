@@ -1,8 +1,12 @@
-// Leave room so content isn't hidden behind the floating nav.
+// Leave room on mobile so content isn't hidden behind the floating nav.
 .page {
   min-height: 100vh;
-  padding-bottom: 6rem;
+  padding-bottom: 5.5rem;
   background-color: var(--color-bg-page, #f1f5f3);
+
+  @media (min-width: 768px) {
+    padding-bottom: 2rem;
+  }
 }
 
 // No floating nav for admins, so no bottom gutter needed.

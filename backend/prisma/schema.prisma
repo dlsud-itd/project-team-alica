@@ -53,17 +53,18 @@ enum ScanResult {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  passwordHash String
-  fullName     String
-  role         UserRole  @default(ATTENDEE)
-  studentId    String?
-  affiliation  String?
-  isActive     Boolean   @default(true)
-  deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  passwordHash       String
+  fullName           String
+  role               UserRole  @default(ATTENDEE)
+  studentId          String?
+  affiliation        String?
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
   organizedEvents       Event[]           @relation("OrganizedEvents")

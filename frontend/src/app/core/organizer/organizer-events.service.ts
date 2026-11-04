@@ -15,6 +15,25 @@ interface ApiResponse<T> {
   data: T;
 }
 
+export interface GuestImportResult {
+  created: Array<{
+    id: string;
+    email: string;
+    fullName: string;
+    ticketId: string;
+    ticketCode: string;
+    emailStatus: 'SENT' | 'FAILED';
+  }>;
+  skipped: Array<{ row: number; email?: string; reason: string }>;
+  emailFailures: string[];
+  summary: {
+    created: number;
+    skipped: number;
+    emailFailures: number;
+  };
+  credentials?: Array<{ email: string; temporaryPassword: string }>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OrganizerEventsService {
   private readonly http = inject(HttpClient);
@@ -62,15 +81,42 @@ export class OrganizerEventsService {
   }
 
   loadRegistrants(eventId: UUID): Observable<EventRegistrant[]> {
+    return this.http.get<ApiResponse<EventRegistrant[]>>(`${this.api}/${eventId}/registrants`).pipe(
+      map((res) => res.data),
+      tap((registrants) =>
+        this.registrantState.update((current) => [
+          ...current.filter((registrant) => registrant.event_id !== eventId),
+          ...registrants,
+        ]),
+      ),
+    );
+  }
+
+  importGuestUsers(
+    eventId: UUID,
+    file: File,
+    includeCredentials: boolean,
+  ): Observable<GuestImportResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('includeCredentials', String(includeCredentials));
+
     return this.http
-      .get<ApiResponse<EventRegistrant[]>>(`${this.api}/${eventId}/registrants`)
+      .post<ApiResponse<GuestImportResult>>(`${this.api}/${eventId}/guests/import-users`, formData)
       .pipe(
         map((res) => res.data),
-        tap((registrants) =>
-          this.registrantState.update((current) => [
-            ...current.filter((registrant) => registrant.event_id !== eventId),
-            ...registrants,
-          ]),
+        tap((result) =>
+          this.eventState.update((events) =>
+            events.map((event) =>
+              event.id === eventId
+                ? {
+                    ...event,
+                    registrations_count:
+                      event.registrations_count + result.summary.created,
+                  }
+                : event,
+            ),
+          ),
         ),
       );
   }

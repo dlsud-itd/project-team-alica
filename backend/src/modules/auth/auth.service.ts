@@ -23,6 +23,11 @@ export class RegisterDto {
   affiliation?: string;
 }
 
+export class ChangePasswordDto {
+  currentPassword!: string;
+  newPassword!: string;
+}
+
 export interface UserSummaryDto {
   id: string;
   email: string;
@@ -30,6 +35,7 @@ export interface UserSummaryDto {
   role: UserRole;
   studentId?: string | null;
   affiliation?: string | null;
+  mustChangePassword?: boolean;
 }
 
 export interface AuthResponseDto {
@@ -74,6 +80,7 @@ export class AuthService {
         role: user.role,
         studentId: user.studentId,
         affiliation: user.affiliation,
+        mustChangePassword: user.mustChangePassword,
       },
       token,
     };
@@ -113,6 +120,7 @@ export class AuthService {
         studentId: dto.studentId?.trim() || null,
         affiliation: dto.affiliation?.trim() || 'Attendee',
         isActive: true,
+        mustChangePassword: false,
       },
     });
 
@@ -126,6 +134,7 @@ export class AuthService {
         role: user.role,
         studentId: user.studentId,
         affiliation: user.affiliation,
+        mustChangePassword: false,
       },
       token,
     };
@@ -158,12 +167,62 @@ export class AuthService {
         role: user.role,
         studentId: user.studentId,
         affiliation: user.affiliation,
+        mustChangePassword: user.mustChangePassword,
       };
     } catch {
       throw new UnauthorizedException(
         'Invalid or expired authentication token',
       );
     }
+  }
+
+  async changePassword(
+    user: UserSummaryDto,
+    dto: ChangePasswordDto,
+  ): Promise<UserSummaryDto> {
+    if (!dto.currentPassword || !dto.newPassword) {
+      throw new BadRequestException(
+        'Current password and new password are required',
+      );
+    }
+    if (dto.newPassword.length < 8) {
+      throw new BadRequestException(
+        'New password must be at least 8 characters long',
+      );
+    }
+
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.id },
+    });
+    if (!account || !account.isActive) {
+      throw new UnauthorizedException('User account not found or inactive');
+    }
+    if (!(await bcrypt.compare(dto.currentPassword, account.passwordHash))) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id: account.id },
+      data: {
+        passwordHash: await bcrypt.hash(dto.newPassword, 10),
+        mustChangePassword: false,
+      },
+    });
+
+    return {
+      id: account.id,
+      email: account.email,
+      fullName: account.fullName,
+      role: account.role,
+      studentId: account.studentId,
+      affiliation: account.affiliation,
+      mustChangePassword: false,
+    };
   }
 
   private generateToken(userId: string, email: string, role: string): string {

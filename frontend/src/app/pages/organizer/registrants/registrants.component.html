@@ -1,6 +1,17 @@
 <main class="registrants-page">
   <a class="back-link" routerLink="/organizer/dashboard">
-    <svg class="nav-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg
+      class="nav-arrow"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <line x1="19" y1="12" x2="5" y2="12"></line>
       <polyline points="12 19 5 12 12 5"></polyline>
     </svg>
@@ -9,7 +20,18 @@
 
   @if (errorMessage()) {
     <div class="alert-banner error-banner" role="alert">
-      <svg class="alert-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg
+        class="alert-icon"
+        viewBox="0 0 24 24"
+        width="16"
+        height="16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -20,7 +42,18 @@
 
   @if (successMessage()) {
     <div class="alert-banner success-banner" role="status">
-      <svg class="alert-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg
+        class="alert-icon"
+        viewBox="0 0 24 24"
+        width="16"
+        height="16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
         <polyline points="22 4 12 14.01 9 11.01"></polyline>
       </svg>
@@ -45,15 +78,88 @@
         <h1>Registrants</h1>
         <p class="event-name">{{ currentEvent.name }}</p>
       </div>
-      <button class="export-button" type="button" (click)="exportRegistrants()">
-        <svg class="export-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-        </svg>
-        Export attendees
-      </button>
+      <div class="header-actions">
+        <label class="credential-option">
+          <input
+            type="checkbox"
+            [checked]="includeCredentials()"
+            (change)="setIncludeCredentials($event)"
+          />
+          Show temporary passwords (local testing)
+        </label>
+        <input
+          #guestFileInput
+          class="file-input-hidden"
+          type="file"
+          accept=".csv,.xlsx"
+          (change)="importGuestFile($event)"
+        />
+        <button
+          class="export-button"
+          type="button"
+          [disabled]="importLoading()"
+          (click)="guestFileInput.click()"
+        >
+          @if (importLoading()) {
+            Importing…
+          } @else {
+            Import attendees
+          }
+        </button>
+        <button class="export-button" type="button" (click)="exportRegistrants()">
+          <svg
+            class="export-icon"
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Export attendees
+        </button>
+      </div>
     </header>
+
+    @if (importResult(); as result) {
+      <section class="import-results" aria-label="Guest import results">
+        <p>
+          Created {{ result.summary.created }} accounts. {{ result.summary.skipped }} row(s)
+          skipped. {{ result.summary.emailFailures }} invitation email(s) failed.
+        </p>
+        @if (result.skipped.length) {
+          <details>
+            <summary>View skipped rows</summary>
+            <ul>
+              @for (row of result.skipped; track $index) {
+                <li>
+                  Row {{ row.row }}{{ row.email ? ' (' + row.email + ')' : '' }}: {{ row.reason }}
+                </li>
+              }
+            </ul>
+          </details>
+        }
+        @if (result.credentials?.length) {
+          <h2>Temporary credentials</h2>
+          <p>Copy these now; they are not saved for later retrieval.</p>
+          <div class="credential-list">
+            @for (credential of result.credentials; track credential.email) {
+              <div>
+                <strong>{{ credential.email }}</strong
+                ><code>{{ credential.temporaryPassword }}</code>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
 
     <section class="stats-row" aria-label="Registration summary">
       <div class="stat-card">
@@ -123,7 +229,18 @@
 
           <!-- Search Box -->
           <label class="search-box">
-            <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg
+              class="search-icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
@@ -135,7 +252,17 @@
             />
             @if (searchControl.value) {
               <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
@@ -161,7 +288,9 @@
               <tr>
                 <td>
                   <div class="attendee-cell">
-                    <span class="avatar" aria-hidden="true">{{ attendee.full_name.slice(0, 1) }}</span>
+                    <span class="avatar" aria-hidden="true">{{
+                      attendee.full_name.slice(0, 1)
+                    }}</span>
                     <span class="attendee-name">
                       <strong>{{ attendee.full_name }}</strong>
                       <small>{{ attendee.email }}</small>
@@ -185,10 +314,22 @@
                       [class.checked-in]="attendee.status === 'Checked In'"
                       [disabled]="attendee.status === 'Cancelled'"
                       (click)="toggleCheckIn(attendee)"
-                      [title]="attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in'"
+                      [title]="
+                        attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in'
+                      "
                     >
                       @if (attendee.status === 'Checked In') {
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="13"
+                          height="13"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
                           <polyline points="20 6 9 17 4 12"></polyline>
                         </svg>
                         <span>Checked in</span>
@@ -205,7 +346,17 @@
                       title="View QR Pass"
                       aria-label="View QR Pass"
                     >
-                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="15"
+                        height="15"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
                         <rect x="3" y="3" width="7" height="7"></rect>
                         <rect x="14" y="3" width="7" height="7"></rect>
                         <rect x="14" y="14" width="7" height="7"></rect>
@@ -217,15 +368,15 @@
                     <details class="action-menu">
                       <summary aria-label="Attendee actions">•••</summary>
                       <div class="menu-items">
-                        <button type="button" (click)="openQrPass(attendee)">
-                          View QR Pass
-                        </button>
+                        <button type="button" (click)="openQrPass(attendee)">View QR Pass</button>
                         <button
                           type="button"
                           [disabled]="attendee.status === 'Cancelled'"
                           (click)="toggleCheckIn(attendee)"
                         >
-                          {{ attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in' }}
+                          {{
+                            attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in'
+                          }}
                         </button>
                         @if (attendee.status !== 'Cancelled') {
                           <button
@@ -244,7 +395,10 @@
                             Restore registration
                           </button>
                         }
-                        <button type="button" (click)="selectedRegistrant.set(attendee); closeActionMenus()">
+                        <button
+                          type="button"
+                          (click)="selectedRegistrant.set(attendee); closeActionMenus()"
+                        >
                           View details
                         </button>
                       </div>
@@ -255,7 +409,11 @@
             } @empty {
               <tr>
                 <td class="empty-cell" colspan="5">
-                  <strong>{{ searchControl.value || statusFilter() !== 'ALL' ? 'No matching attendees' : 'No registrants yet' }}</strong>
+                  <strong>{{
+                    searchControl.value || statusFilter() !== 'ALL'
+                      ? 'No matching attendees'
+                      : 'No registrants yet'
+                  }}</strong>
                   <span>
                     {{
                       searchControl.value || statusFilter() !== 'ALL'
@@ -297,13 +455,18 @@
       aria-labelledby="qr-dialog-title"
       (click)="$event.stopPropagation()"
     >
-      <button
-        class="close-dialog"
-        type="button"
-        aria-label="Close QR pass"
-        (click)="closeQrPass()"
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <button class="close-dialog" type="button" aria-label="Close QR pass" (click)="closeQrPass()">
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
@@ -316,7 +479,11 @@
         @if (qrLoading()) {
           <div class="qr-loading-spinner" aria-busy="true">Generating QR…</div>
         } @else if (qrDataUrl()) {
-          <img [src]="qrDataUrl()" [alt]="'QR ticket for ' + qrAttendee.full_name" class="qr-image" />
+          <img
+            [src]="qrDataUrl()"
+            [alt]="'QR ticket for ' + qrAttendee.full_name"
+            class="qr-image"
+          />
         }
       </div>
 
@@ -334,7 +501,17 @@
           (click)="downloadQr(qrAttendee)"
           [disabled]="!qrDataUrl()"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -363,7 +540,17 @@
         aria-label="Close attendee details"
         (click)="selectedRegistrant.set(null)"
       >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
@@ -371,9 +558,18 @@
 
       <h2 id="attendee-details-title">{{ attendee.full_name }}</h2>
       <dl>
-        <div><dt>Email</dt><dd>{{ attendee.email }}</dd></div>
-        <div><dt>Ticket ID</dt><dd class="ticket-id">{{ attendee.ticket_id }}</dd></div>
-        <div><dt>Registration date</dt><dd>{{ attendee.registered_at | date: 'medium' }}</dd></div>
+        <div>
+          <dt>Email</dt>
+          <dd>{{ attendee.email }}</dd>
+        </div>
+        <div>
+          <dt>Ticket ID</dt>
+          <dd class="ticket-id">{{ attendee.ticket_id }}</dd>
+        </div>
+        <div>
+          <dt>Registration date</dt>
+          <dd>{{ attendee.registered_at | date: 'medium' }}</dd>
+        </div>
         <div>
           <dt>Status</dt>
           <dd>
@@ -427,10 +623,12 @@
     >
       <h2 id="cancel-dialog-title">Cancel RSVP?</h2>
       <p class="confirm-message">
-        Are you sure you want to cancel the registration for <strong>{{ toCancel.full_name }}</strong> ({{ toCancel.ticket_id }})?
+        Are you sure you want to cancel the registration for
+        <strong>{{ toCancel.full_name }}</strong> ({{ toCancel.ticket_id }})?
       </p>
       <p class="confirm-note">
-        This releases 1 reserved seat back to the event capacity. The attendee will no longer be able to check in with this ticket.
+        This releases 1 reserved seat back to the event capacity. The attendee will no longer be
+        able to check in with this ticket.
       </p>
 
       <div class="dialog-actions">
@@ -467,7 +665,9 @@
     >
       <h2 id="restore-dialog-title">Restore RSVP?</h2>
       <p class="confirm-message">
-        Restore active registration status for <strong>{{ toRestore.full_name }}</strong> ({{ toRestore.ticket_id }})?
+        Restore active registration status for <strong>{{ toRestore.full_name }}</strong> ({{
+          toRestore.ticket_id
+        }})?
       </p>
       <p class="confirm-note">
         This will reactivate their ticket and count 1 seat toward this event's capacity.

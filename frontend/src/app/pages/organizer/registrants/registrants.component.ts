@@ -6,11 +6,11 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { filter, from, map, switchMap } from 'rxjs';
 import * as QRCode from 'qrcode';
+import { EventRegistrant, RegistrationStatus } from '../../../core/organizer/organizer.models';
 import {
-  EventRegistrant,
-  RegistrationStatus,
-} from '../../../core/organizer/organizer.models';
-import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
+  GuestImportResult,
+  OrganizerEventsService,
+} from '../../../core/organizer/organizer-events.service';
 
 export type RegistrantFilter = 'ALL' | 'Registered' | 'Checked In' | 'Cancelled';
 
@@ -32,6 +32,9 @@ export class OrganizerRegistrants {
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
   readonly actionLoading = signal(false);
+  readonly importLoading = signal(false);
+  readonly includeCredentials = signal(false);
+  readonly importResult = signal<GuestImportResult | null>(null);
 
   // Status Filter
   readonly statusFilter = signal<RegistrantFilter>('ALL');
@@ -68,14 +71,18 @@ export class OrganizerRegistrants {
   private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
 
   readonly allEventAttendees = computed(() =>
-    this.organizerEvents.registrants().filter((registrant) => registrant.event_id === this.eventId()),
+    this.organizerEvents
+      .registrants()
+      .filter((registrant) => registrant.event_id === this.eventId()),
   );
 
   readonly registeredCount = computed(
-    () => this.allEventAttendees().filter((registrant) => registrant.status === 'Registered').length,
+    () =>
+      this.allEventAttendees().filter((registrant) => registrant.status === 'Registered').length,
   );
   readonly checkedInCount = computed(
-    () => this.allEventAttendees().filter((registrant) => registrant.status === 'Checked In').length,
+    () =>
+      this.allEventAttendees().filter((registrant) => registrant.status === 'Checked In').length,
   );
   readonly cancelledCount = computed(
     () => this.allEventAttendees().filter((registrant) => registrant.status === 'Cancelled').length,
@@ -270,6 +277,62 @@ export class OrganizerRegistrants {
       .replace(/^-|-$/g, '');
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  setIncludeCredentials(event: Event): void {
+    this.includeCredentials.set((event.target as HTMLInputElement).checked);
+  }
+
+  importGuestFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    this.errorMessage.set('');
+    this.successMessage.set('');
+    this.importResult.set(null);
+
+    if (!/\.(csv|xlsx)$/i.test(file.name)) {
+      this.errorMessage.set('Choose a .csv or .xlsx file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      this.errorMessage.set('The file must be 5 MiB or smaller.');
+      return;
+    }
+
+    const eventId = this.eventId();
+    if (!eventId) {
+      this.errorMessage.set('The event could not be identified.');
+      return;
+    }
+
+    this.importLoading.set(true);
+    this.organizerEvents.importGuestUsers(eventId, file, this.includeCredentials()).subscribe({
+      next: (result) => {
+        this.importLoading.set(false);
+        this.importResult.set(result);
+        this.successMessage.set(
+          `Registered ${result.summary.created} attendee(s) for this event; skipped ${result.summary.skipped} row(s).`,
+        );
+        this.organizerEvents.loadRegistrants(eventId).subscribe({
+          error: () =>
+            this.errorMessage.set(
+              'Attendees were imported, but the registrant list could not be refreshed.',
+            ),
+        });
+      },
+      error: (error: HttpErrorResponse) => {
+        this.importLoading.set(false);
+        const message = error.error?.message;
+        this.errorMessage.set(
+          Array.isArray(message)
+            ? message.join(', ')
+            : (message ?? 'Could not import guest accounts.'),
+        );
+      },
+    });
   }
 
   private escapeCsv(value: string): string {

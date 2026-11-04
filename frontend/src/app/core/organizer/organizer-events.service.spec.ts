@@ -103,9 +103,7 @@ describe('OrganizerEventsService', () => {
 
   it('should load registrants and toggle check-in through the API', () => {
     service.loadRegistrants('evt-1').subscribe();
-    httpMock
-      .expectOne(`${API}/evt-1/registrants`)
-      .flush({ success: true, data: [REGISTRANT] });
+    httpMock.expectOne(`${API}/evt-1/registrants`).flush({ success: true, data: [REGISTRANT] });
     expect(service.registrants()).toEqual([REGISTRANT]);
 
     service.toggleCheckIn(REGISTRANT).subscribe();
@@ -116,11 +114,51 @@ describe('OrganizerEventsService', () => {
     expect(service.registrants()[0].status).toBe('Checked In');
   });
 
+  it('should upload a guest list and return imported account results', () => {
+    const file = new File(
+      ['First Name,Last Name,Email\nAlex,Guest,alex@example.org'],
+      'guests.csv',
+      { type: 'text/csv' },
+    );
+    const expected = {
+      created: [
+        {
+          id: 'usr-guest-1',
+          email: 'alex@example.org',
+          fullName: 'Alex Guest',
+          ticketId: 'ticket-1',
+          ticketCode: 'CHK-TEST',
+          emailStatus: 'SENT' as const,
+        },
+      ],
+      skipped: [],
+      emailFailures: [],
+      summary: { created: 1, skipped: 0, emailFailures: 0 },
+      credentials: [{ email: 'alex@example.org', temporaryPassword: 'a1B2c3D4e5' }],
+    };
+
+    service.loadEvents().subscribe();
+    httpMock.expectOne(`${API}/mine`).flush({ success: true, data: [EVENT] });
+
+    let response: unknown;
+    service.importGuestUsers('evt-1', file, true).subscribe((result) => {
+      response = result;
+    });
+
+    const req = httpMock.expectOne(`${API}/evt-1/guests/import-users`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toBeInstanceOf(FormData);
+    expect((req.request.body as FormData).get('file')).toBe(file);
+    expect((req.request.body as FormData).get('includeCredentials')).toBe('true');
+    req.flush({ success: true, data: expected });
+
+    expect(response).toEqual(expected);
+    expect(service.eventById('evt-1')?.registrations_count).toBe(3);
+  });
+
   it('should cancel a registrant through the API and update state', () => {
     service.loadRegistrants('evt-1').subscribe();
-    httpMock
-      .expectOne(`${API}/evt-1/registrants`)
-      .flush({ success: true, data: [REGISTRANT] });
+    httpMock.expectOne(`${API}/evt-1/registrants`).flush({ success: true, data: [REGISTRANT] });
 
     service.cancelRegistrant('evt-1', 'tkt-1').subscribe();
     const req = httpMock.expectOne(`${API}/evt-1/registrants/tkt-1/cancel`);

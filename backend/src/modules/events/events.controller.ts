@@ -2,12 +2,16 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   AdminEventDto,
   CreateEventDto,
@@ -17,6 +21,8 @@ import {
   OrganizerEventDto,
   ReviewEventDto,
   UpdateEventDto,
+  type GuestImportFile,
+  type GuestImportResult,
 } from './events.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -166,5 +172,28 @@ export class EventsController {
       success: true,
       data,
     };
+  }
+
+  @Post(':eventId/guests/import-users')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    }),
+  )
+  @Header('Cache-Control', 'no-store')
+  async importGuestUsers(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @UploadedFile() file: GuestImportFile | undefined,
+    @Body('includeCredentials') includeCredentials?: string | boolean,
+  ): Promise<{ success: boolean; data: GuestImportResult }> {
+    const data = await this.eventsService.importGuestUsers(
+      user,
+      eventId,
+      file,
+      includeCredentials,
+    );
+    return { success: true, data };
   }
 }

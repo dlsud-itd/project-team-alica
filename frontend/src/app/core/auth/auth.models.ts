@@ -8,6 +8,7 @@ export interface AuthUser {
   role: UserRole;
   studentId?: string | null;
   affiliation?: string | null;
+  mustChangePassword?: boolean;
 }
 
 // Landing page for each role after login, or when hitting a page the role can't access.

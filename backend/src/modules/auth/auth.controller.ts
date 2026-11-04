@@ -5,14 +5,19 @@ import {
   Body,
   Headers,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { AllowPasswordReset } from '../../common/decorators/allow-password-reset.decorator.js';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import {
   AuthService,
+  ChangePasswordDto,
   LoginDto,
   RegisterDto,
   AuthResponseDto,
-  UserSummaryDto,
 } from './auth.service.js';
+import type { UserSummaryDto } from './auth.service.js';
 
 @Controller('auth')
 export class AuthController {
@@ -38,6 +43,17 @@ export class AuthController {
       success: true,
       data,
     };
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @AllowPasswordReset()
+  async changePassword(
+    @CurrentUser() user: UserSummaryDto,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ success: boolean; data: UserSummaryDto }> {
+    const data = await this.authService.changePassword(user, dto);
+    return { success: true, data };
   }
 
   @Get('me')

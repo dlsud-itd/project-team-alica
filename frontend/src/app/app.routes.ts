@@ -1,5 +1,10 @@
 import { Routes } from '@angular/router';
-import { guestGuard, roleGuard } from './core/auth/auth.guards';
+import {
+  guestGuard,
+  passwordChangeGuard,
+  profileAccessGuard,
+  roleGuard,
+} from './core/auth/auth.guards';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'events' },
@@ -16,11 +21,13 @@ export const routes: Routes = [
       },
       {
         path: 'profile',
+        canActivate: [profileAccessGuard],
         loadComponent: () =>
           import('./user_profile/user_profile.component').then((m) => m.UserProfileComponent),
       },
       {
         path: 'profile/:ticketCode',
+        canActivate: [profileAccessGuard],
         loadComponent: () =>
           import('./user_profile/user_profile.component').then((m) => m.UserProfileComponent),
       },
@@ -36,6 +43,14 @@ export const routes: Routes = [
     canMatch: [guestGuard],
     loadComponent: () =>
       import('./pages/public/register/register.component').then((m) => m.RegisterComponent),
+  },
+  {
+    path: 'change-password',
+    canMatch: [passwordChangeGuard],
+    loadComponent: () =>
+      import('./pages/public/change-password/change-password.component').then(
+        (m) => m.ChangePasswordComponent,
+      ),
   },
 
   // ADMIN

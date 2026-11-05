@@ -34,9 +34,9 @@ describe('role-based routing', () => {
     expect(router.url).toBe('/profile');
   });
 
-  it('sends guest staff routes to the operator login', async () => {
+  it('sends guest staff routes to the shared login', async () => {
     await router.navigateByUrl('/staff/scanner');
-    expect(router.url).toBe('/staff/login?returnUrl=%2Fstaff%2Fscanner');
+    expect(router.url).toBe('/login?returnUrl=%2Fstaff%2Fscanner');
   });
 
   it('allows a user into their own role area', async () => {

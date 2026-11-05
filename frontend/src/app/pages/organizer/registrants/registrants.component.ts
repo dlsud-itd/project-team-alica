@@ -25,7 +25,9 @@ export class OrganizerRegistrants {
   private readonly organizerEvents = inject(OrganizerEventsService);
 
   readonly eventId = toSignal(
-    this.route.paramMap.pipe(map((params) => params.get('eventId') ?? '')),
+    (this.route.parent?.paramMap ?? this.route.paramMap).pipe(
+      map((params) => params.get('eventId') ?? ''),
+    ),
     { initialValue: '' },
   );
   readonly eventsLoaded = this.organizerEvents.eventsLoaded;
@@ -52,7 +54,8 @@ export class OrganizerRegistrants {
       this.reloadEvents();
     }
 
-    this.route.paramMap
+    const idSource$ = this.route.parent?.paramMap ?? this.route.paramMap;
+    idSource$
       .pipe(
         map((params) => params.get('eventId') ?? ''),
         filter(Boolean),

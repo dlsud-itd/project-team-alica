@@ -121,6 +121,26 @@ describe('Scanner', () => {
     expect(component.manualCode.value).toBe('');
   });
 
+  it('submits the manual form on Enter without reloading the page', async () => {
+    await create();
+    api.scan.mockReturnValue(of(outcome()));
+
+    const host = fixture.nativeElement as HTMLElement;
+    const input = host.querySelector<HTMLInputElement>('#manual-code')!;
+    input.value = 'CHK-2026-9812A';
+    input.dispatchEvent(new Event('input'));
+
+    const submit = new Event('submit', { cancelable: true });
+    host.querySelector('form.manual-entry')!.dispatchEvent(submit);
+    await fixture.whenStable();
+
+    expect(submit.defaultPrevented).toBe(true);
+    expect(api.scan).toHaveBeenCalledWith(
+      GATE.id,
+      expect.objectContaining({ ticketCode: 'CHK-2026-9812A' }),
+    );
+  });
+
   it('shows the first check-in time for a duplicate scan', async () => {
     await create();
     api.scan.mockReturnValue(

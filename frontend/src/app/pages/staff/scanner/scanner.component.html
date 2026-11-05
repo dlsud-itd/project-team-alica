@@ -199,7 +199,7 @@
         }
 
         <!-- Manual entry fallback -->
-        <form class="manual-entry" (ngSubmit)="submitManual()">
+        <form class="manual-entry" (submit)="$event.preventDefault(); submitManual()">
           <label for="manual-code">Manual code entry</label>
           <div class="manual-row">
             <input

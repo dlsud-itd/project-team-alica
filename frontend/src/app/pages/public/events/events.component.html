@@ -194,7 +194,7 @@
 
               @switch (getEventRole(event)) {
                 @case ('ORGANIZER') {
-                  <a routerLink="/organizer/dashboard" class="btn-card-action btn-manage" aria-label="Manage {{ event.title }}">
+                  <a [routerLink]="['/organizer/events', event.id, 'overview']" class="btn-card-action btn-manage" aria-label="Manage {{ event.title }}">
                     <span>Manage Event</span>
                     <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -203,7 +203,7 @@
                   </a>
                 }
                 @case ('STAFF') {
-                  <a routerLink="/staff/scanner" class="btn-card-action btn-scan" aria-label="Open Scanner for {{ event.title }}">
+                  <a [routerLink]="['/staff/events', event.id, 'scanner']" class="btn-card-action btn-scan" aria-label="Open Scanner for {{ event.title }}">
                     <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
                       <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>

@@ -72,11 +72,39 @@ export const routes: Routes = [
           ),
       },
       {
-        path: 'events/:eventId/registrants',
+        path: 'events/:eventId',
         loadComponent: () =>
-          import('./pages/organizer/registrants/registrants.component').then(
-            (m) => m.OrganizerRegistrants,
+          import('./pages/organizer/event-shell/event-shell.component').then(
+            (m) => m.EventShellComponent,
           ),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'overview' },
+          {
+            path: 'overview',
+            loadComponent: () =>
+              import('./pages/organizer/event-overview/event-overview.component').then(
+                (m) => m.EventOverviewComponent,
+              ),
+          },
+          {
+            path: 'scanner',
+            loadComponent: () =>
+              import('./pages/organizer/event-scanner/event-scanner.component').then(
+                (m) => m.EventScannerComponent,
+              ),
+          },
+          {
+            path: 'guests',
+            loadComponent: () =>
+              import('./pages/organizer/registrants/registrants.component').then(
+                (m) => m.OrganizerRegistrants,
+              ),
+          },
+        ],
+      },
+      {
+        path: 'events/:eventId/registrants',
+        redirectTo: 'events/:eventId/guests',
       },
     ],
   },
@@ -96,6 +124,37 @@ export const routes: Routes = [
             path: 'scanner',
             loadComponent: () =>
               import('./pages/staff/scanner/scanner.component').then((m) => m.Scanner),
+          },
+          {
+            path: 'events/:eventId',
+            loadComponent: () =>
+              import('./pages/organizer/event-shell/event-shell.component').then(
+                (m) => m.EventShellComponent,
+              ),
+            children: [
+              { path: '', pathMatch: 'full', redirectTo: 'scanner' },
+              {
+                path: 'overview',
+                loadComponent: () =>
+                  import('./pages/organizer/event-overview/event-overview.component').then(
+                    (m) => m.EventOverviewComponent,
+                  ),
+              },
+              {
+                path: 'scanner',
+                loadComponent: () =>
+                  import('./pages/organizer/event-scanner/event-scanner.component').then(
+                    (m) => m.EventScannerComponent,
+                  ),
+              },
+              {
+                path: 'guests',
+                loadComponent: () =>
+                  import('./pages/organizer/registrants/registrants.component').then(
+                    (m) => m.OrganizerRegistrants,
+                  ),
+              },
+            ],
           },
         ],
       },

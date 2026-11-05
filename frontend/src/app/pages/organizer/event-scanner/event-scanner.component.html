@@ -1,0 +1,213 @@
+<div class="scanner-page-container">
+  <!-- Station Selector Header -->
+  <section class="station-selector-card">
+    <div class="selector-left">
+      <label for="station-select" class="selector-label">
+        <svg class="icon-station" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+        </svg>
+        <span>Active Station / Gate:</span>
+      </label>
+      <div class="select-wrapper">
+        <select
+          id="station-select"
+          class="station-select-input"
+          [value]="selectedStationId()"
+          (change)="onSelectStation($event)"
+          [disabled]="loadingCheckpoints()"
+        >
+          @if (loadingCheckpoints()) {
+            <option>Loading checkpoints…</option>
+          } @else if (checkpoints().length === 0) {
+            <option>No checkpoints configured for this event</option>
+          } @else {
+            @for (cp of checkpoints(); track cp.id) {
+              <option [value]="cp.id">{{ cp.name }} ({{ cp.type }})</option>
+            }
+          }
+        </select>
+        <svg class="select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+    </div>
+
+    @if (activeStation()) {
+      <div class="station-meta-badge">
+        <span>Station Mode: <strong>{{ activeStation()?.type }}</strong></span>
+      </div>
+    }
+  </section>
+
+  <!-- Scan Result Banner -->
+  @if (lastResult(); as res) {
+    <div
+      class="scan-feedback-banner"
+      [class.feedback-success]="res.scanResult === 'SUCCESS'"
+      [class.feedback-duplicate]="res.scanResult === 'DUPLICATE'"
+      [class.feedback-warning]="res.scanResult === 'WARNING_NO_MAIN_ENTRY'"
+      [class.feedback-invalid]="res.scanResult === 'INVALID_TICKET'"
+      role="status"
+    >
+      <div class="feedback-icon-wrap" aria-hidden="true">
+        @if (res.scanResult === 'SUCCESS') {
+          <svg class="feedback-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        } @else if (res.scanResult === 'DUPLICATE' || res.scanResult === 'WARNING_NO_MAIN_ENTRY') {
+          <svg class="feedback-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        } @else {
+          <svg class="feedback-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+        }
+      </div>
+
+      <div class="feedback-content">
+        <h3 class="feedback-title">{{ res.message }}</h3>
+        <div class="feedback-details">
+          @if (res.attendeeName) {
+            <span class="detail-name"><strong>{{ res.attendeeName }}</strong></span>
+          }
+          @if (res.affiliation) {
+            <span class="detail-org">{{ res.affiliation }}</span>
+          }
+          <span class="detail-code">Pass: <code>{{ res.ticketCode }}</code></span>
+        </div>
+      </div>
+
+      <button type="button" class="btn-dismiss-feedback" (click)="dismissResult()" aria-label="Dismiss result">×</button>
+    </div>
+  }
+
+  <!-- Scanning Workspace Grid -->
+  <div class="scanner-grid">
+    <!-- Left Column: Camera Viewfinder & Manual Entry -->
+    <div class="scanner-main-col">
+      <!-- Camera Card -->
+      <section class="camera-card">
+        <div class="viewfinder-container">
+          <video #video class="viewfinder-video" [class.active]="isScanningCamera()" autoplay playsinline muted></video>
+
+          @if (!isScanningCamera()) {
+            <div class="camera-idle-overlay">
+              <svg class="idle-cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              <p>Camera is currently idle.</p>
+              <button type="button" class="btn-start-camera" (click)="startCamera()">
+                <svg class="btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Start Camera Scanner</span>
+              </button>
+            </div>
+          } @else {
+            <div class="targeting-reticle" aria-hidden="true">
+              <div class="reticle-corner corner-tl"></div>
+              <div class="reticle-corner corner-tr"></div>
+              <div class="reticle-corner corner-bl"></div>
+              <div class="reticle-corner corner-br"></div>
+              <div class="reticle-laser"></div>
+            </div>
+          }
+        </div>
+
+        @if (cameraError()) {
+          <div class="camera-error-banner" role="alert">
+            <span>{{ cameraError() }}</span>
+          </div>
+        }
+
+        @if (isScanningCamera()) {
+          <div class="camera-controls-bar">
+            <button type="button" class="btn-stop-camera" (click)="stopCamera()">
+              Stop Camera
+            </button>
+            <span class="camera-status-text">Scanning for QR codes…</span>
+          </div>
+        }
+      </section>
+
+      <!-- Manual Code Entry Card -->
+      <section class="manual-code-card">
+        <header class="card-header">
+          <h3 class="card-title">Manual Pass Code Entry</h3>
+          <p class="card-subtitle">Type or paste the attendee ticket code (e.g. #DEV-928472 or CHK-2026-9812A).</p>
+        </header>
+
+        <form (ngSubmit)="onManualSubmit()" class="manual-form">
+          <div class="input-row">
+            <input
+              type="text"
+              class="code-input"
+              [formControl]="manualCode"
+              placeholder="e.g. #DEV-928472"
+              aria-label="Ticket pass code"
+            />
+            <button
+              type="submit"
+              class="btn-verify"
+              [disabled]="processing() || !manualCode.value.trim()"
+            >
+              {{ processing() ? 'Verifying…' : 'Check In' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- Right Column: Station Live Feed -->
+    <div class="scanner-side-col">
+      <section class="station-feed-card">
+        <header class="feed-header">
+          <h3 class="feed-title">Recent Station Scans</h3>
+          <span class="feed-badge">{{ recentStationScans().length }} in session</span>
+        </header>
+
+        <div class="feed-list">
+          @if (recentStationScans().length === 0) {
+            <div class="feed-empty">
+              <svg class="feed-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <p>No scans recorded at this station yet. Scan a ticket to see immediate results.</p>
+            </div>
+          } @else {
+            @for (item of recentStationScans(); track item.time + item.ticketCode) {
+              <div class="feed-item">
+                <div class="feed-item-top">
+                  <code class="feed-code">{{ item.ticketCode }}</code>
+                  <span
+                    class="feed-pill"
+                    [class.pill-success]="item.scanResult === 'SUCCESS'"
+                    [class.pill-duplicate]="item.scanResult === 'DUPLICATE'"
+                    [class.pill-warning]="item.scanResult === 'WARNING_NO_MAIN_ENTRY'"
+                    [class.pill-invalid]="item.scanResult === 'INVALID_TICKET'"
+                  >
+                    {{ item.scanResult }}
+                  </span>
+                </div>
+                <div class="feed-item-bottom">
+                  <span class="feed-name">{{ item.attendeeName || 'Guest' }}</span>
+                  <span class="feed-time">{{ item.time }}</span>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+

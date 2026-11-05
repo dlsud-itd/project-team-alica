@@ -1,229 +1,281 @@
-<div class="dashboard-shell">
-  <main class="dashboard">
-    <header class="page-header">
-      <div>
-        <p class="eyebrow">ORGANIZER WORKSPACE</p>
-        <h1>Organizer: Event Dashboard</h1>
-        <p class="subtitle">Your events, registrations, and attendee activity at a glance.</p>
-      </div>
-      <div class="header-actions">
-        <span class="today">{{ now | date: 'EEEE, MMMM d, y' }}</span>
-        <button class="button button-primary button-create" type="button" (click)="openCreate()">
-          <span aria-hidden="true">＋</span> Create event
+<div class="organizer-container">
+  <!-- Page Header -->
+  <header class="page-topline">
+    <div class="header-titles">
+      <h1 class="main-title">My Organized Events</h1>
+      <p class="main-subtitle">Overview of events you coordinate, venue occupancy metrics, and operational gates.</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-host-event" type="button" (click)="openCreate()">
+        <svg class="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Host or Propose Event</span>
+      </button>
+    </div>
+  </header>
+
+  @if (notice()) {
+    <div class="notice-banner" role="status">
+      <span>{{ notice() }}</span>
+      <button type="button" class="notice-dismiss" (click)="notice.set('')" aria-label="Dismiss notice">×</button>
+    </div>
+  }
+
+  <!-- Toolbar: Search & Format Filter Pills -->
+  <section class="events-toolbar" aria-label="Event filters">
+    <div class="search-box">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input
+        type="search"
+        class="search-input"
+        [formControl]="searchControl"
+        placeholder="Search events by title or venue..."
+        aria-label="Search events by title or venue"
+      />
+      @if (searchControl.value) {
+        <button type="button" class="btn-clear-search" (click)="searchControl.setValue('')" aria-label="Clear search">
+          ×
         </button>
+      }
+    </div>
+
+    <div class="format-pills" role="tablist" aria-label="Filter by format">
+      <button
+        type="button"
+        class="filter-pill"
+        [class.active]="selectedFormat() === 'ALL'"
+        (click)="setFormat('ALL')"
+      >
+        All Formats
+      </button>
+      <button
+        type="button"
+        class="filter-pill"
+        [class.active]="selectedFormat() === 'CONFERENCE'"
+        (click)="setFormat('CONFERENCE')"
+      >
+        Conference
+      </button>
+      <button
+        type="button"
+        class="filter-pill"
+        [class.active]="selectedFormat() === 'EXPO'"
+        (click)="setFormat('EXPO')"
+      >
+        Expo
+      </button>
+      <button
+        type="button"
+        class="filter-pill"
+        [class.active]="selectedFormat() === 'MEETUP'"
+        (click)="setFormat('MEETUP')"
+      >
+        Meetup
+      </button>
+      <button
+        type="button"
+        class="filter-pill"
+        [class.active]="selectedFormat() === 'HACKATHON'"
+        (click)="setFormat('HACKATHON')"
+      >
+        Hackathon
+      </button>
+      <button
+        type="button"
+        class="filter-pill"
+        [class.active]="selectedFormat() === 'WORKSHOP'"
+        (click)="setFormat('WORKSHOP')"
+      >
+        Workshop
+      </button>
+    </div>
+  </section>
+
+  <!-- Table Section -->
+  <section class="table-card">
+    @if (loading()) {
+      <div class="table-loading" role="status">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <p>Loading your events…</p>
       </div>
-    </header>
-
-    @if (notice()) {
-      <div class="notice" role="status">
-        <span>{{ notice() }}</span>
-        <button type="button" class="notice-close" (click)="notice.set('')" aria-label="Dismiss notice">×</button>
+    } @else if (loadError()) {
+      <div class="table-error" role="alert">
+        <h3>Unable to load events</h3>
+        <p>{{ loadError() }}</p>
+        <button type="button" class="btn-retry" (click)="reloadEvents()">Retry</button>
       </div>
-    }
+    } @else if (filteredEvents().length === 0) {
+      <div class="table-empty">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <h3>{{ events().length ? 'No matching events found' : 'No organized events yet' }}</h3>
+        <p>
+          {{
+            events().length
+              ? 'Try adjusting your search query or format filter.'
+              : 'Propose your first event to start coordinating attendees and gates.'
+          }}
+        </p>
+      </div>
+    } @else {
+      <div class="table-scroll-wrapper">
+        <table class="events-table">
+          <thead>
+            <tr>
+              <th scope="col" class="th-details">EVENT DETAILS</th>
+              <th scope="col" class="th-visibility">VISIBILITY</th>
+              <th scope="col" class="th-date-venue">DATE &amp; VENUE</th>
+              <th scope="col" class="th-rsvp">RSVP &amp; CAPACITY</th>
+              <th scope="col" class="th-admitted">ADMITTED</th>
+              <th scope="col" class="th-status">STATUS</th>
+              <th scope="col" class="th-actions">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (event of paginatedEvents(); track event.id) {
+              <tr class="event-row">
+                <!-- 1. EVENT DETAILS -->
+                <td class="td-details">
+                  <div class="details-group">
+                    <span class="event-name">{{ event.name }}</span>
+                    <div class="tags-group">
+                      <span class="badge-format" [class]="'format-' + getCategory(event).toLowerCase()">
+                        {{ getCategory(event) }}
+                      </span>
+                      <span class="badge-gates">{{ getGatesCount(event) }} gates</span>
+                    </div>
+                  </div>
+                </td>
 
-    <section class="summary-grid" aria-label="Event summary">
-      <article class="summary-card">
-        <div class="summary-topline">
-          <span>ASSIGNED EVENTS</span>
-          <span class="summary-icon events-icon" aria-hidden="true">▦</span>
-        </div>
-        <strong class="summary-value">{{ events().length }}</strong>
-        <small>{{ pendingEvents() }} awaiting admin approval</small>
-      </article>
-      <article class="summary-card">
-        <div class="summary-topline">
-          <span>TOTAL REGISTRATIONS</span>
-          <span class="summary-icon registration-icon" aria-hidden="true">↗</span>
-        </div>
-        <strong class="summary-value">{{ totalRegistrations() }}</strong>
-        <small>Across all assigned events</small>
-      </article>
-      <article class="summary-card">
-        <div class="summary-topline">
-          <span>UPCOMING EVENTS</span>
-          <span class="summary-icon upcoming-icon" aria-hidden="true">◷</span>
-        </div>
-        <strong class="summary-value">{{ upcomingEvents() }}</strong>
-        <small>Approved and ready for check-in</small>
-      </article>
-      <article class="summary-card">
-        <div class="summary-topline">
-          <span>OPEN SEATS</span>
-          <span class="summary-icon seats-icon" aria-hidden="true">＋</span>
-        </div>
-        <strong class="summary-value">{{ openSeats() }}</strong>
-        <small>Remaining registration capacity</small>
-      </article>
-    </section>
+                <!-- 2. VISIBILITY -->
+                <td class="td-visibility">
+                  <div class="visibility-cell">
+                    <svg class="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                    <span>Public</span>
+                  </div>
+                </td>
 
-    <section class="events-section">
-      <div class="section-heading">
-        <div>
-          <h2>Event roster</h2>
-          <p>Review event details and manage attendee registrations.</p>
-        </div>
-        <span class="event-count">{{ filteredEvents().length }} of {{ events().length }} events</span>
+                <!-- 3. DATE & VENUE -->
+                <td class="td-date-venue">
+                  <div class="date-venue-cell">
+                    <strong class="event-date">{{ event.starts_at | date: 'MMM d, y' }}</strong>
+                    <span class="event-venue">{{ event.venue }}</span>
+                  </div>
+                </td>
+
+                <!-- 4. RSVP & CAPACITY -->
+                <td class="td-rsvp">
+                  <div class="rsvp-cell">
+                    <strong class="rsvp-numbers">
+                      {{ event.registrations_count }} / {{ event.capacity ? (event.capacity | number) : '∞' }}
+                    </strong>
+                    <span class="rsvp-subtext">
+                      {{ registrationProgress(event.registrations_count, event.capacity) | percent: '1.0-0' }} booked
+                    </span>
+                  </div>
+                </td>
+
+                <!-- 5. ADMITTED -->
+                <td class="td-admitted">
+                  <div class="admitted-cell">
+                    <strong class="admitted-numbers">
+                      {{ getAdmittedCount(event) }} ({{ getAdmittedPercent(event) }}%)
+                    </strong>
+                    <div class="progress-track" aria-hidden="true">
+                      <div class="progress-fill" [style.width.%]="getAdmittedPercent(event)"></div>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- 6. STATUS -->
+                <td class="td-status">
+                  <div class="status-cell">
+                    <span class="status-dot"></span>
+                    <span class="status-label">
+                      {{ event.approval_status === 'Approved' ? 'PUBLISHED' : event.approval_status.toUpperCase() }}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- 7. ACTIONS -->
+                <td class="td-actions">
+                  <div class="actions-group">
+                    <a
+                      class="btn-view-event"
+                      [routerLink]="['/organizer/events', event.id, 'overview']"
+                    >
+                      <span>View Event</span>
+                      <svg class="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                      </svg>
+                    </a>
+                    <a
+                      class="btn-scan-action"
+                      [routerLink]="['/organizer/events', event.id, 'scanner']"
+                      title="Open Scanner for {{ event.name }}"
+                    >
+                      <svg class="icon-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                      </svg>
+                      <span>Scan</span>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
 
-      @if (loading()) {
-        <p class="empty-state" role="status">Loading your events…</p>
-      } @else if (loadError()) {
-        <div class="empty-state" role="alert">
-          <h3>Unable to load events</h3>
-          <p>{{ loadError() }}</p>
-          <button type="button" class="button button-secondary" (click)="reloadEvents()">
-            Retry
+      <!-- Pagination Footer -->
+      <footer class="pagination-footer">
+        <span class="pagination-meta">
+          Showing <strong>{{ (currentPage() - 1) * pageSize + 1 }}</strong> to
+          <strong>{{ Math.min(currentPage() * pageSize, filteredEvents().length) }}</strong> of
+          <strong>{{ filteredEvents().length }}</strong> events
+        </span>
+        <div class="pagination-controls">
+          <button
+            type="button"
+            class="btn-page"
+            [disabled]="currentPage() === 1"
+            (click)="prevPage()"
+            aria-label="Previous page"
+          >
+            Previous
+          </button>
+          <span class="page-indicator">Page {{ currentPage() }} of {{ totalPages() }}</span>
+          <button
+            type="button"
+            class="btn-page"
+            [disabled]="currentPage() === totalPages()"
+            (click)="nextPage()"
+            aria-label="Next page"
+          >
+            Next
           </button>
         </div>
-      } @else {
-      <div class="toolbar">
-        <label class="search-box">
-          <span class="search-icon" aria-hidden="true">⌕</span>
-          <span class="sr-only">Search by event name or location</span>
-          <input
-            type="search"
-            [formControl]="searchControl"
-            placeholder="Search event or location"
-          />
-          @if (searchControl.value) {
-            <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">
-              ×
-            </button>
-          }
-        </label>
-        <label class="status-filter">
-          <span class="sr-only">Filter events by status</span>
-          <select [formControl]="statusControl">
-            <option>All statuses</option>
-            <optgroup label="Schedule">
-              <option>Upcoming</option>
-              <option>In progress</option>
-              <option>Completed</option>
-            </optgroup>
-            <optgroup label="Approval">
-              <option>Pending</option>
-              <option>Approved</option>
-              <option>Rejected</option>
-            </optgroup>
-          </select>
-        </label>
-      </div>
-
-      @if (filteredEvents().length) {
-        <div class="event-table-wrap">
-          <table class="event-table">
-            <thead>
-              <tr>
-                <th scope="col">EVENT</th>
-                <th scope="col">DATE &amp; LOCATION</th>
-                <th scope="col">REGISTRATIONS</th>
-                <th scope="col">STATUS</th>
-                <th scope="col">APPROVAL</th>
-                <th scope="col"><span class="sr-only">ACTIONS</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (event of filteredEvents(); track event.id) {
-                <tr>
-                  <td>
-                    <div class="event-name-cell">
-                      <span class="event-avatar" aria-hidden="true">{{ event.name.slice(0, 1) }}</span>
-                      <span class="event-name-copy">
-                        <strong>{{ event.name }}</strong>
-                        @if (event.approval_status === 'Rejected' && event.review_notes) {
-                          <small class="review-note" [title]="event.review_notes">
-                            Admin: {{ event.review_notes }}
-                          </small>
-                        }
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="date-cell">
-                      <strong>{{ event.starts_at | date: 'MMM d, y' }}</strong>
-                      <small>{{ event.venue }} · {{ event.starts_at | date: 'h:mm a' }}</small>
-                    </div>
-                  </td>
-                  <td class="registration-cell">
-                    <div class="registration-numbers">
-                      <strong>{{ event.registrations_count }}</strong>
-                      <span> / {{ event.capacity ?? '∞' }}</span>
-                    </div>
-                    <div
-                      class="progress-track"
-                      role="progressbar"
-                      [attr.aria-label]="event.name + ' registration capacity'"
-                      [attr.aria-valuenow]="event.registrations_count"
-                      [attr.aria-valuemin]="0"
-                      [attr.aria-valuemax]="event.capacity"
-                    >
-                      <span
-                        class="progress-fill"
-                        [style.width.%]="registrationProgress(event.registrations_count, event.capacity) * 100"
-                      ></span>
-                    </div>
-                    <small>{{ registrationProgress(event.registrations_count, event.capacity) | percent: '1.0-1' }} capacity</small>
-                  </td>
-                  <td>
-                    <span class="event-status" [class]="{
-                        'status-upcoming': event.status === 'Upcoming',
-                        'status-live': event.status === 'In progress',
-                        'status-completed': event.status === 'Completed'
-                      }">
-                      <span class="status-dot" aria-hidden="true"></span>
-                      {{ event.status }}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="approval-badge" [class]="'approval-' + event.approval_status.toLowerCase()">
-                      {{ event.approval_status === 'Pending' ? 'Pending review' : event.approval_status }}
-                    </span>
-                  </td>
-                  <td class="actions-cell">
-                    <button
-                      class="button button-secondary"
-                      type="button"
-                      (click)="openEdit(event)"
-                    >
-                      {{ event.approval_status === 'Rejected' ? 'Revise' : 'Edit' }}
-                    </button>
-                    <button
-                      class="button button-danger"
-                      type="button"
-                      (click)="openDelete(event)"
-                    >
-                      Delete
-                    </button>
-                    <a
-                      class="button button-primary"
-                      [routerLink]="['/organizer/events', event.id, 'registrants']"
-                    >
-                      Registrants <span aria-hidden="true">→</span>
-                    </a>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <div class="empty-state">
-          <span aria-hidden="true">⌕</span>
-          <h3>{{ events().length ? 'No matching events' : 'No events assigned yet' }}</h3>
-          <p>
-            {{
-              events().length
-                ? 'Try a different search or status filter.'
-                : 'Create an event and submit it for admin approval to get started.'
-            }}
-          </p>
-        </div>
-      }
-      }
-    </section>
-  </main>
+      </footer>
+    }
+  </section>
 </div>
 
+<!-- Create / Edit Event Dialog -->
 @if (dialogOpen()) {
   <div
     class="dialog-backdrop"
@@ -238,185 +290,130 @@
       aria-labelledby="edit-dialog-title"
       (click)="$event.stopPropagation()"
     >
-      <div class="edit-dialog-header">
+      <header class="dialog-header">
         <div>
-          <p class="eyebrow">EVENT MANAGEMENT</p>
-          <h2 id="edit-dialog-title">{{ creating() ? 'Create Event' : 'Edit Event' }}</h2>
+          <h2 id="edit-dialog-title">
+            {{ creating() ? 'Host or Propose Event' : 'Edit Event Details' }}
+          </h2>
           <p class="dialog-subtitle">
             {{
               creating()
-                ? 'Fill out the event details. An admin will review it before it is published.'
-                : 'Update event details, timing, and capacity.'
+                ? 'Fill out your event details below to submit for administrative review.'
+                : 'Modify schedule, capacity, or location.'
             }}
           </p>
         </div>
         <button
-          class="close-dialog"
           type="button"
-          aria-label="Close edit dialog"
+          class="dialog-close"
+          aria-label="Close dialog"
           (click)="closeEdit()"
         >
-          ×
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
         </button>
-      </div>
+      </header>
 
-      @if (editingEvent()?.approval_status === 'Rejected') {
-        <div class="review-alert" role="note">
-          <strong>Rejected by admin:</strong> {{ editingEvent()?.review_notes }}
-          <span>Saving your changes will resubmit this event for review.</span>
-        </div>
-      }
+      <form [formGroup]="editForm" (ngSubmit)="saveEdit()" class="dialog-body">
+        @if (editErrorMessage()) {
+          <div class="form-alert" role="alert">
+            <span>{{ editErrorMessage() }}</span>
+          </div>
+        }
 
-      @if (editErrorMessage()) {
-        <div class="edit-alert" role="alert">
-          {{ editErrorMessage() }}
-        </div>
-      }
-
-      <form [formGroup]="editForm" (ngSubmit)="saveEdit()" class="edit-form">
         <div class="form-group">
-          <label for="event-name">Event Title</label>
+          <label for="event-name">Event Name *</label>
           <input
             id="event-name"
             type="text"
             formControlName="name"
-            placeholder="e.g. DLSU-D Tech Summit 2026"
-            required
+            placeholder="e.g. Philippine Tech Summit 2026"
           />
         </div>
 
         <div class="form-group">
-          <label for="event-description">
-            Description <span class="field-hint">(optional)</span>
-          </label>
-          <textarea
-            id="event-description"
-            formControlName="description"
-            rows="3"
-            placeholder="What is the event about, and who should attend?"
-          ></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="event-venue">Venue</label>
+          <label for="event-venue">Venue / Location *</label>
           <input
             id="event-venue"
             type="text"
             formControlName="venue"
-            placeholder="e.g. Henry Sy Sr. Hall"
-            required
+            placeholder="e.g. SMX Convention Center, Mall of Asia"
           />
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="event-starts-at">Starts At</label>
+            <label for="event-starts-at">Starts At *</label>
             <input
               id="event-starts-at"
               type="datetime-local"
               formControlName="starts_at"
               [min]="creating() ? minStart : null"
-              required
             />
           </div>
+
           <div class="form-group">
-            <label for="event-ends-at">Ends At</label>
+            <label for="event-ends-at">Ends At *</label>
             <input
               id="event-ends-at"
               type="datetime-local"
               formControlName="ends_at"
-              required
+              [min]="editForm.get('starts_at')?.value || minStart"
             />
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="event-capacity">
-            Total Capacity
-            @if (editingEvent(); as activeEvent) {
-              <span class="field-hint">({{ activeEvent.registrations_count }} registered)</span>
-            }
-          </label>
-          <input
-            id="event-capacity"
-            type="number"
-            formControlName="capacity"
-            [min]="editingEvent()?.registrations_count || 1"
-            placeholder="e.g. 150"
-            required
-          />
+        <div class="form-row">
+          <div class="form-group">
+            <label for="event-capacity">Total Capacity *</label>
+            <input
+              id="event-capacity"
+              type="number"
+              min="1"
+              formControlName="capacity"
+              placeholder="e.g. 1000"
+            />
+          </div>
+
+          <div class="form-group">
+            <span class="field-label">Walk-in Policy</span>
+            <label class="checkbox-card">
+              <input type="checkbox" formControlName="allow_walk_ins" class="custom-checkbox" />
+              <span class="checkbox-text">Allow Walk-ins</span>
+            </label>
+          </div>
         </div>
 
-        <label class="checkbox-field">
-          <input type="checkbox" formControlName="allow_walk_ins" />
-          <span>
-            Allow walk-in registrations
-            <small>Attendees can register on-site at the venue.</small>
-          </span>
-        </label>
+        <div class="form-group">
+          <label for="event-description">Description</label>
+          <textarea
+            id="event-description"
+            rows="3"
+            formControlName="description"
+            placeholder="Keynote themes, target audience, session tracks..."
+          ></textarea>
+        </div>
 
-        <div class="edit-dialog-actions">
-          @if (editingEvent(); as activeEvent) {
-            <button
-              class="button button-danger-ghost delete-left"
-              type="button"
-              (click)="openDelete(activeEvent)"
-            >
-              Delete event
-            </button>
-          }
+        <footer class="dialog-footer">
           <button
-            class="button button-secondary"
             type="button"
+            class="btn-cancel"
             (click)="closeEdit()"
+            [disabled]="isSaving()"
           >
             Cancel
           </button>
           <button
-            class="button button-primary"
             type="submit"
-            [disabled]="editForm.invalid || isSaving()"
+            class="btn-submit"
+            [disabled]="isSaving() || editForm.invalid"
           >
-            @if (creating()) {
-              {{ isSaving() ? 'Submitting…' : 'Submit for approval' }}
-            } @else {
-              {{ isSaving() ? 'Saving…' : 'Save changes' }}
-            }
+            {{ isSaving() ? 'Saving...' : creating() ? 'Submit for Review' : 'Save Changes' }}
           </button>
-        </div>
+        </footer>
       </form>
-    </section>
-  </div>
-}
-
-@if (deletingEvent(); as target) {
-  <div class="dialog-backdrop confirm-backdrop" (click)="closeDelete()">
-    <section
-      class="edit-dialog confirm-dialog"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="delete-dialog-title"
-      aria-describedby="delete-dialog-desc"
-      (click)="$event.stopPropagation()"
-    >
-      <div class="confirm-icon" aria-hidden="true">!</div>
-      <h2 id="delete-dialog-title">Delete this event?</h2>
-      <p id="delete-dialog-desc">
-        You're about to delete <strong>{{ target.name }}</strong>.
-        @if (target.registrations_count) {
-          This will also remove its {{ target.registrations_count }}
-          {{ target.registrations_count === 1 ? 'registration' : 'registrations' }}.
-        }
-        This action can't be undone.
-      </p>
-      <div class="confirm-actions">
-        <button class="button button-secondary" type="button" (click)="closeDelete()">
-          Cancel
-        </button>
-        <button class="button button-danger-solid" type="button" (click)="confirmDelete()">
-          Yes, delete event
-        </button>
-      </div>
     </section>
   </div>
 }

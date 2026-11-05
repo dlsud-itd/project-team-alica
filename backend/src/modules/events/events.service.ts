@@ -54,6 +54,81 @@ export interface OrganizerEventDto {
   review_notes: string | null;
   reviewed_at: string | null;
   submitted_at: string;
+  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category_label?: string;
+  checkpoints_count?: number;
+  admitted_count?: number;
+}
+
+export interface EventLiveKpisDto {
+  totalRsvps: number;
+  checkedInAttendees: number;
+  attendanceRate: number;
+  venueOccupancy: number;
+  maxCapacity: number | null;
+  activeStationsCount: number;
+  totalVerifiedScans: number;
+}
+
+export interface HourlyFlowPointDto {
+  hour: string;
+  scans: number;
+}
+
+export interface StationTrafficDto {
+  id: string;
+  name: string;
+  type: string;
+  scans: number;
+  percentage: number;
+}
+
+export interface RecentScanItemDto {
+  id: string;
+  attendeeName: string;
+  affiliation: string;
+  ticketCode: string;
+  stationName: string;
+  scannedAt: string;
+  status: string;
+  statusLabel: string;
+}
+
+export interface EventLiveOverviewDto {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  categoryLabel: string;
+  capacity: number | null;
+  venue: string;
+  startsAt: string;
+  endsAt: string;
+  kpis: EventLiveKpisDto;
+  hourlyFlow: HourlyFlowPointDto[];
+  stationTraffic: StationTrafficDto[];
+  recentScans: RecentScanItemDto[];
+}
+
+export interface EventCheckpointDto {
+  id: string;
+  name: string;
+  location: string | null;
+  type: string;
+  allowMultipleScans: boolean;
+  requireMainEntry: boolean;
+  eventId: string;
+  eventName: string;
+}
+
+export interface ScanResultDto {
+  scanResult: 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET';
+  ticketCode: string;
+  attendeeName?: string;
+  affiliation?: string;
+  stationName?: string;
+  scannedAt: string;
+  message: string;
 }
 
 export interface AdminEventDto extends OrganizerEventDto {
@@ -242,12 +317,44 @@ export class EventsService {
         ...(user.role === 'ADMIN' ? {} : { organizerId: user.id }),
       },
       include: {
-        _count: { select: { tickets: { where: ACTIVE_TICKET_FILTER } } },
+        _count: {
+          select: {
+            tickets: { where: ACTIVE_TICKET_FILTER },
+            checkpoints: { where: { isActive: true, deletedAt: null } },
+          },
+        },
+        tickets: {
+          where: { status: TicketStatus.CHECKED_IN },
+          select: { id: true },
+        },
       },
       orderBy: { startDate: 'asc' },
     });
 
-    return events.map((ev) => this.toOrganizerEvent(ev, ev._count.tickets));
+    return events.map((ev) => {
+      const base = this.toOrganizerEvent(ev, ev._count.tickets);
+      let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' = 'CONFERENCE';
+      let category_label = 'Conference';
+      const lowerTitle = ev.title.toLowerCase();
+      if (lowerTitle.includes('hackathon')) {
+        category = 'HACKATHON';
+        category_label = 'Hackathon';
+      } else if (lowerTitle.includes('workshop')) {
+        category = 'WORKSHOP';
+        category_label = 'Workshop';
+      } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
+        category = 'EXPO';
+        category_label = 'Expo';
+      }
+
+      return {
+        ...base,
+        category,
+        category_label,
+        checkpoints_count: ev._count.checkpoints ?? 0,
+        admitted_count: ev.tickets ? ev.tickets.length : 0,
+      };
+    });
   }
 
   /** Organizer submits a new event; it stays hidden until an admin approves it. */
@@ -662,5 +769,428 @@ export class EventsService {
       registered_at: ticket.createdAt.toISOString(),
       status: REGISTRANT_STATUS_LABELS[ticket.status],
     };
+  }
+
+  async findAccessibleEvent(user: UserSummaryDto, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+      include: {
+        staff: true,
+      },
+    });
+    if (!event) {
+      throw new NotFoundException(`Event with ID '${eventId}' not found`);
+    }
+    if (user.role === 'ADMIN') return event;
+    if (user.role === 'ORGANIZER' && event.organizerId === user.id) return event;
+    const isAssignedStaff = event.staff?.some(
+      (s) => s.userId === user.id && s.isActive,
+    );
+    if (user.role === 'STAFF' && isAssignedStaff) return event;
+
+    throw new ForbiddenException('You do not have access to this event');
+  }
+
+  async getLiveOverview(
+    user: UserSummaryDto,
+    eventId: string,
+  ): Promise<EventLiveOverviewDto> {
+    const event = await this.findAccessibleEvent(user, eventId);
+
+    const totalRsvps = await this.prisma.ticket.count({
+      where: { eventId, status: { not: TicketStatus.CANCELLED } },
+    });
+    const checkedInAttendees = await this.prisma.ticket.count({
+      where: { eventId, status: TicketStatus.CHECKED_IN },
+    });
+
+    const checkpoints = await this.prisma.checkpoint.findMany({
+      where: { eventId, isActive: true, deletedAt: null },
+      include: {
+        _count: {
+          select: { attendanceLogs: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const totalVerifiedScans = await this.prisma.attendanceLog.count({
+      where: { checkpoint: { eventId } },
+    });
+
+    const recentLogs = await this.prisma.attendanceLog.findMany({
+      where: { checkpoint: { eventId } },
+      include: {
+        checkpoint: true,
+        ticket: true,
+      },
+      orderBy: { scannedAt: 'desc' },
+      take: 20,
+    });
+
+    const allLogs = await this.prisma.attendanceLog.findMany({
+      where: { checkpoint: { eventId } },
+      select: { scannedAt: true },
+      orderBy: { scannedAt: 'asc' },
+    });
+
+    const hoursOrder = [
+      '8:00 AM',
+      '9:00 AM',
+      '10:00 AM',
+      '11:00 AM',
+      '12:00 PM',
+      '1:00 PM',
+      '2:00 PM',
+      '3:00 PM',
+      '4:00 PM',
+      '5:00 PM',
+    ];
+    const hourCounts: Record<string, number> = {};
+    for (const h of hoursOrder) {
+      hourCounts[h] = 0;
+    }
+
+    for (const log of allLogs) {
+      const date = new Date(log.scannedAt);
+      const hourNumber = date.getHours();
+      const period = hourNumber >= 12 ? 'PM' : 'AM';
+      const displayHour = hourNumber % 12 === 0 ? 12 : hourNumber % 12;
+      const key = `${displayHour}:00 ${period}`;
+      hourCounts[key] = (hourCounts[key] || 0) + 1;
+    }
+
+    const hourlyFlow: HourlyFlowPointDto[] = Object.keys(hourCounts).map(
+      (hour) => ({
+        hour,
+        scans: hourCounts[hour],
+      }),
+    );
+
+    const maxStationScans = Math.max(
+      ...checkpoints.map((c) => c._count.attendanceLogs),
+      1,
+    );
+
+    const stationTraffic: StationTrafficDto[] = checkpoints.map((c) => ({
+      id: c.id,
+      name: c.name,
+      type:
+        c.type === 'MAIN_ENTRY'
+          ? 'Main Entrance'
+          : c.type === 'SESSION'
+            ? 'Session'
+            : c.type === 'BOOTH'
+              ? 'Booth'
+              : 'Exit',
+      scans: c._count.attendanceLogs,
+      percentage: Math.round((c._count.attendanceLogs / maxStationScans) * 100),
+    }));
+
+    const recentScans: RecentScanItemDto[] = recentLogs.map((log) => ({
+      id: log.id,
+      attendeeName: log.ticket
+        ? `${log.ticket.firstName} ${log.ticket.lastName}`.trim()
+        : 'Guest Attendee',
+      affiliation: log.ticket?.affiliation || 'General Attendee',
+      ticketCode: log.ticketCode,
+      stationName: log.checkpoint.name,
+      scannedAt: log.scannedAt.toISOString(),
+      status: log.scanResult,
+      statusLabel:
+        log.scanResult === 'SUCCESS'
+          ? 'Checked In'
+          : log.scanResult === 'DUPLICATE'
+            ? 'Duplicate'
+            : log.scanResult === 'WARNING_NO_MAIN_ENTRY'
+              ? 'Warning: No Main Entry'
+              : 'Invalid Ticket',
+    }));
+
+    const attendanceRate =
+      totalRsvps > 0 ? Math.round((checkedInAttendees / totalRsvps) * 100) : 0;
+    const venueOccupancy =
+      event.capacity && event.capacity > 0
+        ? Math.round((checkedInAttendees / event.capacity) * 100)
+        : 0;
+
+    let category = 'CONFERENCE';
+    let categoryLabel = 'Conference';
+    const lowerTitle = event.title.toLowerCase();
+    if (lowerTitle.includes('hackathon')) {
+      category = 'HACKATHON';
+      categoryLabel = 'Hackathon';
+    } else if (lowerTitle.includes('workshop')) {
+      category = 'WORKSHOP';
+      categoryLabel = 'Workshop';
+    } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
+      category = 'EXPO';
+      categoryLabel = 'Expo';
+    }
+
+    return {
+      id: event.id,
+      name: event.title,
+      slug: event.slug,
+      category,
+      categoryLabel,
+      capacity: event.capacity,
+      venue: event.venueName,
+      startsAt: event.startDate.toISOString(),
+      endsAt: event.endDate.toISOString(),
+      kpis: {
+        totalRsvps,
+        checkedInAttendees,
+        attendanceRate,
+        venueOccupancy,
+        maxCapacity: event.capacity,
+        activeStationsCount: checkpoints.length,
+        totalVerifiedScans,
+      },
+      hourlyFlow,
+      stationTraffic,
+      recentScans,
+    };
+  }
+
+  async getEventCheckpoints(
+    user: UserSummaryDto,
+    eventId: string,
+  ): Promise<EventCheckpointDto[]> {
+    const event = await this.findAccessibleEvent(user, eventId);
+
+    const checkpoints = await this.prisma.checkpoint.findMany({
+      where: { eventId, isActive: true, deletedAt: null },
+      orderBy: { name: 'asc' },
+    });
+
+    return checkpoints.map((c) => ({
+      id: c.id,
+      name: c.name,
+      location: c.location,
+      type: c.type,
+      allowMultipleScans: c.allowMultipleScans,
+      requireMainEntry: c.requireMainEntry,
+      eventId: event.id,
+      eventName: event.title,
+    }));
+  }
+
+  async recordScan(
+    user: UserSummaryDto,
+    eventId: string,
+    checkpointId: string,
+    ticketCode: string,
+  ): Promise<ScanResultDto> {
+    await this.findAccessibleEvent(user, eventId);
+
+    const checkpoint = await this.prisma.checkpoint.findFirst({
+      where: { id: checkpointId, eventId, isActive: true, deletedAt: null },
+    });
+    if (!checkpoint) {
+      throw new NotFoundException(
+        `Checkpoint '${checkpointId}' not found for this event`,
+      );
+    }
+
+    const cleanCode = ticketCode.trim();
+    const ticket = await this.prisma.ticket.findFirst({
+      where: {
+        eventId,
+        OR: [{ ticketCode: cleanCode }, { ticketCode: `#${cleanCode}` }],
+      },
+    });
+
+    const now = new Date();
+
+    if (!ticket) {
+      await this.prisma.attendanceLog.create({
+        data: {
+          ticketCode: cleanCode,
+          checkpointId,
+          scannedByUserId: user.id,
+          scanResult: 'INVALID_TICKET',
+          notes: 'Ticket not found for this event',
+        },
+      });
+      return {
+        scanResult: 'INVALID_TICKET',
+        ticketCode: cleanCode,
+        stationName: checkpoint.name,
+        scannedAt: now.toISOString(),
+        message: 'Invalid ticket code for this event',
+      };
+    }
+
+    if (ticket.status === TicketStatus.CANCELLED) {
+      await this.prisma.attendanceLog.create({
+        data: {
+          ticketId: ticket.id,
+          ticketCode: ticket.ticketCode,
+          checkpointId,
+          scannedByUserId: user.id,
+          scanResult: 'INVALID_TICKET',
+          notes: 'Ticket was cancelled',
+        },
+      });
+      return {
+        scanResult: 'INVALID_TICKET',
+        ticketCode: ticket.ticketCode,
+        attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
+        affiliation: ticket.affiliation ?? undefined,
+        stationName: checkpoint.name,
+        scannedAt: now.toISOString(),
+        message: 'This registration has been cancelled',
+      };
+    }
+
+    if (checkpoint.requireMainEntry) {
+      const mainEntryLog = await this.prisma.attendanceLog.findFirst({
+        where: {
+          ticketId: ticket.id,
+          checkpoint: { eventId, type: 'MAIN_ENTRY' },
+          scanResult: 'SUCCESS',
+        },
+      });
+      if (!mainEntryLog) {
+        await this.prisma.attendanceLog.create({
+          data: {
+            ticketId: ticket.id,
+            ticketCode: ticket.ticketCode,
+            checkpointId,
+            scannedByUserId: user.id,
+            scanResult: 'WARNING_NO_MAIN_ENTRY',
+            notes: 'Attendee has not scanned at a main entry gate yet',
+          },
+        });
+        return {
+          scanResult: 'WARNING_NO_MAIN_ENTRY',
+          ticketCode: ticket.ticketCode,
+          attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
+          affiliation: ticket.affiliation ?? undefined,
+          stationName: checkpoint.name,
+          scannedAt: now.toISOString(),
+          message: 'Attendee has not checked in at the main gate yet',
+        };
+      }
+    }
+
+    if (!checkpoint.allowMultipleScans) {
+      const priorScan = await this.prisma.attendanceLog.findFirst({
+        where: {
+          ticketId: ticket.id,
+          checkpointId,
+          scanResult: 'SUCCESS',
+        },
+      });
+      if (priorScan) {
+        await this.prisma.attendanceLog.create({
+          data: {
+            ticketId: ticket.id,
+            ticketCode: ticket.ticketCode,
+            checkpointId,
+            scannedByUserId: user.id,
+            scanResult: 'DUPLICATE',
+            notes: 'Already checked in at this station',
+          },
+        });
+        return {
+          scanResult: 'DUPLICATE',
+          ticketCode: ticket.ticketCode,
+          attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
+          affiliation: ticket.affiliation ?? undefined,
+          stationName: checkpoint.name,
+          scannedAt: now.toISOString(),
+          message: 'Already checked in at this station',
+        };
+      }
+    }
+
+    await this.prisma.attendanceLog.create({
+      data: {
+        ticketId: ticket.id,
+        ticketCode: ticket.ticketCode,
+        checkpointId,
+        scannedByUserId: user.id,
+        scanResult: 'SUCCESS',
+      },
+    });
+
+    await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        status: TicketStatus.CHECKED_IN,
+        firstScannedAt: ticket.firstScannedAt ?? now,
+        lastScannedAt: now,
+      },
+    });
+
+    return {
+      scanResult: 'SUCCESS',
+      ticketCode: ticket.ticketCode,
+      attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
+      affiliation: ticket.affiliation ?? undefined,
+      stationName: checkpoint.name,
+      scannedAt: now.toISOString(),
+      message: 'Check-in successful',
+    };
+  }
+
+  async exportScansCsv(
+    user: UserSummaryDto,
+    eventId: string,
+  ): Promise<string> {
+    await this.findAccessibleEvent(user, eventId);
+
+    const logs = await this.prisma.attendanceLog.findMany({
+      where: { checkpoint: { eventId } },
+      include: {
+        checkpoint: true,
+        ticket: true,
+        scannedBy: true,
+      },
+      orderBy: { scannedAt: 'desc' },
+    });
+
+    const headers = [
+      'Ticket Code',
+      'Attendee Name',
+      'Email',
+      'Affiliation',
+      'Checkpoint',
+      'Checkpoint Type',
+      'Scan Result',
+      'Scanned At',
+      'Operator',
+    ];
+
+    const escapeCsv = (str: string) => `"${str.replace(/"/g, '""')}"`;
+
+    const rows = logs.map((log) => {
+      const name = log.ticket
+        ? `${log.ticket.firstName} ${log.ticket.lastName}`.trim()
+        : 'Guest';
+      const email = log.ticket?.email ?? '';
+      const affiliation = log.ticket?.affiliation ?? '';
+      const checkpoint = log.checkpoint?.name ?? '';
+      const type = log.checkpoint?.type ?? '';
+      const result = log.scanResult;
+      const scannedAt = log.scannedAt.toISOString();
+      const operator = log.scannedBy?.fullName ?? 'Staff';
+
+      return [
+        escapeCsv(log.ticketCode),
+        escapeCsv(name),
+        escapeCsv(email),
+        escapeCsv(affiliation),
+        escapeCsv(checkpoint),
+        escapeCsv(type),
+        escapeCsv(result),
+        escapeCsv(scannedAt),
+        escapeCsv(operator),
+      ].join(',');
+    });
+
+    return [headers.join(','), ...rows].join('\n');
   }
 }

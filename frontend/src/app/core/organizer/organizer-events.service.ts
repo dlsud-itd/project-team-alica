@@ -3,10 +3,13 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, finalize, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  EventCheckpoint,
+  EventLiveOverview,
   EventRegistrant,
   NewOrganizerEvent,
   OrganizerEvent,
   OrganizerEventChanges,
+  RecordScanResponse,
   UUID,
 } from './organizer.models';
 
@@ -156,5 +159,32 @@ export class OrganizerEventsService {
           ),
         ),
       );
+  }
+
+  loadLiveOverview(eventId: UUID): Observable<EventLiveOverview> {
+    return this.http
+      .get<ApiResponse<EventLiveOverview>>(`${this.api}/${eventId}/live-overview`)
+      .pipe(map((res) => res.data));
+  }
+
+  loadEventCheckpoints(eventId: UUID): Observable<EventCheckpoint[]> {
+    return this.http
+      .get<ApiResponse<EventCheckpoint[]>>(`${this.api}/${eventId}/checkpoints`)
+      .pipe(map((res) => res.data));
+  }
+
+  recordScan(eventId: UUID, checkpointId: string, ticketCode: string): Observable<RecordScanResponse> {
+    return this.http
+      .post<ApiResponse<RecordScanResponse>>(
+        `${this.api}/${eventId}/checkpoints/${checkpointId}/scan`,
+        { ticketCode },
+      )
+      .pipe(map((res) => res.data));
+  }
+
+  exportScansCsv(eventId: UUID): Observable<string> {
+    return this.http
+      .get<ApiResponse<string>>(`${this.api}/${eventId}/scans/export`)
+      .pipe(map((res) => res.data));
   }
 }

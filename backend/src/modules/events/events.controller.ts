@@ -14,6 +14,9 @@ import {
   EventsService,
   EventResponseDto,
   EventRegistrantDto,
+  EventLiveOverviewDto,
+  EventCheckpointDto,
+  ScanResultDto,
   OrganizerEventDto,
   ReviewEventDto,
   UpdateEventDto,
@@ -162,6 +165,65 @@ export class EventsController {
       eventId,
       registrantId,
     );
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':eventId/live-overview')
+  @UseGuards(JwtAuthGuard)
+  async getLiveOverview(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventLiveOverviewDto }> {
+    const data = await this.eventsService.getLiveOverview(user, eventId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':eventId/checkpoints')
+  @UseGuards(JwtAuthGuard)
+  async getEventCheckpoints(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventCheckpointDto[] }> {
+    const data = await this.eventsService.getEventCheckpoints(user, eventId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post(':eventId/checkpoints/:checkpointId/scan')
+  @UseGuards(JwtAuthGuard)
+  async recordScan(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('checkpointId') checkpointId: string,
+    @Body('ticketCode') ticketCode: string,
+  ): Promise<{ success: boolean; data: ScanResultDto }> {
+    const data = await this.eventsService.recordScan(
+      user,
+      eventId,
+      checkpointId,
+      ticketCode,
+    );
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':eventId/scans/export')
+  @UseGuards(JwtAuthGuard)
+  async exportScans(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: string }> {
+    const data = await this.eventsService.exportScansCsv(user, eventId);
     return {
       success: true,
       data,

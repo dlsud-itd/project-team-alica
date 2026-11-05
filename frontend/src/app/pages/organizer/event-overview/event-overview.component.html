@@ -1,0 +1,243 @@
+<div class="overview-dashboard">
+  @if (loading() && !overview()) {
+    <div class="overview-loading" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading live event telemetry…</p>
+    </div>
+  } @else if (error()) {
+    <div class="overview-error" role="alert">
+      <h3>Unable to load event overview</h3>
+      <p>{{ error() }}</p>
+      <button type="button" class="btn-retry" (click)="fetchOverview()">Retry</button>
+    </div>
+  } @else {
+    <!-- 1. Four KPI Metric Cards -->
+    <section class="kpi-grid" aria-label="Event Key Performance Indicators">
+      <!-- Card 1: Total RSVPs -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total RSVPs</span>
+          <div class="kpi-icon-wrap icon-teal" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().totalRsvps }}</strong>
+        <span class="kpi-subtext">Confirmed passes</span>
+      </article>
+
+      <!-- Card 2: Checked-In Attendees -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Checked-In Attendees</span>
+          <div class="kpi-icon-wrap icon-green" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().checkedInAttendees }}</strong>
+        <span class="kpi-subtext">{{ kpis().attendanceRate }}% attendance rate</span>
+      </article>
+
+      <!-- Card 3: Venue Occupancy -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Venue Occupancy</span>
+          <div class="kpi-icon-wrap icon-emerald" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+              <polyline points="17 6 23 6 23 12"></polyline>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().venueOccupancy }}%</strong>
+        <span class="kpi-subtext">
+          Max {{ kpis().maxCapacity ? (kpis().maxCapacity | number) : '1,240' }} guests
+        </span>
+      </article>
+
+      <!-- Card 4: Active Stations -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Active Stations</span>
+          <div class="kpi-icon-wrap icon-cyan" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().activeStationsCount }}</strong>
+        <span class="kpi-subtext">{{ kpis().totalVerifiedScans }} verified scans</span>
+      </article>
+    </section>
+
+    <!-- 2. Middle Row: Flow Chart & Station Traffic Breakdown -->
+    <section class="telemetry-grid">
+      <!-- Hourly Arrival Flow Rate -->
+      <article class="telemetry-card flow-card">
+        <header class="telemetry-header">
+          <div>
+            <h2 class="telemetry-title">HOURLY ARRIVAL FLOW RATE</h2>
+            <p class="telemetry-subtitle">Arrivals across all stations</p>
+          </div>
+          <div class="active-stream-badge">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <span>Active Stream</span>
+          </div>
+        </header>
+
+        <div class="chart-wrapper">
+          <svg class="flow-svg" viewBox="0 0 600 160" preserveAspectRatio="none" aria-label="Hourly arrival chart">
+            <defs>
+              <linearGradient id="flowGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#10b981" stop-opacity="0.3"></stop>
+                <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"></stop>
+              </linearGradient>
+            </defs>
+
+            <!-- Grid Lines -->
+            <line x1="40" y1="24" x2="560" y2="24" stroke="#f1f5f9" stroke-width="1"></line>
+            <line x1="40" y1="69" x2="560" y2="69" stroke="#f1f5f9" stroke-width="1"></line>
+            <line x1="40" y1="114" x2="560" y2="114" stroke="#f1f5f9" stroke-width="1"></line>
+            <line x1="40" y1="136" x2="560" y2="136" stroke="#e2e8f0" stroke-width="1"></line>
+
+            <!-- Area & Path -->
+            @if (chartSvgData().area) {
+              <path [attr.d]="chartSvgData().area" fill="url(#flowGradient)"></path>
+              <path [attr.d]="chartSvgData().path" fill="none" stroke="#0d5c46" stroke-width="2.5" stroke-linecap="round"></path>
+
+              <!-- Points -->
+              @for (pt of chartSvgData().points; track pt.hour) {
+                <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="3.5" fill="#ffffff" stroke="#0d5c46" stroke-width="2"></circle>
+              }
+            }
+          </svg>
+
+          <!-- X-Axis Labels -->
+          <div class="chart-axis-labels">
+            <span>8:00</span>
+            <span>9:00</span>
+            <span>10:00</span>
+            <span>11:00</span>
+            <span>12:00</span>
+            <span>1:00</span>
+            <span>2:00</span>
+            <span>3:00</span>
+            <span>4:00</span>
+            <span>5:00</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Station Traffic Breakdown -->
+      <article class="telemetry-card traffic-card">
+        <header class="telemetry-header">
+          <div>
+            <h2 class="telemetry-title">STATION TRAFFIC BREAKDOWN</h2>
+            <p class="telemetry-subtitle">Volume per gate &amp; booth</p>
+          </div>
+        </header>
+
+        <div class="station-list">
+          @if (stationTraffic().length === 0) {
+            <p class="no-stations">No station traffic recorded yet.</p>
+          } @else {
+            @for (station of stationTraffic(); track station.id) {
+              <div class="station-row">
+                <div class="station-info">
+                  <span class="station-name">{{ station.name }}</span>
+                  <strong class="station-scans">{{ station.scans }} {{ station.scans === 1 ? 'scan' : 'scans' }}</strong>
+                </div>
+                <div class="station-track" aria-hidden="true">
+                  <div class="station-fill" [style.width.%]="station.percentage"></div>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </article>
+    </section>
+
+    <!-- 3. Bottom Row: Recent Check-In Activity Stream -->
+    <article class="telemetry-card activity-card">
+      <header class="telemetry-header activity-header">
+        <div>
+          <h2 class="telemetry-title">RECENT CHECK-IN ACTIVITY STREAM</h2>
+          <p class="telemetry-subtitle">Real-time scan logs across all gates</p>
+        </div>
+        <button
+          type="button"
+          class="btn-export-csv"
+          (click)="exportCsv()"
+          [disabled]="exporting()"
+        >
+          <svg class="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>{{ exporting() ? 'Exporting…' : 'Export Scans CSV' }}</span>
+        </button>
+      </header>
+
+      <div class="stream-table-wrapper">
+        <table class="stream-table">
+          <thead>
+            <tr>
+              <th scope="col">ATTENDEE</th>
+              <th scope="col">PASS CODE</th>
+              <th scope="col">STATION</th>
+              <th scope="col">TIME</th>
+              <th scope="col">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (recentScans().length === 0) {
+              <tr>
+                <td colspan="5" class="empty-stream-cell">
+                  <span>No check-in activity recorded yet for this event.</span>
+                </td>
+              </tr>
+            } @else {
+              @for (scan of recentScans(); track scan.id) {
+                <tr class="stream-row">
+                  <td class="td-attendee">
+                    <strong class="attendee-name">{{ scan.attendeeName }}</strong>
+                    <span class="attendee-org">{{ scan.affiliation }}</span>
+                  </td>
+                  <td class="td-code">
+                    <code class="pass-code">{{ scan.ticketCode }}</code>
+                  </td>
+                  <td class="td-station">
+                    <span class="station-text">{{ scan.stationName }}</span>
+                  </td>
+                  <td class="td-time">
+                    <span class="time-text">{{ scan.scannedAt | date: 'hh:mm:ss a' }}</span>
+                  </td>
+                  <td class="td-status">
+                    <span
+                      class="stream-status-badge"
+                      [class.status-duplicate]="scan.status === 'DUPLICATE'"
+                      [class.status-success]="scan.status === 'SUCCESS'"
+                      [class.status-invalid]="scan.status === 'INVALID_TICKET'"
+                      [class.status-warning]="scan.status === 'WARNING_NO_MAIN_ENTRY'"
+                    >
+                      {{ scan.statusLabel }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+  }
+</div>
+

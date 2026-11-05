@@ -168,4 +168,35 @@ describe('OrganizerEventsService', () => {
     expect(service.events()).toEqual([]);
     expect(service.registrants()).toEqual([]);
   });
+
+  it('should load live overview, checkpoints, record scan, and export csv', () => {
+    service.loadLiveOverview('evt-1').subscribe((res) => {
+      expect(res.name).toBe('Tech Summit');
+    });
+    httpMock
+      .expectOne(`${API}/evt-1/live-overview`)
+      .flush({ success: true, data: { name: 'Tech Summit' } });
+
+    service.loadEventCheckpoints('evt-1').subscribe((res) => {
+      expect(res.length).toBe(1);
+    });
+    httpMock
+      .expectOne(`${API}/evt-1/checkpoints`)
+      .flush({ success: true, data: [{ id: 'chk-1', name: 'Main Gate' }] });
+
+    service.recordScan('evt-1', 'chk-1', 'TKT-1').subscribe((res) => {
+      expect(res.scanResult).toBe('SUCCESS');
+    });
+    const scanReq = httpMock.expectOne(`${API}/evt-1/checkpoints/chk-1/scan`);
+    expect(scanReq.request.method).toBe('POST');
+    expect(scanReq.request.body).toEqual({ ticketCode: 'TKT-1' });
+    scanReq.flush({ success: true, data: { scanResult: 'SUCCESS', ticketCode: 'TKT-1' } });
+
+    service.exportScansCsv('evt-1').subscribe((res) => {
+      expect(res).toContain('Ticket Code');
+    });
+    httpMock
+      .expectOne(`${API}/evt-1/scans/export`)
+      .flush({ success: true, data: 'Ticket Code,Attendee Name\nTKT-1,John' });
+  });
 });

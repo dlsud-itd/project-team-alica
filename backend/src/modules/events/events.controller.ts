@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -26,6 +27,8 @@ import {
   UpdateEventDto,
   type GuestImportFile,
   type GuestImportResult,
+  type GuestImportMappingDto,
+  type GuestFilePreviewDto,
 } from './events.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -190,16 +193,30 @@ export class EventsController {
     @Param('eventId') eventId: string,
     @UploadedFile() file: GuestImportFile | undefined,
     @Body('includeCredentials') includeCredentials?: string | boolean,
+    @Body('mapping') mapping?: string | GuestImportMappingDto,
   ): Promise<{ success: boolean; data: GuestImportResult }> {
+    let parsedMapping: GuestImportMappingDto | undefined;
+    if (typeof mapping === 'string' && mapping.trim()) {
+      try {
+        parsedMapping = JSON.parse(mapping);
+      } catch {
+        throw new BadRequestException('Invalid mapping JSON format');
+      }
+    } else if (typeof mapping === 'object' && mapping !== null) {
+      parsedMapping = mapping;
+    }
+
     const data = await this.eventsService.importGuestUsers(
       user,
       eventId,
       file,
       includeCredentials,
+      parsedMapping,
     );
     return { success: true, data };
+  }
 
-@Get(':eventId/live-overview')
+  @Get(':eventId/live-overview')
   @UseGuards(JwtAuthGuard)
   async getLiveOverview(
     @CurrentUser() user: UserSummaryDto,

@@ -285,6 +285,74 @@ describe('EventsService', () => {
       expect(result.created).toHaveLength(1);
       expect(result.created[0].email).toBe('taylor@example.org');
     });
+
+    it('supports custom column mapping with single full name, student ID, and contact number', async () => {
+      const customCsv = [
+        'Complete Name,E-Mail Address,ID Number,Phone,Department,Extra Info',
+        'Juan Dela Cruz,juan@example.org,2022-00123,+63-912-345-6789,Engineering,Ignored field',
+      ].join('\n');
+
+      const result = await service.importGuestUsers(
+        ORGANIZER,
+        'evt-1',
+        { originalname: 'custom.csv', buffer: Buffer.from(customCsv) },
+        false,
+        {
+          nameMode: 'single',
+          fullNameColumn: 'Complete Name',
+          emailColumn: 'E-Mail Address',
+          studentIdColumn: 'ID Number',
+          contactNumberColumn: 'Phone',
+          affiliationColumn: 'Department',
+        },
+      );
+
+      expect(result.summary.created).toBe(1);
+      expect(result.created[0].email).toBe('juan@example.org');
+      expect(result.created[0].fullName).toBe('Juan Dela Cruz');
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            fullName: 'Juan Dela Cruz',
+            studentId: '2022-00123',
+            contactNumber: '+63-912-345-6789',
+            affiliation: 'Engineering',
+            tickets: expect.objectContaining({
+              create: expect.objectContaining({
+                firstName: 'Juan Dela Cruz',
+                lastName: 'Juan Dela Cruz',
+                studentId: '2022-00123',
+                contactNumber: '+63-912-345-6789',
+              }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('supports split name custom mapping with numeric column indexes without headers', async () => {
+      const noHeaderCsv = [
+        'Maria,Santos,maria@example.org,2023-99999',
+      ].join('\n');
+
+      const result = await service.importGuestUsers(
+        ORGANIZER,
+        'evt-1',
+        { originalname: 'noheader.csv', buffer: Buffer.from(noHeaderCsv) },
+        false,
+        {
+          hasHeaders: false,
+          nameMode: 'split',
+          firstNameColumn: 1,
+          lastNameColumn: 2,
+          emailColumn: 3,
+          studentIdColumn: 4,
+        },
+      );
+
+      expect(result.summary.created).toBe(1);
+      expect(result.created[0].fullName).toBe('Maria Santos');
+    });
   });
 
   describe('create', () => {

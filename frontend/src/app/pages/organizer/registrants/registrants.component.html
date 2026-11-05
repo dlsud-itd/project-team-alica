@@ -1,37 +1,7 @@
 <main class="registrants-page">
-  <a class="back-link" routerLink="/organizer/dashboard">
-    <svg
-      class="nav-arrow"
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <line x1="19" y1="12" x2="5" y2="12"></line>
-      <polyline points="12 19 5 12 12 5"></polyline>
-    </svg>
-    Back to events
-  </a>
-
   @if (errorMessage()) {
     <div class="alert-banner error-banner" role="alert">
-      <svg
-        class="alert-icon"
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
+      <svg class="alert-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -42,18 +12,7 @@
 
   @if (successMessage()) {
     <div class="alert-banner success-banner" role="status">
-      <svg
-        class="alert-icon"
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
+      <svg class="alert-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
         <polyline points="22 4 12 14.01 9 11.01"></polyline>
       </svg>
@@ -63,528 +22,608 @@
 
   @if (loading()) {
     <section class="not-found" role="status">
-      <h1>Loading event</h1>
-      <p>Loading organizer event information and registrants.</p>
+      <h2>Loading event registrants</h2>
+      <p>Retrieving guest list and verification records…</p>
     </section>
   } @else if (loadError()) {
     <section class="not-found" role="alert">
-      <h1>Unable to load event</h1>
+      <h2>Unable to load event</h2>
       <p>{{ loadError() }}</p>
-      <button class="export-button" type="button" (click)="reloadEvents()">Retry</button>
+      <button class="btn-primary" type="button" (click)="reloadEvents()">Retry</button>
     </section>
   } @else if (event(); as currentEvent) {
-    <header class="page-header">
-      <div>
-        <h1>Registrants</h1>
-        <p class="event-name">{{ currentEvent.name }}</p>
+    <!-- Guest List Header -->
+    <header class="guest-header">
+      <div class="guest-title-col">
+        <h2 class="guest-title">Guest List</h2>
+        <p class="guest-subtitle">
+          Manage attendee passes, admission statuses, or bulk import external guests via CSV/XLSX.
+        </p>
       </div>
-      <div class="header-actions">
-        <label class="credential-option">
-          <input
-            type="checkbox"
-            [checked]="includeCredentials()"
-            (change)="setIncludeCredentials($event)"
-          />
-          Show temporary passwords (local testing)
-        </label>
+
+      <div class="guest-actions">
         <input
           #guestFileInput
           class="file-input-hidden"
           type="file"
           accept=".csv,.xlsx"
-          (change)="importGuestFile($event)"
+          (change)="onFileSelected($event)"
         />
         <button
-          class="export-button"
+          class="btn-import"
           type="button"
-          [disabled]="importLoading()"
+          [disabled]="previewLoading() || importLoading()"
           (click)="guestFileInput.click()"
         >
-          @if (importLoading()) {
-            Importing…
-          } @else {
-            Import attendees
-          }
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span>{{ previewLoading() ? 'Inspecting file…' : 'Import Attendees' }}</span>
         </button>
-        <button class="export-button" type="button" (click)="exportRegistrants()">
-          <svg
-            class="export-icon"
-            viewBox="0 0 24 24"
-            width="15"
-            height="15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
+
+        <button class="btn-export" type="button" (click)="exportRegistrants()">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          Export attendees
+          <span>Export CSV</span>
         </button>
       </div>
     </header>
 
-    @if (importResult(); as result) {
-      <section class="import-results" aria-label="Guest import results">
-        <p>
-          Created {{ result.summary.created }} accounts. {{ result.summary.skipped }} row(s)
-          skipped. {{ result.summary.emailFailures }} invitation email(s) failed.
-        </p>
-        @if (result.skipped.length) {
-          <details>
-            <summary>View skipped rows</summary>
-            <ul>
-              @for (row of result.skipped; track $index) {
-                <li>
-                  Row {{ row.row }}{{ row.email ? ' (' + row.email + ')' : '' }}: {{ row.reason }}
-                </li>
-              }
-            </ul>
-          </details>
-        }
-        @if (result.credentials?.length) {
-          <h2>Temporary credentials</h2>
-          <p>Copy these now; they are not saved for later retrieval.</p>
-          <div class="credential-list">
-            @for (credential of result.credentials; track credential.email) {
-              <div>
-                <strong>{{ credential.email }}</strong
-                ><code>{{ credential.temporaryPassword }}</code>
-              </div>
-            }
-          </div>
-        }
-      </section>
-    }
-
-    <section class="stats-row" aria-label="Registration summary">
+    <!-- Stat Metric Cards -->
+    <section class="stat-cards-grid" aria-label="Attendee statistics">
       <div class="stat-card">
-        <span class="stat-dot registered-dot" aria-hidden="true"></span>
-        <span>Registered</span>
-        <strong>{{ registeredCount() }}</strong>
+        <span class="stat-label">TOTAL CONFIRMED</span>
+        <strong class="stat-value">{{ registeredCount() }}</strong>
       </div>
       <div class="stat-card">
-        <span class="stat-dot checked-in-dot" aria-hidden="true"></span>
-        <span>Checked in</span>
-        <strong>{{ checkedInCount() }}</strong>
+        <span class="stat-label">CHECKED IN</span>
+        <strong class="stat-value text-accent">{{ checkedInCount() }}</strong>
       </div>
       <div class="stat-card">
-        <span class="stat-dot cancelled-dot" aria-hidden="true"></span>
-        <span>Cancelled</span>
-        <strong>{{ cancelledCount() }}</strong>
-      </div>
-      <div class="stat-card total-stat">
-        <span>Total sign-ups</span>
-        <strong>{{ allEventAttendees().length }}</strong>
+        <span class="stat-label">CANCELLED</span>
+        <strong class="stat-value text-muted">{{ cancelledCount() }}</strong>
       </div>
     </section>
 
-    <section class="attendees-card">
-      <div class="table-heading">
-        <div>
-          <h2>Attendee list</h2>
-          <p>Search attendees, view QR tickets, and manage RSVP status.</p>
-        </div>
-
-        <div class="heading-controls">
-          <!-- Status Filter Tabs -->
-          <div class="filter-group" role="tablist" aria-label="Filter attendees by status">
-            <button
-              type="button"
-              class="filter-pill"
-              [class.active]="statusFilter() === 'ALL'"
-              (click)="setStatusFilter('ALL')"
-            >
-              All ({{ allEventAttendees().length }})
-            </button>
-            <button
-              type="button"
-              class="filter-pill"
-              [class.active]="statusFilter() === 'Registered'"
-              (click)="setStatusFilter('Registered')"
-            >
-              Registered ({{ registeredCount() }})
-            </button>
-            <button
-              type="button"
-              class="filter-pill"
-              [class.active]="statusFilter() === 'Checked In'"
-              (click)="setStatusFilter('Checked In')"
-            >
-              Checked In ({{ checkedInCount() }})
-            </button>
-            <button
-              type="button"
-              class="filter-pill"
-              [class.active]="statusFilter() === 'Cancelled'"
-              (click)="setStatusFilter('Cancelled')"
-            >
-              Cancelled ({{ cancelledCount() }})
-            </button>
-          </div>
-
-          <!-- Search Box -->
-          <label class="search-box">
-            <svg
-              class="search-icon"
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <span class="sr-only">Search by attendee name, email, or ticket ID</span>
-            <input
-              type="search"
-              [formControl]="searchControl"
-              placeholder="Search name, email, ticket ID"
-            />
-            @if (searchControl.value) {
-              <button type="button" aria-label="Clear search" (click)="searchControl.setValue('')">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            }
-          </label>
-        </div>
+    <!-- Filter & Search Toolbar -->
+    <div class="table-toolbar">
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input
+          type="search"
+          [formControl]="searchControl"
+          placeholder="Filter by attendee name, email, or pass code..."
+          aria-label="Filter attendees"
+        />
       </div>
 
-      <div class="table-scroll">
-        <table>
+      <div class="status-pills" role="radiogroup" aria-label="Filter by registration status">
+        <button
+          type="button"
+          class="pill-btn"
+          [class.active]="statusFilter() === 'ALL'"
+          (click)="setStatusFilter('ALL')"
+        >
+          All ({{ allEventAttendees().length }})
+        </button>
+        <button
+          type="button"
+          class="pill-btn"
+          [class.active]="statusFilter() === 'Registered'"
+          (click)="setStatusFilter('Registered')"
+        >
+          Registered ({{ registeredCount() }})
+        </button>
+        <button
+          type="button"
+          class="pill-btn"
+          [class.active]="statusFilter() === 'Checked In'"
+          (click)="setStatusFilter('Checked In')"
+        >
+          Checked In ({{ checkedInCount() }})
+        </button>
+        <button
+          type="button"
+          class="pill-btn"
+          [class.active]="statusFilter() === 'Cancelled'"
+          (click)="setStatusFilter('Cancelled')"
+        >
+          Cancelled ({{ cancelledCount() }})
+        </button>
+      </div>
+    </div>
+
+    <!-- Attendees Table -->
+    @if (attendees().length === 0) {
+      <div class="empty-state">
+        <p class="empty-title">No matching attendees found</p>
+        <p class="empty-text">Try adjusting your search criteria or import attendee passes above.</p>
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="registrants-table">
           <thead>
             <tr>
-              <th scope="col">Attendee</th>
-              <th scope="col">Ticket ID</th>
-              <th scope="col">Registered</th>
-              <th scope="col">Status</th>
-              <th scope="col" class="th-actions"><span class="sr-only">Actions</span></th>
+              <th scope="col">ATTENDEE</th>
+              <th scope="col">EMAIL</th>
+              <th scope="col">PASS CODE</th>
+              <th scope="col">REGISTERED DATE</th>
+              <th scope="col">STATUS</th>
+              <th scope="col" class="text-right">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             @for (attendee of attendees(); track attendee.id) {
-              <tr>
-                <td>
-                  <div class="attendee-cell">
-                    <span class="avatar" aria-hidden="true">{{
-                      attendee.full_name.slice(0, 1)
-                    }}</span>
-                    <span class="attendee-name">
-                      <strong>{{ attendee.full_name }}</strong>
-                      <small>{{ attendee.email }}</small>
-                    </span>
-                  </div>
+              <tr class="table-row" (click)="selectedRegistrant.set(attendee)">
+                <td class="col-name">
+                  <strong>{{ attendee.full_name }}</strong>
                 </td>
-                <td class="ticket-id">{{ attendee.ticket_id }}</td>
-                <td class="registered-date">{{ attendee.registered_at | date: 'MMM d, y' }}</td>
-                <td>
-                  <span class="status-badge" [class]="statusClass(attendee.status)">
-                    <span class="badge-dot" aria-hidden="true"></span>
+                <td class="col-email">{{ attendee.email }}</td>
+                <td class="col-ticket">
+                  <code>{{ attendee.ticket_id }}</code>
+                </td>
+                <td class="col-date">{{ attendee.registered_at | date: 'mediumDate' }}</td>
+                <td class="col-status">
+                  <span class="badge-status" [class]="statusClass(attendee.status)">
                     {{ attendee.status }}
                   </span>
                 </td>
-                <td class="actions-cell">
-                  <div class="row-actions">
-                    <!-- Quick Check-in Button -->
+                <td class="col-actions text-right" (click)="$event.stopPropagation()">
+                  <div class="action-buttons-group">
                     <button
                       type="button"
-                      class="btn-checkin-quick"
-                      [class.checked-in]="attendee.status === 'Checked In'"
-                      [disabled]="attendee.status === 'Cancelled'"
-                      (click)="toggleCheckIn(attendee)"
-                      [title]="
-                        attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in'
-                      "
-                    >
-                      @if (attendee.status === 'Checked In') {
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="13"
-                          height="13"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.5"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          aria-hidden="true"
-                        >
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        <span>Checked in</span>
-                      } @else {
-                        <span>Check in</span>
-                      }
-                    </button>
-
-                    <!-- Quick QR Pass Icon Button -->
-                    <button
-                      type="button"
-                      class="btn-icon-qr"
+                      class="btn-table-action"
+                      title="View QR Ticket"
                       (click)="openQrPass(attendee)"
-                      title="View QR Pass"
-                      aria-label="View QR Pass"
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="15"
-                        height="15"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
+                      <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <rect x="3" y="3" width="7" height="7"></rect>
                         <rect x="14" y="3" width="7" height="7"></rect>
                         <rect x="14" y="14" width="7" height="7"></rect>
                         <rect x="3" y="14" width="7" height="7"></rect>
                       </svg>
                     </button>
-
-                    <!-- Dropdown Menu -->
-                    <details class="action-menu">
-                      <summary aria-label="Attendee actions">•••</summary>
-                      <div class="menu-items">
-                        <button type="button" (click)="openQrPass(attendee)">View QR Pass</button>
-                        <button
-                          type="button"
-                          [disabled]="attendee.status === 'Cancelled'"
-                          (click)="toggleCheckIn(attendee)"
-                        >
-                          {{
-                            attendee.status === 'Checked In' ? 'Undo check-in' : 'Mark checked in'
-                          }}
-                        </button>
-                        @if (attendee.status !== 'Cancelled') {
-                          <button
-                            type="button"
-                            class="menu-btn-danger"
-                            (click)="confirmCancel(attendee)"
-                          >
-                            Cancel registration
-                          </button>
-                        } @else {
-                          <button
-                            type="button"
-                            class="menu-btn-restore"
-                            (click)="confirmRestore(attendee)"
-                          >
-                            Restore registration
-                          </button>
-                        }
-                        <button
-                          type="button"
-                          (click)="selectedRegistrant.set(attendee); closeActionMenus()"
-                        >
-                          View details
-                        </button>
-                      </div>
-                    </details>
+                    @if (attendee.status !== 'Cancelled') {
+                      <button
+                        type="button"
+                        class="btn-table-action text-danger"
+                        title="Cancel RSVP"
+                        (click)="confirmCancel(attendee)"
+                      >
+                        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="15" y1="9" x2="9" y2="15"></line>
+                          <line x1="9" y1="9" x2="15" y2="15"></line>
+                        </svg>
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn-table-action text-accent"
+                        title="Restore RSVP"
+                        (click)="confirmRestore(attendee)"
+                      >
+                        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <polyline points="1 4 1 10 7 10"></polyline>
+                          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                      </button>
+                    }
                   </div>
-                </td>
-              </tr>
-            } @empty {
-              <tr>
-                <td class="empty-cell" colspan="5">
-                  <strong>{{
-                    searchControl.value || statusFilter() !== 'ALL'
-                      ? 'No matching attendees'
-                      : 'No registrants yet'
-                  }}</strong>
-                  <span>
-                    {{
-                      searchControl.value || statusFilter() !== 'ALL'
-                        ? 'Try clearing the search or changing your status filter.'
-                        : 'Attendees who register for this event will appear here.'
-                    }}
-                  </span>
                 </td>
               </tr>
             }
           </tbody>
         </table>
       </div>
-
-      <footer class="table-footer">
-        Showing {{ attendees().length }} of {{ allEventAttendees().length }} attendees
-      </footer>
-    </section>
-  } @else if (!eventsLoaded()) {
-    <section class="not-found" aria-busy="true">
-      <h1>Loading event…</h1>
-    </section>
-  } @else {
-    <section class="not-found">
-      <h1>Event not found</h1>
-      <p>This event is unavailable or is not assigned to your organizer account.</p>
-      <a routerLink="/organizer/dashboard">Return to dashboard</a>
-    </section>
+    }
   }
 </main>
 
-<!-- QR Pass Modal -->
-@if (activeQrRegistrant(); as qrAttendee) {
-  <div class="dialog-backdrop" (click)="closeQrPass()">
-    <section
-      class="details-dialog qr-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="qr-dialog-title"
-      (click)="$event.stopPropagation()"
-    >
-      <button class="close-dialog" type="button" aria-label="Close QR pass" (click)="closeQrPass()">
-        <svg
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
+<!-- 1. COLUMN MAPPING MODAL -->
+@if (mappingModalOpen()) {
+  <div class="dialog-backdrop" (click)="cancelMapping()" tabindex="-1">
+    <section class="modal-card mapping-modal" role="dialog" aria-modal="true" aria-labelledby="modal-map-title" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="modal-map-title">Import Attendees — Map Columns</h2>
+          <p class="modal-subtitle">
+            {{ pendingFile()?.name }} · {{ totalFileRows() }} data rows detected. Match your spreadsheet columns below.
+          </p>
+        </div>
+        <button type="button" class="btn-close" (click)="cancelMapping()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
 
-      <h2 id="qr-dialog-title">{{ qrAttendee.full_name }}</h2>
-      <p class="dialog-subtitle">Digital QR Pass • {{ qrAttendee.ticket_id }}</p>
+      <div class="modal-body">
+        <!-- Header Option -->
+        <div class="options-bar">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [checked]="hasHeaders()"
+              (change)="hasHeaders.set(!hasHeaders())"
+            />
+            <span>First row contains column headers</span>
+          </label>
+        </div>
 
-      <div class="qr-image-wrapper">
-        @if (qrLoading()) {
-          <div class="qr-loading-spinner" aria-busy="true">Generating QR…</div>
-        } @else if (qrDataUrl()) {
-          <img
-            [src]="qrDataUrl()"
-            [alt]="'QR ticket for ' + qrAttendee.full_name"
-            class="qr-image"
-          />
+        <!-- Name Format Selector -->
+        <div class="form-section">
+          <span class="section-label">Attendee Name Format</span>
+          <div class="radio-pill-group">
+            <button
+              type="button"
+              class="radio-pill"
+              [class.active]="nameMode() === 'single'"
+              (click)="nameMode.set('single')"
+            >
+              Full Name (1 Column)
+            </button>
+            <button
+              type="button"
+              class="radio-pill"
+              [class.active]="nameMode() === 'split'"
+              (click)="nameMode.set('split')"
+            >
+              First &amp; Last Name (2 Columns)
+            </button>
+          </div>
+        </div>
+
+        <!-- Column Selectors Grid -->
+        <div class="fields-grid">
+          @if (nameMode() === 'single') {
+            <div class="field-item">
+              <label for="col-fullname">Full Name Column *</label>
+              <select
+                id="col-fullname"
+                [ngModel]="selectedFullNameCol()"
+                (ngModelChange)="selectedFullNameCol.set($event)"
+              >
+                <option value="" disabled>Select column</option>
+                @for (h of detectedHeaders(); track h) {
+                  <option [value]="h">{{ h }}</option>
+                }
+              </select>
+            </div>
+          } @else {
+            <div class="field-item">
+              <label for="col-firstname">First Name Column *</label>
+              <select
+                id="col-firstname"
+                [ngModel]="selectedFirstNameCol()"
+                (ngModelChange)="selectedFirstNameCol.set($event)"
+              >
+                <option value="" disabled>Select column</option>
+                @for (h of detectedHeaders(); track h) {
+                  <option [value]="h">{{ h }}</option>
+                }
+              </select>
+            </div>
+            <div class="field-item">
+              <label for="col-lastname">Last Name Column *</label>
+              <select
+                id="col-lastname"
+                [ngModel]="selectedLastNameCol()"
+                (ngModelChange)="selectedLastNameCol.set($event)"
+              >
+                <option value="" disabled>Select column</option>
+                @for (h of detectedHeaders(); track h) {
+                  <option [value]="h">{{ h }}</option>
+                }
+              </select>
+            </div>
+          }
+
+          <div class="field-item">
+            <label for="col-email">Email Address Column *</label>
+            <select
+              id="col-email"
+              [ngModel]="selectedEmailCol()"
+              (ngModelChange)="selectedEmailCol.set($event)"
+            >
+              <option value="" disabled>Select column</option>
+              @for (h of detectedHeaders(); track h) {
+                <option [value]="h">{{ h }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field-item">
+            <label for="col-student-id">Student / ID Number (Optional)</label>
+            <select
+              id="col-student-id"
+              [ngModel]="selectedStudentIdCol()"
+              (ngModelChange)="selectedStudentIdCol.set($event)"
+            >
+              <option value="">(None / Ignore)</option>
+              @for (h of detectedHeaders(); track h) {
+                <option [value]="h">{{ h }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field-item">
+            <label for="col-contact">Contact Number (Optional)</label>
+            <select
+              id="col-contact"
+              [ngModel]="selectedContactCol()"
+              (ngModelChange)="selectedContactCol.set($event)"
+            >
+              <option value="">(None / Ignore)</option>
+              @for (h of detectedHeaders(); track h) {
+                <option [value]="h">{{ h }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field-item">
+            <label for="col-affiliation">Affiliation / Organization (Optional)</label>
+            <select
+              id="col-affiliation"
+              [ngModel]="selectedAffiliationCol()"
+              (ngModelChange)="selectedAffiliationCol.set($event)"
+            >
+              <option value="">(None / Default: Guest / Imported Attendee)</option>
+              @for (h of detectedHeaders(); track h) {
+                <option [value]="h">{{ h }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <!-- Live Preview Box -->
+        @if (previewRows().length) {
+          <div class="preview-box">
+            <span class="preview-box-label">Data Preview (First {{ previewRows().length }} Rows)</span>
+            <div class="preview-table-wrapper">
+              <table class="preview-table">
+                <thead>
+                  <tr>
+                    <th>NAME</th>
+                    <th>EMAIL</th>
+                    <th>ID NUMBER</th>
+                    <th>CONTACT</th>
+                    <th>AFFILIATION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of previewRows(); track $index) {
+                    <tr>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.email }}</td>
+                      <td>{{ row.studentId }}</td>
+                      <td>{{ row.contact }}</td>
+                      <td>{{ row.affiliation }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
         }
+
+        <!-- Local testing credentials toggle -->
+        <div class="dev-options">
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              [checked]="includeCredentials()"
+              (change)="includeCredentials.set(!includeCredentials())"
+            />
+            <span>Show temporary passwords after import (local dev testing only)</span>
+          </label>
+        </div>
       </div>
 
-      <div class="qr-status-pill">
-        <span class="status-badge" [class]="statusClass(qrAttendee.status)">
-          <span class="badge-dot" aria-hidden="true"></span>
-          {{ qrAttendee.status }}
-        </span>
-      </div>
-
-      <div class="dialog-actions">
+      <footer class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="cancelMapping()" [disabled]="importLoading()">
+          Cancel
+        </button>
         <button
           type="button"
-          class="btn-secondary"
-          (click)="downloadQr(qrAttendee)"
-          [disabled]="!qrDataUrl()"
+          class="btn-submit"
+          [disabled]="!isMappingValid() || importLoading()"
+          (click)="executeImport()"
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download QR
+          {{ importLoading() ? 'Importing Attendees…' : 'Confirm & Import (' + totalFileRows() + ')' }}
         </button>
-        <button type="button" class="btn-primary" (click)="closeQrPass()">Done</button>
-      </div>
+      </footer>
     </section>
   </div>
 }
 
-<!-- Details Dialog -->
+<!-- 2. IMPORT SUMMARY MODAL -->
+@if (summaryModalOpen(); as result) {
+  <div class="dialog-backdrop" (click)="closeSummaryModal()" tabindex="-1">
+    <section class="modal-card summary-modal" role="dialog" aria-modal="true" aria-labelledby="modal-summary-title" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="modal-summary-title">Import Summary</h2>
+          <p class="modal-subtitle">Attendee account provisioning and invitation delivery results.</p>
+        </div>
+        <button type="button" class="btn-close" (click)="closeSummaryModal()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <!-- Results Metric Badges -->
+        @if (importResult(); as res) {
+          <div class="summary-metrics">
+            <div class="metric-card metric-success">
+              <span class="metric-val">{{ res.summary.created }}</span>
+              <span class="metric-lbl">Accounts Created &amp; Invited</span>
+            </div>
+            <div class="metric-card metric-warning">
+              <span class="metric-val">{{ res.summary.skipped }}</span>
+              <span class="metric-lbl">Rows Skipped</span>
+            </div>
+            <div class="metric-card" [class.metric-danger]="res.summary.emailFailures > 0">
+              <span class="metric-val">{{ res.summary.emailFailures }}</span>
+              <span class="metric-lbl">Email Failures</span>
+            </div>
+          </div>
+
+          <!-- Skipped Details -->
+          @if (res.skipped.length) {
+            <details class="skipped-details">
+              <summary>View details for {{ res.skipped.length }} skipped row(s)</summary>
+              <ul class="skipped-list">
+                @for (row of res.skipped; track $index) {
+                  <li>
+                    Row {{ row.row }}{{ row.email ? ' (' + row.email + ')' : '' }}: <code>{{ row.reason }}</code>
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+
+          <!-- Temporary Credentials Box -->
+          @if (res.credentials?.length) {
+            <div class="credentials-box">
+              <div class="credentials-header">
+                <div>
+                  <h3>Temporary Credentials</h3>
+                  <p>Copy these now for local test accounts. They are not stored in plaintext.</p>
+                </div>
+                <button type="button" class="btn-copy-all" (click)="copyAllCredentials()">
+                  {{ credentialsCopied() ? 'Copied to Clipboard!' : 'Copy All' }}
+                </button>
+              </div>
+
+              <div class="credentials-scroll-area">
+                <table class="credentials-table">
+                  <thead>
+                    <tr>
+                      <th>EMAIL</th>
+                      <th>TEMPORARY PASSWORD</th>
+                      <th class="text-right">ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of res.credentials; track c.email) {
+                      <tr>
+                        <td>{{ c.email }}</td>
+                        <td><code>{{ c.temporaryPassword }}</code></td>
+                        <td class="text-right">
+                          <button type="button" class="btn-table-action" (click)="copySingleCredential(c)" title="Copy password">
+                            <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn-submit" (click)="closeSummaryModal()">Done</button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- 3. QR PASS MODAL -->
+@if (activeQrRegistrant(); as attendee) {
+  <div class="dialog-backdrop" (click)="closeQrPass()" tabindex="-1">
+    <section class="modal-card qr-modal" role="dialog" aria-modal="true" aria-labelledby="qr-dialog-title" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="qr-dialog-title">Event Ticket Pass</h2>
+          <p class="modal-subtitle">{{ attendee.full_name }} · {{ attendee.email }}</p>
+        </div>
+        <button type="button" class="btn-close" (click)="closeQrPass()" aria-label="Close QR pass">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <div class="modal-body text-center">
+        <div class="qr-preview-box">
+          @if (qrLoading()) {
+            <div class="qr-loading">Generating pass code…</div>
+          } @else if (qrDataUrl()) {
+            <img [src]="qrDataUrl()" [alt]="'QR pass for ' + attendee.full_name" class="qr-image" />
+          }
+        </div>
+        <div class="ticket-code-tag">
+          <code>{{ attendee.ticket_id }}</code>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeQrPass()">Close</button>
+        <button type="button" class="btn-submit" (click)="downloadQr(attendee)" [disabled]="!qrDataUrl()">
+          Download PNG
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- 4. ATTENDEE DETAILS MODAL -->
 @if (selectedRegistrant(); as attendee) {
-  <div class="dialog-backdrop" (click)="selectedRegistrant.set(null)">
-    <section
-      class="details-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="attendee-details-title"
-      (click)="$event.stopPropagation()"
-    >
-      <button
-        class="close-dialog"
-        type="button"
-        aria-label="Close attendee details"
-        (click)="selectedRegistrant.set(null)"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
+  <div class="dialog-backdrop" (click)="selectedRegistrant.set(null)" tabindex="-1">
+    <section class="modal-card details-modal" role="dialog" aria-modal="true" aria-labelledby="attendee-details-title" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="attendee-details-title">{{ attendee.full_name }}</h2>
+          <p class="modal-subtitle">Attendee Registration Details</p>
+        </div>
+        <button type="button" class="btn-close" (click)="selectedRegistrant.set(null)" aria-label="Close attendee details">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
 
-      <h2 id="attendee-details-title">{{ attendee.full_name }}</h2>
-      <dl>
-        <div>
-          <dt>Email</dt>
-          <dd>{{ attendee.email }}</dd>
-        </div>
-        <div>
-          <dt>Ticket ID</dt>
-          <dd class="ticket-id">{{ attendee.ticket_id }}</dd>
-        </div>
-        <div>
-          <dt>Registration date</dt>
-          <dd>{{ attendee.registered_at | date: 'medium' }}</dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd>
-            <span class="status-badge" [class]="statusClass(attendee.status)">
-              <span class="badge-dot" aria-hidden="true"></span>
-              {{ attendee.status }}
-            </span>
-          </dd>
-        </div>
-      </dl>
+      <div class="modal-body">
+        <dl class="details-dl">
+          <div class="dl-row"><dt>Email</dt><dd>{{ attendee.email }}</dd></div>
+          <div class="dl-row"><dt>Pass Code</dt><dd><code>{{ attendee.ticket_id }}</code></dd></div>
+          <div class="dl-row"><dt>Registered At</dt><dd>{{ attendee.registered_at | date: 'medium' }}</dd></div>
+          <div class="dl-row">
+            <dt>Admission Status</dt>
+            <dd>
+              <span class="badge-status" [class]="statusClass(attendee.status)">
+                {{ attendee.status }}
+              </span>
+            </dd>
+          </div>
+        </dl>
+      </div>
 
-      <div class="dialog-actions">
+      <footer class="modal-footer">
         <button
           type="button"
-          class="btn-secondary"
+          class="btn-cancel"
           (click)="openQrPass(attendee); selectedRegistrant.set(null)"
         >
           View QR Pass
@@ -592,7 +631,7 @@
         @if (attendee.status !== 'Cancelled') {
           <button
             type="button"
-            class="btn-danger"
+            class="btn-danger-action"
             (click)="confirmCancel(attendee); selectedRegistrant.set(null)"
           >
             Cancel RSVP
@@ -600,97 +639,83 @@
         } @else {
           <button
             type="button"
-            class="btn-primary"
+            class="btn-submit"
             (click)="confirmRestore(attendee); selectedRegistrant.set(null)"
           >
             Restore RSVP
           </button>
         }
-      </div>
+      </footer>
     </section>
   </div>
 }
 
-<!-- Cancel Confirmation Modal -->
+<!-- 5. CANCEL CONFIRMATION MODAL -->
 @if (cancellingRegistrant(); as toCancel) {
-  <div class="dialog-backdrop" (click)="dismissCancelDialog()">
-    <section
-      class="details-dialog confirm-dialog"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="cancel-dialog-title"
-      (click)="$event.stopPropagation()"
-    >
-      <h2 id="cancel-dialog-title">Cancel RSVP?</h2>
-      <p class="confirm-message">
-        Are you sure you want to cancel the registration for
-        <strong>{{ toCancel.full_name }}</strong> ({{ toCancel.ticket_id }})?
-      </p>
-      <p class="confirm-note">
-        This releases 1 reserved seat back to the event capacity. The attendee will no longer be
-        able to check in with this ticket.
-      </p>
+  <div class="dialog-backdrop" (click)="dismissCancelDialog()" tabindex="-1">
+    <section class="modal-card confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="cancel-dialog-title" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="cancel-dialog-title">Cancel RSVP?</h2>
+          <p class="modal-subtitle">Cancel registration for {{ toCancel.full_name }} ({{ toCancel.ticket_id }})</p>
+        </div>
+        <button type="button" class="btn-close" (click)="dismissCancelDialog()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
 
-      <div class="dialog-actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          [disabled]="actionLoading()"
-          (click)="dismissCancelDialog()"
-        >
-          Keep active
-        </button>
-        <button
-          type="button"
-          class="btn-danger"
-          [disabled]="actionLoading()"
-          (click)="executeCancel()"
-        >
-          {{ actionLoading() ? 'Cancelling…' : 'Yes, cancel registration' }}
-        </button>
+      <div class="modal-body">
+        <p class="confirm-note">
+          This will release 1 reserved seat back to event capacity. The attendee will no longer be admitted with this pass code.
+        </p>
       </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn-cancel" [disabled]="actionLoading()" (click)="dismissCancelDialog()">
+          Keep Active
+        </button>
+        <button type="button" class="btn-danger-confirm" [disabled]="actionLoading()" (click)="executeCancel()">
+          {{ actionLoading() ? 'Cancelling…' : 'Yes, Cancel RSVP' }}
+        </button>
+      </footer>
     </section>
   </div>
 }
 
-<!-- Restore Confirmation Modal -->
+<!-- 6. RESTORE CONFIRMATION MODAL -->
 @if (restoringRegistrant(); as toRestore) {
-  <div class="dialog-backdrop" (click)="dismissRestoreDialog()">
-    <section
-      class="details-dialog confirm-dialog"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="restore-dialog-title"
-      (click)="$event.stopPropagation()"
-    >
-      <h2 id="restore-dialog-title">Restore RSVP?</h2>
-      <p class="confirm-message">
-        Restore active registration status for <strong>{{ toRestore.full_name }}</strong> ({{
-          toRestore.ticket_id
-        }})?
-      </p>
-      <p class="confirm-note">
-        This will reactivate their ticket and count 1 seat toward this event's capacity.
-      </p>
+  <div class="dialog-backdrop" (click)="dismissRestoreDialog()" tabindex="-1">
+    <section class="modal-card confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="restore-dialog-title" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="restore-dialog-title">Restore RSVP?</h2>
+          <p class="modal-subtitle">Reactivate registration for {{ toRestore.full_name }} ({{ toRestore.ticket_id }})</p>
+        </div>
+        <button type="button" class="btn-close" (click)="dismissRestoreDialog()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
 
-      <div class="dialog-actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          [disabled]="actionLoading()"
-          (click)="dismissRestoreDialog()"
-        >
-          Keep cancelled
-        </button>
-        <button
-          type="button"
-          class="btn-primary"
-          [disabled]="actionLoading()"
-          (click)="executeRestore()"
-        >
-          {{ actionLoading() ? 'Restoring…' : 'Restore registration' }}
-        </button>
+      <div class="modal-body">
+        <p class="confirm-note">
+          This will reactivate their ticket pass and allocate 1 seat toward this event's capacity.
+        </p>
       </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn-cancel" [disabled]="actionLoading()" (click)="dismissRestoreDialog()">
+          Keep Cancelled
+        </button>
+        <button type="button" class="btn-submit" [disabled]="actionLoading()" (click)="executeRestore()">
+          {{ actionLoading() ? 'Restoring…' : 'Restore Registration' }}
+        </button>
+      </footer>
     </section>
   </div>
 }

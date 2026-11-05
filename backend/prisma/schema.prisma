@@ -59,6 +59,7 @@ model User {
   fullName           String
   role               UserRole  @default(ATTENDEE)
   studentId          String?
+  contactNumber      String?
   affiliation        String?
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(false)
@@ -166,6 +167,7 @@ model Ticket {
   lastName       String
   email          String
   studentId      String?
+  contactNumber  String?
   affiliation    String?
   ticketType     TicketType   @default(STUDENT)
   ticketCode     String       @unique

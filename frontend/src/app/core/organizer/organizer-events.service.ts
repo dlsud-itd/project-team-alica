@@ -6,6 +6,8 @@ import {
   EventCheckpoint,
   EventLiveOverview,
   EventRegistrant,
+  GuestFilePreview,
+  GuestImportMapping,
   NewOrganizerEvent,
   OrganizerEvent,
   OrganizerEventChanges,
@@ -95,14 +97,26 @@ export class OrganizerEventsService {
     );
   }
 
+  previewGuestFile(eventId: UUID, file: File): Observable<GuestFilePreview> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http
+      .post<ApiResponse<GuestFilePreview>>(`${this.api}/${eventId}/guests/preview-file`, formData)
+      .pipe(map((res) => res.data));
+  }
+
   importGuestUsers(
     eventId: UUID,
     file: File,
-    includeCredentials: boolean,
+    includeCredentials = false,
+    mapping?: GuestImportMapping,
   ): Observable<GuestImportResult> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('includeCredentials', String(includeCredentials));
+    if (mapping) {
+      formData.append('mapping', JSON.stringify(mapping));
+    }
 
     return this.http
       .post<ApiResponse<GuestImportResult>>(`${this.api}/${eventId}/guests/import-users`, formData)

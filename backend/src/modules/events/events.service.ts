@@ -31,11 +31,33 @@ export interface GuestImportFile {
   buffer: Buffer;
 }
 
+export interface GuestFilePreviewDto {
+  fileName: string;
+  totalRows: number;
+  detectedHeaders: string[];
+  sampleRows: string[][];
+}
+
+export interface GuestImportMappingDto {
+  hasHeaders?: boolean;
+  nameMode?: 'single' | 'split';
+  fullNameColumn?: string | number;
+  firstNameColumn?: string | number;
+  lastNameColumn?: string | number;
+  emailColumn?: string | number;
+  studentIdColumn?: string | number;
+  contactNumberColumn?: string | number;
+  affiliationColumn?: string | number;
+}
+
 interface ParsedGuest {
   row: number;
+  fullName?: string;
   firstName: string;
   lastName: string;
   email: string;
+  studentId?: string | null;
+  contactNumber?: string | null;
   affiliation: string;
 }
 
@@ -246,11 +268,70 @@ export class EventsService {
     private readonly invitationMailer: GuestInvitationMailer,
   ) {}
 
+  async previewGuestFile(
+    user: UserSummaryDto,
+    eventId: string,
+    file: GuestImportFile | undefined,
+  ): Promise<GuestFilePreviewDto> {
+    await this.findManageableEvent(user, eventId);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('A CSV or XLSX file is required');
+    }
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    if (extension !== 'csv' && extension !== 'xlsx') {
+      throw new BadRequestException('Only .csv and .xlsx files are supported');
+    }
+
+    let worksheet: ExcelJS.Worksheet;
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const fileStream = Readable.from([file.buffer]);
+      if (extension === 'csv') {
+        worksheet = await workbook.csv.read(fileStream);
+      } else {
+        await workbook.xlsx.read(fileStream);
+        const first = workbook.worksheets[0];
+        if (!first) throw new BadRequestException('No worksheets found');
+        worksheet = first;
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Unable to parse file');
+    }
+
+    const detectedHeaders: string[] = [];
+    const firstRow = worksheet.getRow(1);
+    firstRow.eachCell({ includeEmpty: false }, (cell) => {
+      const text = cell.text.trim();
+      if (text) detectedHeaders.push(text);
+    });
+
+    const sampleRows: string[][] = [];
+    const maxSample = Math.min(worksheet.rowCount, 4);
+    for (let r = 2; r <= maxSample; r++) {
+      const row = worksheet.getRow(r);
+      const cells: string[] = [];
+      const colCount = Math.max(detectedHeaders.length, row.cellCount);
+      for (let c = 1; c <= colCount; c++) {
+        cells.push(row.getCell(c).text.trim());
+      }
+      sampleRows.push(cells);
+    }
+
+    return {
+      fileName: file.originalname,
+      totalRows: Math.max(0, worksheet.rowCount - 1),
+      detectedHeaders,
+      sampleRows,
+    };
+  }
+
   async importGuestUsers(
     user: UserSummaryDto,
     eventId: string,
     file: GuestImportFile | undefined,
     includeCredentials?: string | boolean,
+    mapping?: GuestImportMappingDto,
   ): Promise<GuestImportResult> {
     const event = await this.findManageableEvent(user, eventId);
     if (!file?.buffer?.length) {
@@ -268,7 +349,7 @@ export class EventsService {
       );
     }
 
-    const parsedFile = await this.parseGuestFile(file);
+    const parsedFile = await this.parseGuestFile(file, mapping);
     const result: GuestImportResult = {
       created: [],
       skipped: parsedFile.skipped,
@@ -376,9 +457,11 @@ export class EventsService {
           data: {
             email: guest.email,
             passwordHash,
-            fullName: `${guest.firstName} ${guest.lastName}`.trim(),
+            fullName:
+              guest.fullName || `${guest.firstName} ${guest.lastName}`.trim(),
             role: UserRole.ATTENDEE,
-            studentId: null,
+            studentId: guest.studentId || null,
+            contactNumber: guest.contactNumber || null,
             affiliation: guest.affiliation || DEFAULT_GUEST_AFFILIATION,
             isActive: true,
             deletedAt: null,
@@ -389,7 +472,8 @@ export class EventsService {
                 firstName: guest.firstName,
                 lastName: guest.lastName,
                 email: guest.email,
-                studentId: null,
+                studentId: guest.studentId || null,
+                contactNumber: guest.contactNumber || null,
                 affiliation: guest.affiliation || DEFAULT_GUEST_AFFILIATION,
                 ticketType: TicketType.REGULAR,
                 ticketCode,
@@ -493,7 +577,10 @@ export class EventsService {
     return password;
   }
 
-  private async parseGuestFile(file: GuestImportFile): Promise<{
+  private async parseGuestFile(
+    file: GuestImportFile,
+    mapping?: GuestImportMappingDto,
+  ): Promise<{
     guests: ParsedGuest[];
     skipped: GuestImportResult['skipped'];
   }> {
@@ -528,43 +615,157 @@ export class EventsService {
       );
     }
 
+    const hasHeaders = mapping?.hasHeaders !== false;
     const headerIndexes = new Map<string, number>();
-    worksheet.getRow(1).eachCell((cell, column) => {
-      const header = cell.text.trim().toLowerCase().replace(/\s+/g, ' ');
-      if (header) headerIndexes.set(header, column);
-    });
-    for (const requiredHeader of ['first name', 'last name', 'email']) {
-      if (!headerIndexes.has(requiredHeader)) {
-        throw new BadRequestException(
-          `The file is missing the '${requiredHeader}' column`,
-        );
-      }
+
+    if (hasHeaders) {
+      worksheet.getRow(1).eachCell((cell, column) => {
+        const header = cell.text.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (header) headerIndexes.set(header, column);
+      });
     }
 
+    const resolveCol = (colSpec?: string | number): number | undefined => {
+      if (typeof colSpec === 'number' && colSpec > 0) return colSpec;
+      if (!colSpec) return undefined;
+      const trimmed = String(colSpec).trim();
+      const lower = trimmed.toLowerCase().replace(/\s+/g, ' ');
+      if (headerIndexes.has(lower)) {
+        return headerIndexes.get(lower);
+      }
+      const parsed = parseInt(trimmed, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+      return undefined;
+    };
+
+    const isExplicitMapping = !!(
+      mapping &&
+      (mapping.emailColumn !== undefined ||
+        mapping.fullNameColumn !== undefined ||
+        mapping.firstNameColumn !== undefined ||
+        mapping.lastNameColumn !== undefined)
+    );
+
+    let colFullName: number | undefined;
+    let colFirstName: number | undefined;
+    let colLastName: number | undefined;
+    let colEmail: number | undefined;
+    let colStudentId: number | undefined;
+    let colContactNumber: number | undefined;
+    let colAffiliation: number | undefined;
+
+    const nameMode =
+      mapping?.nameMode ??
+      (mapping?.fullNameColumn !== undefined ? 'single' : 'split');
+
+    if (isExplicitMapping) {
+      colFullName = resolveCol(mapping?.fullNameColumn);
+      colFirstName = resolveCol(mapping?.firstNameColumn);
+      colLastName = resolveCol(mapping?.lastNameColumn);
+      colEmail = resolveCol(mapping?.emailColumn);
+      colStudentId = resolveCol(mapping?.studentIdColumn);
+      colContactNumber = resolveCol(mapping?.contactNumberColumn);
+      colAffiliation = resolveCol(mapping?.affiliationColumn);
+
+      if (!colEmail) {
+        throw new BadRequestException(
+          'The specified email column could not be found in the file',
+        );
+      }
+      if (nameMode === 'single' && !colFullName) {
+        throw new BadRequestException(
+          'The specified full name column could not be found in the file',
+        );
+      }
+      if (nameMode === 'split' && (!colFirstName || !colLastName)) {
+        throw new BadRequestException(
+          'Both first name and last name columns must be specified',
+        );
+      }
+    } else {
+      for (const requiredHeader of ['first name', 'last name', 'email']) {
+        if (!headerIndexes.has(requiredHeader)) {
+          throw new BadRequestException(
+            `The file is missing the '${requiredHeader}' column`,
+          );
+        }
+      }
+      colFirstName = headerIndexes.get('first name');
+      colLastName = headerIndexes.get('last name');
+      colEmail = headerIndexes.get('email');
+      colAffiliation = headerIndexes.get('affiliation');
+    }
+
+    const startRow = hasHeaders ? 2 : 1;
     const guests: ParsedGuest[] = [];
     const skipped: GuestImportResult['skipped'] = [];
-    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+
+    for (let rowNumber = startRow; rowNumber <= worksheet.rowCount; rowNumber += 1) {
       const row = worksheet.getRow(rowNumber);
-      const readCell = (header: string) => {
-        const column = headerIndexes.get(header);
-        return column ? row.getCell(column).text.trim() : '';
-      };
-      const firstName = readCell('first name');
-      const lastName = readCell('last name');
-      const email = readCell('email').toLowerCase();
-      const affiliation = readCell('affiliation');
-      if (!firstName && !lastName && !email && !affiliation) continue;
+      const read = (colIndex?: number) =>
+        colIndex ? row.getCell(colIndex).text.trim() : '';
+
+      let firstName = '';
+      let lastName = '';
+      let fullName = '';
+
+      if (nameMode === 'single' && colFullName) {
+        fullName = read(colFullName);
+        firstName = fullName;
+        lastName = fullName;
+      } else {
+        firstName = read(colFirstName);
+        lastName = read(colLastName);
+        fullName = `${firstName} ${lastName}`.trim();
+      }
+
+      const email = read(colEmail).toLowerCase();
+      const studentId = read(colStudentId) || null;
+      const contactNumber = read(colContactNumber) || null;
+      const affiliation = read(colAffiliation);
+
+      if (
+        !firstName &&
+        !lastName &&
+        !fullName &&
+        !email &&
+        !affiliation &&
+        !studentId &&
+        !contactNumber
+      ) {
+        continue;
+      }
 
       const reasons: string[] = [];
-      if (!firstName) reasons.push('first_name_required');
-      if (!lastName) reasons.push('last_name_required');
+      if (nameMode === 'single') {
+        if (!fullName) reasons.push('name_required');
+      } else {
+        if (!firstName) reasons.push('first_name_required');
+        if (!lastName) reasons.push('last_name_required');
+      }
+
       if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         reasons.push('invalid_email');
       }
-      if (firstName.length > 100 || lastName.length > 100) {
+      if (
+        firstName.length > 100 ||
+        lastName.length > 100 ||
+        fullName.length > 200
+      ) {
         reasons.push('name_too_long');
       }
-      if (affiliation.length > 200) reasons.push('affiliation_too_long');
+      if (affiliation && affiliation.length > 200) {
+        reasons.push('affiliation_too_long');
+      }
+      if (studentId && studentId.length > 50) {
+        reasons.push('student_id_too_long');
+      }
+      if (contactNumber && contactNumber.length > 30) {
+        reasons.push('contact_number_too_long');
+      }
+
       if (reasons.length) {
         skipped.push({
           row: rowNumber,
@@ -574,9 +775,12 @@ export class EventsService {
       } else {
         guests.push({
           row: rowNumber,
+          fullName,
           firstName,
           lastName,
           email,
+          studentId,
+          contactNumber,
           affiliation,
         });
       }

@@ -29,9 +29,9 @@ describe('role-based routing', () => {
     expect(router.url).toBe('/login?returnUrl=%2Fadmin%2Fdashboard');
   });
 
-  it('allows guests to open the profile page', async () => {
-    await router.navigateByUrl('/profile');
-    expect(router.url).toBe('/profile');
+  it('allows guests to open the profile page with a ticket code', async () => {
+    await router.navigateByUrl('/profile/CHK-1234');
+    expect(router.url).toBe('/profile/CHK-1234');
   });
 
   it('sends guest staff routes to the shared login', async () => {

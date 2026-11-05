@@ -126,3 +126,22 @@ export interface EventRegistrant {
   registered_at: string;
   status: RegistrationStatus;
 }
+
+export interface GuestFilePreview {
+  fileName: string;
+  totalRows: number;
+  detectedHeaders: string[];
+  sampleRows: string[][];
+}
+
+export interface GuestImportMapping {
+  hasHeaders?: boolean;
+  nameMode?: 'single' | 'split';
+  fullNameColumn?: string | number;
+  firstNameColumn?: string | number;
+  lastNameColumn?: string | number;
+  emailColumn: string | number;
+  studentIdColumn?: string | number;
+  contactNumberColumn?: string | number;
+  affiliationColumn?: string | number;
+}

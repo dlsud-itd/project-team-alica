@@ -13,11 +13,6 @@ export const ATTENDEE_NAV: NavItem[] = [
   { label: 'Profile', path: '/profile' },
 ];
 
-export const STAFF_GUEST_NAV: NavItem[] = [
-  { label: 'Events', path: '/events' },
-  { label: 'Operator Login', path: '/staff/login' },
-];
-
 export const STAFF_NAV: NavItem[] = [
   { label: 'Events', path: '/events' },
   { label: 'Scanner', path: '/staff/scanner' },

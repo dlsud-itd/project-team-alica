@@ -88,17 +88,8 @@ export const routes: Routes = [
       import('./layouts/staff-layout/staff-layout.component').then((m) => m.StaffLayout),
     children: [
       {
-        path: 'login',
-        canMatch: [guestGuard],
-        loadComponent: () =>
-          import('./pages/staff/operator-login/operator-login.component').then(
-            (m) => m.OperatorLogin,
-          ),
-      },
-      // Unauthenticated staff are sent to the operator login.
-      {
         path: '',
-        canMatch: [roleGuard(['STAFF'], '/staff/login')],
+        canMatch: [roleGuard(['STAFF'])],
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'scanner' },
           {

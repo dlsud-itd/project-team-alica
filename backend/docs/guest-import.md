@@ -26,7 +26,7 @@ database unique constraint remains the final concurrency guard.
 
 ## Account and invitation behavior
 
-Every created account is inserted into `users` with an `usr-guest-<UUID>` ID,
+Every created account is inserted into `users` with a standard UUID ID (same format as normal user accounts),
 an individual 10-character cryptographically generated alphanumeric password,
 its bcrypt hash (cost 10), role `ATTENDEE`, `studentId: null`, active status,
 and `mustChangePassword: true`. Empty affiliation values become
@@ -68,7 +68,7 @@ both server safeguards pass):
   "data": {
     "created": [
       {
-        "id": "usr-guest-<uuid>",
+        "id": "<user-uuid>",
         "email": "guest@example.org",
         "fullName": "Alex Guest",
         "ticketId": "<ticket-uuid>",

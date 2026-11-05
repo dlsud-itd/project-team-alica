@@ -299,7 +299,6 @@ export class EventsService {
       try {
         account = await this.prisma.user.create({
           data: {
-            id: `usr-guest-${randomUUID()}`,
             email: guest.email,
             passwordHash,
             fullName: `${guest.firstName} ${guest.lastName}`.trim(),

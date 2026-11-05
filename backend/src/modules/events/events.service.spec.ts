@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { EventApprovalStatus, TicketStatus } from '@prisma/client';
@@ -115,7 +116,7 @@ describe('EventsService', () => {
       prisma.event.findFirst.mockResolvedValue(dbEvent());
       prisma.user.create.mockImplementation(({ data }) =>
         Promise.resolve({
-          id: data.id,
+          id: data.id ?? randomUUID(),
           email: data.email,
           fullName: data.fullName,
           tickets: [
@@ -155,7 +156,10 @@ describe('EventsService', () => {
       ).toBe(true);
 
       const { data: firstData } = prisma.user.create.mock.calls[0][0];
-      expect(firstData.id).toMatch(/^usr-guest-/);
+      expect(firstData.id).toBeUndefined();
+      expect(result.created[0].id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
       expect(firstData.role).toBe('ATTENDEE');
       expect(firstData.studentId).toBeNull();
       expect(firstData.mustChangePassword).toBe(true);

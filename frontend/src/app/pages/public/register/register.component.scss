@@ -70,9 +70,9 @@
 }
 
 .brand-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--color-forest-green, #0f6e56);
+  width: clamp(32px, 4vw, 40px);
+  height: clamp(32px, 4vw, 40px);
+  object-fit: contain;
 }
 
 .brand-name {
@@ -310,23 +310,15 @@
   box-sizing: border-box;
 }
 
-// 4-Box Watermark Motif
-.watermark-grid {
+.banner-watermark {
   position: absolute;
-  top: 50px;
-  right: -30px;
-  display: grid;
-  grid-template-columns: 190px 190px;
-  grid-template-rows: 190px 190px;
-  gap: 20px;
+  top: 4%;
+  right: -8%;
+  width: 75%;
+  height: 75%;
+  object-fit: contain;
   pointer-events: none;
-  opacity: 0.9;
-
-  .tile {
-    border: 1.5px solid rgba(255, 255, 255, 0.22);
-    border-radius: 42px;
-    background: rgba(255, 255, 255, 0.03);
-  }
+  opacity: 0.18;
 }
 
 .banner-content {
@@ -349,4 +341,4 @@
   font-size: 0.9375rem;
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.85);
-}
+}

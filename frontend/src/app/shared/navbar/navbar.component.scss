@@ -36,9 +36,9 @@
 }
 
 .brand-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--color-forest-green, #0f6e56);
+  width: clamp(24px, 2.5vw, 28px);
+  height: clamp(24px, 2.5vw, 28px);
+  object-fit: contain;
 }
 
 .brand-name {

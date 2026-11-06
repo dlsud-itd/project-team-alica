@@ -26,7 +26,15 @@ describe('CheckpointsService', () => {
     isActive: true,
     deletedAt: null,
     eventId: 'evt-devcon-1',
+    parentId: null,
     event: { title: 'DevCon Manila 2026' },
+  };
+
+  const mockSubBooth = {
+    ...mockBooth,
+    id: 'chk-sub-existing',
+    name: 'AWS Demo Station 1',
+    parentId: 'chk-booth-1',
   };
 
   const mockMainGate = {
@@ -39,6 +47,7 @@ describe('CheckpointsService', () => {
     isActive: true,
     deletedAt: null,
     eventId: 'evt-devcon-1',
+    parentId: null,
     event: { title: 'DevCon Manila 2026' },
   };
 
@@ -52,6 +61,7 @@ describe('CheckpointsService', () => {
     isActive: true,
     deletedAt: null,
     eventId: 'evt-devcon-1',
+    parentId: null,
     event: { title: 'DevCon Manila 2026' },
   };
 
@@ -72,8 +82,18 @@ describe('CheckpointsService', () => {
     mockPrisma = {
       checkpoint: {
         findMany: vi.fn().mockResolvedValue([mockBooth]),
+        create: vi.fn().mockImplementation(({ data }) =>
+          Promise.resolve({
+            id: 'chk-sub-new',
+            isActive: true,
+            deletedAt: null,
+            ...data,
+            event: { title: 'DevCon Manila 2026' },
+          }),
+        ),
         findFirst: vi.fn().mockImplementation(({ where }) => {
           if (where.id === 'chk-booth-1') return Promise.resolve(mockBooth);
+          if (where.id === 'chk-sub-existing') return Promise.resolve(mockSubBooth);
           if (where.id === 'chk-gate-1') return Promise.resolve(mockMainGate);
           if (where.id === 'chk-session-1') return Promise.resolve(mockSession);
           return Promise.resolve(null);
@@ -121,6 +141,7 @@ describe('CheckpointsService', () => {
     expect(list.length).toBe(1);
     expect(list[0].id).toBe('chk-booth-1');
     expect(list[0].type).toBe('BOOTH');
+    expect(list[0].parentId).toBeNull();
   });
 
   it('should allow valid booth scan with multiple scans permitted', async () => {
@@ -176,5 +197,47 @@ describe('CheckpointsService', () => {
     expect(result.scanResult).toBe('WARNING_NO_MAIN_ENTRY');
     expect(result.message).toContain('main entrance');
   });
-});
 
+  describe('createSubBooth', () => {
+    it('should create a sub-booth under a booth', async () => {
+      const result = await service.createSubBooth('chk-booth-1', { name: 'Demo Station 1' });
+
+      expect(result.parentId).toBe('chk-booth-1');
+      expect(result.type).toBe('BOOTH');
+      expect(result.eventId).toBe('evt-devcon-1');
+      expect(result.name).toBe('Demo Station 1');
+      expect(mockPrisma.checkpoint.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            parentId: 'chk-booth-1',
+            eventId: 'evt-devcon-1',
+            type: 'BOOTH',
+          }),
+        }),
+      );
+    });
+
+    it('should inherit the parent location when none is given', async () => {
+      const result = await service.createSubBooth('chk-booth-1', { name: 'Demo Station 1' });
+      expect(result.location).toBe('Exhibition Hall Booth A-12');
+    });
+
+    it('should throw 404 when the parent booth is not found', async () => {
+      await expect(
+        service.createSubBooth('nope', { name: 'Demo Station 1' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw 400 when the parent is already a sub-booth', async () => {
+      await expect(
+        service.createSubBooth('chk-sub-existing', { name: 'Nested' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw 400 when the name is empty', async () => {
+      await expect(
+        service.createSubBooth('chk-booth-1', { name: '   ' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+});

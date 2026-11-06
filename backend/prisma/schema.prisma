@@ -123,26 +123,6 @@ model EventStaff {
   @@map("event_staff")
 }
 
-model Checkpoint {
-  id                 String         @id @default(uuid())
-  eventId            String
-  name               String
-  location           String?
-  type               CheckpointType @default(MAIN_ENTRY)
-  allowMultipleScans Boolean        @default(false)
-  requireMainEntry   Boolean        @default(false)
-  isActive           Boolean        @default(true)
-  deletedAt          DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-
-  event          Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  assignedStaff  CheckpointStaff[]
-  attendanceLogs AttendanceLog[]
-
-  @@map("checkpoints")
-}
-
 model CheckpointStaff {
   id           String   @id @default(uuid())
   checkpointId String
@@ -203,4 +183,28 @@ model AttendanceLog {
   @@index([checkpointId, scannedAt])
   @@index([ticketCode, scannedAt])
   @@map("attendance_logs")
+}
+
+model Checkpoint {
+  id                 String         @id @default(uuid())
+  eventId            String
+  parentId           String?
+  name               String
+  location           String?
+  type               CheckpointType @default(MAIN_ENTRY)
+  allowMultipleScans Boolean        @default(false)
+  requireMainEntry   Boolean        @default(false)
+  isActive           Boolean        @default(true)
+  deletedAt          DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  event          Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  parent         Checkpoint?       @relation("SubBooths", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Checkpoint[]      @relation("SubBooths")
+  assignedStaff  CheckpointStaff[]
+  attendanceLogs AttendanceLog[]
+
+  @@index([parentId])
+  @@map("checkpoints")
 }

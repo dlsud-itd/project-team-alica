@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   CheckpointsService,
+  CreateSubBoothDto,
   ScanOutcomeDto,
   ScanRequestBodyDto,
   StaffCheckpointDto,
@@ -61,6 +63,22 @@ export class CheckpointsController {
     };
   }
 
+  @Post(':id/sub-booths')
+  async createSubBooth(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('id') parentId: string,
+    @Body() dto: CreateSubBoothDto,
+  ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
+    if (user.role !== 'ADMIN' && user.role !== 'ORGANIZER') {
+      throw new ForbiddenException('Only organizers can add sub-booths.');
+    }
+    const data = await this.checkpointsService.createSubBooth(parentId, dto);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get('attendees/:ticketCode/history')
   async getAttendeeHistory(@Param('ticketCode') ticketCode: string) {
     const data = await this.checkpointsService.getAttendeeHistory(ticketCode);
@@ -70,4 +88,3 @@ export class CheckpointsController {
     };
   }
 }
-

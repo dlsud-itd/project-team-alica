@@ -148,21 +148,144 @@
           @if (stationTraffic().length === 0) {
             <p class="no-stations">No station traffic recorded yet.</p>
           } @else {
-            @for (station of stationTraffic(); track station.id) {
-              <div class="station-row">
+            @for (station of orderedStations(); track station.id) {
+              <div class="station-row" [class.station-row--sub]="isSubBooth(station.id)">
                 <div class="station-info">
-                  <span class="station-name">{{ station.name }}</span>
-                  <strong class="station-scans">{{ station.scans }} {{ station.scans === 1 ? 'scan' : 'scans' }}</strong>
+                  <span class="station-name">
+                    @if (isSubBooth(station.id)) {
+                      <button type="button" class="sub-link" (click)="openSubDetail(station.id)">
+                        {{ station.name }}
+                      </button>
+                      <span class="sub-tag">Sub-booth</span>
+                    } @else {
+                      {{ station.name }}
+                    }
+                  </span>
+                  <span class="station-actions">
+                    @if (canAddSubBooth(station.id)) {
+                      <button
+                        type="button"
+                        class="btn-add-sub"
+                        (click)="openSubBoothForm(station.id)"
+                      >
+                        + Sub-booth
+                      </button>
+                    }
+                    <strong class="station-scans">{{ station.scans }} {{ station.scans === 1 ? 'scan' : 'scans' }}</strong>
+                  </span>
                 </div>
+
+                @if (subTotalFor(station.id); as sub) {
+                  <p class="sub-total">
+                    Total with sub-booths: {{ station.scans + sub.scans }}
+                    {{ station.scans + sub.scans === 1 ? 'scan' : 'scans' }}
+                    ({{ sub.count }} {{ sub.count === 1 ? 'sub-booth' : 'sub-booths' }})
+                  </p>
+                }
+
                 <div class="station-track" aria-hidden="true">
                   <div class="station-fill" [style.width.%]="station.percentage"></div>
                 </div>
+
+                @if (addingFor() === station.id) {
+                  <form class="sub-form" (submit)="submitSubBooth($event)">
+                    <p class="sub-form-title">Add a sub-booth to {{ station.name }}</p>
+                    <input
+                      type="text"
+                      class="sub-input"
+                      placeholder="Sub-booth name (e.g. Demo Station 1)"
+                      maxlength="80"
+                      [value]="subName()"
+                      (input)="subName.set($any($event.target).value)"
+                    />
+                    <input
+                      type="text"
+                      class="sub-input"
+                      placeholder="Location (optional, defaults to the booth's location)"
+                      maxlength="120"
+                      [value]="subLocation()"
+                      (input)="subLocation.set($any($event.target).value)"
+                    />
+                    @if (subError()) {
+                      <p class="sub-error" role="alert">{{ subError() }}</p>
+                    }
+                    <div class="sub-actions">
+                      <button type="button" class="btn-sub-cancel" (click)="cancelSubBooth()">Cancel</button>
+                      <button type="submit" class="btn-sub-save" [disabled]="savingSub()">
+                        {{ savingSub() ? 'Saving…' : 'Add sub-booth' }}
+                      </button>
+                    </div>
+                  </form>
+                }
               </div>
             }
           }
         </div>
       </article>
     </section>
+
+    <!-- Sub-booth detail (opens when a sub-booth name is clicked) -->
+    @if (selectedSub(); as detail) {
+      <article class="telemetry-card sub-detail-card">
+        <header class="telemetry-header">
+          <div>
+            <h2 class="telemetry-title">SUB-BOOTH: {{ detail.station.name }}</h2>
+            <p class="telemetry-subtitle">Part of {{ detail.parentName }}</p>
+          </div>
+          <button type="button" class="btn-sub-cancel" (click)="closeSubDetail()">Close</button>
+        </header>
+
+        <div class="sub-detail-stats">
+          <div class="sub-detail-stat">
+            <strong>{{ detail.station.scans }}</strong>
+            <span>{{ detail.station.scans === 1 ? 'scan' : 'scans' }} at this sub-booth</span>
+          </div>
+          <div class="sub-detail-stat">
+            <strong>{{ detail.parentScans }}</strong>
+            <span>{{ detail.parentScans === 1 ? 'scan' : 'scans' }} at {{ detail.parentName }}</span>
+          </div>
+          <div class="sub-detail-stat">
+            <strong>{{ detail.share }}%</strong>
+            <span>of the booth and sub-booth total</span>
+          </div>
+        </div>
+
+        <h3 class="sub-detail-heading">Recent scans here</h3>
+        @if (detail.scans.length === 0) {
+          <p class="no-stations">No recent scans at this sub-booth yet.</p>
+        } @else {
+          <div class="stream-table-wrapper">
+            <table class="stream-table">
+              <thead>
+                <tr>
+                  <th scope="col">ATTENDEE</th>
+                  <th scope="col">PASS CODE</th>
+                  <th scope="col">TIME</th>
+                  <th scope="col">STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (scan of detail.scans; track scan.id) {
+                  <tr class="stream-row">
+                    <td class="td-attendee">
+                      <strong class="attendee-name">{{ scan.attendeeName }}</strong>
+                      <span class="attendee-org">{{ scan.affiliation }}</span>
+                    </td>
+                    <td class="td-code"><code class="pass-code">{{ scan.ticketCode }}</code></td>
+                    <td class="td-time"><span class="time-text">{{ scan.scannedAt | date: 'hh:mm:ss a' }}</span></td>
+                    <td class="td-status">
+                      <span class="stream-status-badge" [class.status-success]="scan.status === 'SUCCESS'" [class.status-duplicate]="scan.status === 'DUPLICATE'" [class.status-invalid]="scan.status === 'INVALID_TICKET'" [class.status-warning]="scan.status === 'WARNING_NO_MAIN_ENTRY'">
+                        {{ scan.statusLabel }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </article>
+    }
 
     <!-- 3. Bottom Row: Recent Check-In Activity Stream -->
     <article class="telemetry-card activity-card">
@@ -240,4 +363,3 @@
     </article>
   }
 </div>
-

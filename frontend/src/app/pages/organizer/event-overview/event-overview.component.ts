@@ -3,7 +3,9 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, interval } from 'rxjs';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
-import { EventLiveOverview, HourlyFlowPoint } from '../../../core/organizer/organizer.models';
+import { EventLiveOverview } from '../../../core/organizer/organizer.models';
+import { StaffCheckpoint } from '../../../core/staff/scanner.models';
+import { SubBoothApi } from '../../../core/staff/sub-booth-api';
 
 @Component({
   imports: [DatePipe, DecimalPipe],
@@ -14,12 +16,21 @@ import { EventLiveOverview, HourlyFlowPoint } from '../../../core/organizer/orga
 export class EventOverviewComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly organizerEvents = inject(OrganizerEventsService);
+  private readonly subBoothApi = inject(SubBoothApi);
 
   readonly eventId = signal<string>('');
   readonly overview = signal<EventLiveOverview | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly exporting = signal(false);
+
+  // Sub-booth state
+  readonly checkpoints = signal<StaffCheckpoint[]>([]);
+  readonly addingFor = signal<string | null>(null);
+  readonly subName = signal('');
+  readonly subLocation = signal('');
+  readonly savingSub = signal(false);
+  readonly subError = signal('');
 
   private pollSub?: Subscription;
 
@@ -40,8 +51,104 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
   // Station breakdown
   readonly stationTraffic = computed(() => this.overview()?.stationTraffic ?? []);
 
+  // Ids of top-level booths (only these can receive sub-booths)
+  readonly boothIds = computed(
+    () =>
+      new Set(
+        this.checkpoints()
+          .filter((c) => c.type === 'BOOTH' && !c.parentId)
+          .map((c) => c.id),
+      ),
+  );
+
+  // Map of sub-booth id -> parent booth id
+  readonly parentOf = computed(
+    () =>
+      new Map(
+        this.checkpoints()
+          .filter((c) => !!c.parentId)
+          .map((c) => [c.id, c.parentId as string] as [string, string]),
+      ),
+  );
+
+  // Station list with each sub-booth placed right under its parent booth
+  readonly orderedStations = computed(() => {
+    const stations = this.stationTraffic();
+    const parentOf = this.parentOf();
+    const ids = new Set(stations.map((s) => s.id));
+    const childrenByParent = new Map<string, (typeof stations)[number][]>();
+    const topLevel: (typeof stations)[number][] = [];
+
+    for (const station of stations) {
+      const parentId = parentOf.get(station.id);
+      if (parentId && ids.has(parentId)) {
+        const list = childrenByParent.get(parentId) ?? [];
+        list.push(station);
+        childrenByParent.set(parentId, list);
+      } else {
+        topLevel.push(station);
+      }
+    }
+
+    return topLevel.flatMap((station) => [station, ...(childrenByParent.get(station.id) ?? [])]);
+  });
+
+  // Scans and count of sub-booths, grouped by parent booth
+  readonly subTotals = computed(() => {
+    const totals = new Map<string, { scans: number; count: number }>();
+    const parentOf = this.parentOf();
+    for (const station of this.stationTraffic()) {
+      const parentId = parentOf.get(station.id);
+      if (!parentId) continue;
+      const entry = totals.get(parentId) ?? { scans: 0, count: 0 };
+      entry.scans += station.scans;
+      entry.count += 1;
+      totals.set(parentId, entry);
+    }
+    return totals;
+  });
+
+  subTotalFor(stationId: string): { scans: number; count: number } | null {
+    return this.subTotals().get(stationId) ?? null;
+  }
+
   // Recent scans
   readonly recentScans = computed(() => this.overview()?.recentScans ?? []);
+
+  // Sub-booth detail panel
+  readonly selectedSubId = signal<string | null>(null);
+
+  readonly selectedSub = computed(() => {
+    const id = this.selectedSubId();
+    if (!id) return null;
+
+    const station = this.stationTraffic().find((s) => s.id === id);
+    if (!station) return null;
+
+    const parentId = this.parentOf().get(id);
+    const parentStation = this.stationTraffic().find((s) => s.id === parentId);
+    const parentName =
+      parentStation?.name ?? this.checkpoints().find((c) => c.id === parentId)?.name ?? 'Booth';
+    const parentScans = parentStation?.scans ?? 0;
+    const scans = this.recentScans().filter((scan) => scan.stationName === station.name);
+    const totalWithParent = parentScans + station.scans;
+
+    return {
+      station,
+      parentName,
+      parentScans,
+      share: totalWithParent > 0 ? Math.round((station.scans / totalWithParent) * 100) : 0,
+      scans,
+    };
+  });
+
+  openSubDetail(stationId: string): void {
+    this.selectedSubId.set(stationId);
+  }
+
+  closeSubDetail(): void {
+    this.selectedSubId.set(null);
+  }
 
   // SVG Chart calculation
   readonly chartSvgData = computed(() => {
@@ -83,6 +190,7 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
         if (id) {
           this.eventId.set(id);
           this.fetchOverview();
+          this.loadCheckpoints();
         }
       });
     }
@@ -122,6 +230,70 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ---- Sub-booths ----
+
+  private loadCheckpoints(): void {
+    const id = this.eventId();
+    if (!id) return;
+
+    this.subBoothApi.listAll().subscribe((all) => {
+      this.checkpoints.set(all.filter((c) => c.eventId === id));
+    });
+  }
+
+  canAddSubBooth(stationId: string): boolean {
+    return this.boothIds().has(stationId);
+  }
+
+  isSubBooth(stationId: string): boolean {
+    return this.parentOf().has(stationId);
+  }
+
+  openSubBoothForm(stationId: string): void {
+    this.addingFor.set(stationId);
+    this.subName.set('');
+    this.subLocation.set('');
+    this.subError.set('');
+  }
+
+  cancelSubBooth(): void {
+    this.addingFor.set(null);
+    this.subName.set('');
+    this.subLocation.set('');
+    this.subError.set('');
+  }
+
+  submitSubBooth(event: Event): void {
+    event.preventDefault();
+
+    const parentId = this.addingFor();
+    const name = this.subName().trim();
+    if (!parentId || this.savingSub()) return;
+
+    if (!name) {
+      this.subError.set('Please enter a sub-booth name.');
+      return;
+    }
+
+    this.savingSub.set(true);
+    this.subError.set('');
+
+    this.subBoothApi
+      .create(parentId, { name, location: this.subLocation().trim() || undefined })
+      .subscribe({
+        next: () => {
+          this.savingSub.set(false);
+          this.cancelSubBooth();
+          this.loadCheckpoints();
+          this.fetchOverview(true);
+        },
+        error: (err: { error?: { message?: string } }) => {
+          this.savingSub.set(false);
+          this.subError.set(err.error?.message || 'Could not add the sub-booth.');
+        },
+      });
+  }
+
   exportCsv(): void {
     const id = this.eventId();
     if (!id || this.exporting()) return;
@@ -146,4 +318,3 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     });
   }
 }
-

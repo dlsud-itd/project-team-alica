@@ -17,6 +17,7 @@ export interface StaffCheckpointDto {
   requireMainEntry: boolean;
   eventId: string;
   eventName: string;
+  parentId: string | null;
 }
 
 export interface ScanAttendeeDto {
@@ -45,9 +46,41 @@ export class ScanRequestBodyDto {
   notes?: string;
 }
 
+export class CreateSubBoothDto {
+  name!: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+}
+
+type CheckpointWithEvent = {
+  id: string;
+  name: string;
+  location: string | null;
+  type: StaffCheckpointDto['type'];
+  allowMultipleScans: boolean;
+  requireMainEntry: boolean;
+  eventId: string;
+  parentId: string | null;
+  event: { title: string };
+};
+
 @Injectable()
 export class CheckpointsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private toStaffDto(c: CheckpointWithEvent): StaffCheckpointDto {
+    return {
+      id: c.id,
+      name: c.name,
+      location: c.location,
+      type: c.type,
+      allowMultipleScans: c.allowMultipleScans,
+      requireMainEntry: c.requireMainEntry,
+      eventId: c.eventId,
+      eventName: c.event.title,
+      parentId: c.parentId ?? null,
+    };
+  }
 
   async findMyCheckpoints(user: UserSummaryDto): Promise<StaffCheckpointDto[]> {
     if (user.role === 'ADMIN' || user.role === 'ORGANIZER') {
@@ -57,16 +90,7 @@ export class CheckpointsService {
         orderBy: { name: 'asc' },
       });
 
-      return allActive.map((c) => ({
-        id: c.id,
-        name: c.name,
-        location: c.location,
-        type: c.type,
-        allowMultipleScans: c.allowMultipleScans,
-        requireMainEntry: c.requireMainEntry,
-        eventId: c.eventId,
-        eventName: c.event.title,
-      }));
+      return allActive.map((c) => this.toStaffDto(c));
     }
 
     // For STAFF users:
@@ -90,6 +114,8 @@ export class CheckpointsService {
         deletedAt: null,
         OR: [
           ...(directIds.length ? [{ id: { in: directIds } }] : []),
+          // Sub-booths follow their parent booth's assignment
+          ...(directIds.length ? [{ parentId: { in: directIds } }] : []),
           ...(eventIds.length ? [{ eventId: { in: eventIds } }] : []),
         ],
       },
@@ -104,28 +130,42 @@ export class CheckpointsService {
         include: { event: { select: { title: true } } },
         orderBy: { name: 'asc' },
       });
-      return fallback.map((c) => ({
-        id: c.id,
-        name: c.name,
-        location: c.location,
-        type: c.type,
-        allowMultipleScans: c.allowMultipleScans,
-        requireMainEntry: c.requireMainEntry,
-        eventId: c.eventId,
-        eventName: c.event.title,
-      }));
+      return fallback.map((c) => this.toStaffDto(c));
     }
 
-    return checkpoints.map((c) => ({
-      id: c.id,
-      name: c.name,
-      location: c.location,
-      type: c.type,
-      allowMultipleScans: c.allowMultipleScans,
-      requireMainEntry: c.requireMainEntry,
-      eventId: c.eventId,
-      eventName: c.event.title,
-    }));
+    return checkpoints.map((c) => this.toStaffDto(c));
+  }
+
+  async createSubBooth(parentId: string, dto: CreateSubBoothDto): Promise<StaffCheckpointDto> {
+    const name = dto.name?.trim();
+    if (!name) {
+      throw new BadRequestException('Sub-booth name is required.');
+    }
+
+    const parent = await this.prisma.checkpoint.findFirst({
+      where: { id: parentId, type: 'BOOTH', isActive: true, deletedAt: null },
+    });
+    if (!parent) {
+      throw new NotFoundException(`Booth '${parentId}' not found.`);
+    }
+    if (parent.parentId) {
+      throw new BadRequestException('A sub-booth cannot have its own sub-booths.');
+    }
+
+    const created = await this.prisma.checkpoint.create({
+      data: {
+        name,
+        location: dto.location?.trim() || parent.location,
+        type: 'BOOTH',
+        eventId: parent.eventId,
+        parentId: parent.id,
+        allowMultipleScans: dto.allowMultipleScans ?? parent.allowMultipleScans,
+        requireMainEntry: parent.requireMainEntry,
+      },
+      include: { event: { select: { title: true } } },
+    });
+
+    return this.toStaffDto(created);
   }
 
   async scan(

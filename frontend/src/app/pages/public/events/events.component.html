@@ -311,6 +311,25 @@
           }
 
           <form [formGroup]="rsvpForm" (ngSubmit)="submitRsvp()" class="rsvp-form" novalidate>
+                        @if (auth.isAuthenticated() && savedProfiles().length > 0) {
+              <div class="form-group profile-select-group">
+                <label for="profileSelect" class="form-label">Autofill from Profile</label>
+                <div class="input-wrapper">
+                  <select
+                    id="profileSelect"
+                    class="form-select"
+                    [value]="selectedProfileId()"
+                    (change)="onSelectProfile($event)"
+                  >
+                    <option value="">Default ({{ auth.user()?.fullName }})</option>
+                    @for (prof of savedProfiles(); track prof.id) {
+                      <option [value]="prof.id">{{ prof.profileName }} ({{ prof.fullName }})</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            }
+
             <!-- Full Name -->
             <div class="form-group">
               <label for="rsvp-name" class="form-label">Full Name</label>
@@ -361,6 +380,25 @@
                 <span class="field-error">Student ID is required for verification.</span>
               }
             </div>
+
+                        @if (auth.isAuthenticated()) {
+              <div class="save-profile-box">
+                <label class="save-profile-checkbox-label">
+                  <input type="checkbox" formControlName="saveProfile" class="profile-checkbox" />
+                  <span>Save these details as a reusable profile</span>
+                </label>
+                @if (rsvpForm.controls.saveProfile.value) {
+                  <div class="input-wrapper profile-name-input-wrapper">
+                    <input
+                      type="text"
+                      formControlName="profileName"
+                      class="form-input"
+                      placeholder="Profile label (e.g. Student, Work, Personal)"
+                    />
+                  </div>
+                }
+              </div>
+            }
 
             @if (rsvpError()) {
               <span class="field-error" role="alert">{{ rsvpError() }}</span>

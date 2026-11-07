@@ -1,7 +1,25 @@
 import { inject } from '@angular/core';
-import { CanMatchFn, Router } from '@angular/router';
+import { CanActivateFn, CanMatchFn, Router } from '@angular/router';
 import { UserRole } from './auth.models';
 import { AuthService } from './auth.service';
+
+/**
+ * Allows the route only for authenticated users regardless of specific roles.
+ * Redirects unauthenticated users to `/login`.
+ */
+export const authGuard: CanMatchFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  if (!auth.isAuthenticated()) {
+    const returnUrl = router.currentNavigation()?.extractedUrl.toString();
+    return router.createUrlTree(['/login'], { queryParams: { returnUrl } });
+  }
+  if (auth.user()?.mustChangePassword) {
+    return router.parseUrl('/change-password');
+  }
+  return true;
+};
 
 /**
  * Allows the route only for the given roles.
@@ -18,6 +36,9 @@ export function roleGuard(roles: UserRole[], loginUrl = '/login'): CanMatchFn {
       const returnUrl = router.currentNavigation()?.extractedUrl.toString();
       return router.createUrlTree([loginUrl], { queryParams: { returnUrl } });
     }
+    if (auth.user()?.mustChangePassword) {
+      return router.parseUrl('/change-password');
+    }
     if (auth.hasRole(...roles)) {
       return true;
     }
@@ -28,5 +49,39 @@ export function roleGuard(roles: UserRole[], loginUrl = '/login'): CanMatchFn {
 /** Keeps logged-in users off the login/register pages. */
 export const guestGuard: CanMatchFn = () => {
   const auth = inject(AuthService);
-  return auth.isAuthenticated() ? inject(Router).parseUrl(auth.homeUrl()) : true;
+  if (!auth.isAuthenticated()) return true;
+  const router = inject(Router);
+  return router.parseUrl(
+    auth.user()?.mustChangePassword ? '/change-password' : auth.homeUrl(),
+  );
+};
+
+export const passwordChangeGuard: CanMatchFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  if (!auth.isAuthenticated()) {
+    return router.createUrlTree(['/login'], {
+      queryParams: { returnUrl: '/change-password' },
+    });
+  }
+  return auth.user()?.mustChangePassword
+    ? true
+    : router.parseUrl(auth.homeUrl());
+};
+
+/** Allows public ticket-code profile links, but protects the signed-in profile. */
+export const profileAccessGuard: CanActivateFn = (_route, state) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  if (auth.user()?.mustChangePassword) {
+    return router.parseUrl('/change-password');
+  }
+  if (!state.url.startsWith('/profile/')) {
+    if (!auth.isAuthenticated()) {
+      return router.createUrlTree(['/login'], {
+        queryParams: { returnUrl: state.url },
+      });
+    }
+  }
+  return true;
 };

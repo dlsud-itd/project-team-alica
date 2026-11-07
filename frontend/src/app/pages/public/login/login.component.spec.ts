@@ -116,4 +116,30 @@ describe('Login', () => {
     expect(component.successMessage).toContain('Authentication successful');
     expect(router.navigate).toHaveBeenCalled();
   });
+
+  it('should send guests with a temporary password to the required reset page', () => {
+    vi.spyOn(authService, 'login').mockReturnValue(
+      of({
+        success: true,
+        data: {
+          user: {
+            id: '550e8400-e29b-41d4-a716-446655440000',
+            email: 'guest@example.org',
+            fullName: 'Alex Guest',
+            role: 'ATTENDEE',
+            mustChangePassword: true,
+          },
+          token: 'jwt-guest',
+        },
+      }),
+    );
+
+    component.loginForm.patchValue({
+      email: 'guest@example.org',
+      password: 'Temporary123',
+    });
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/change-password']);
+  });
 });

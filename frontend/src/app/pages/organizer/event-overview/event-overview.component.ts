@@ -3,7 +3,7 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, interval } from 'rxjs';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
-import { EventLiveOverview } from '../../../core/organizer/organizer.models';
+import { EventLiveOverview, EventStaff, HourlyFlowPoint } from '../../../core/organizer/organizer.models';
 import { StaffCheckpoint } from '../../../core/staff/scanner.models';
 import { SubBoothApi } from '../../../core/staff/sub-booth-api';
 
@@ -31,6 +31,12 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
   readonly subLocation = signal('');
   readonly savingSub = signal(false);
   readonly subError = signal('');
+
+  // Staff Management
+  readonly staffList = signal<EventStaff[]>([]);
+  readonly staffLoading = signal(false);
+  readonly staffError = signal('');
+  readonly addingStaff = signal(false);
 
   private pollSub?: Subscription;
 
@@ -191,6 +197,7 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
           this.eventId.set(id);
           this.fetchOverview();
           this.loadCheckpoints();
+          this.loadStaff(id);
         }
       });
     }
@@ -317,4 +324,50 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
       },
     });
   }
+
+  loadStaff(id: string): void {
+    this.staffLoading.set(true);
+    this.organizerEvents.loadStaff(id).subscribe({
+      next: (list) => {
+        this.staffList.set(list);
+        this.staffLoading.set(false);
+      },
+      error: () => {
+        this.staffLoading.set(false);
+      },
+    });
+  }
+
+  addStaffMember(email: string): void {
+    const cleanEmail = email?.trim();
+    const id = this.eventId();
+    if (!cleanEmail || !id) return;
+
+    this.addingStaff.set(true);
+    this.staffError.set('');
+    this.organizerEvents.addStaff(id, cleanEmail).subscribe({
+      next: () => {
+        this.addingStaff.set(false);
+        this.loadStaff(id);
+      },
+      error: (err) => {
+        this.addingStaff.set(false);
+        this.staffError.set(err?.error?.message || 'Failed to add staff member.');
+      },
+    });
+  }
+
+  removeStaffMember(userId: string): void {
+    const id = this.eventId();
+    if (!userId || !id) return;
+
+    this.organizerEvents.removeStaff(id, userId).subscribe({
+      next: () => {
+        this.loadStaff(id);
+      },
+      error: () => undefined,
+    });
+  }
+
+
 }

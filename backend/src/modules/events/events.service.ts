@@ -5,14 +5,80 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import bcrypt from 'bcryptjs';
+import { randomInt, randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
+import ExcelJS from 'exceljs';
 import {
   Event,
   EventApprovalStatus,
   Prisma,
+  TicketType,
   TicketStatus,
+  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
+import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
+
+const MAX_GUEST_ROWS = 5000;
+const DEFAULT_GUEST_AFFILIATION = 'Guest / Imported Attendee';
+const TEMP_PASSWORD_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+export interface GuestImportFile {
+  originalname: string;
+  buffer: Buffer;
+}
+
+export interface GuestFilePreviewDto {
+  fileName: string;
+  totalRows: number;
+  detectedHeaders: string[];
+  sampleRows: string[][];
+}
+
+export interface GuestImportMappingDto {
+  hasHeaders?: boolean;
+  nameMode?: 'single' | 'split';
+  fullNameColumn?: string | number;
+  firstNameColumn?: string | number;
+  lastNameColumn?: string | number;
+  emailColumn?: string | number;
+  studentIdColumn?: string | number;
+  contactNumberColumn?: string | number;
+  affiliationColumn?: string | number;
+}
+
+interface ParsedGuest {
+  row: number;
+  fullName?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  studentId?: string | null;
+  contactNumber?: string | null;
+  affiliation: string;
+}
+
+export interface GuestImportResult {
+  created: Array<{
+    id: string;
+    email: string;
+    fullName: string;
+    ticketId: string;
+    ticketCode: string;
+    emailStatus: 'SENT' | 'FAILED';
+  }>;
+  skipped: Array<{ row: number; email?: string; reason: string }>;
+  emailFailures: string[];
+  summary: {
+    created: number;
+    skipped: number;
+    emailFailures: number;
+  };
+  credentials?: Array<{ email: string; temporaryPassword: string }>;
+}
 
 export interface EventResponseDto {
   id: string;
@@ -54,6 +120,7 @@ export interface OrganizerEventDto {
   review_notes: string | null;
   reviewed_at: string | null;
   submitted_at: string;
+  is_private?: boolean;
   category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
   category_label?: string;
   checkpoints_count?: number;
@@ -157,6 +224,15 @@ export class UpdateEventDto {
   allow_walk_ins?: boolean;
 }
 
+export interface EventStaffDto {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+}
+
 export class CreateEventDto {
   name!: string;
   description?: string;
@@ -165,6 +241,7 @@ export class CreateEventDto {
   ends_at!: string;
   capacity!: number;
   allow_walk_ins?: boolean;
+  is_private?: boolean;
 }
 
 export class ReviewEventDto {
@@ -178,14 +255,12 @@ const REGISTRANT_STATUS_LABELS: Record<TicketStatus, RegistrantStatus> = {
   CANCELLED: 'Cancelled',
 };
 
-const APPROVAL_STATUS_LABELS: Record<
-  EventApprovalStatus,
-  ApprovalStatusLabel
-> = {
-  PENDING: 'Pending',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
-};
+const APPROVAL_STATUS_LABELS: Record<EventApprovalStatus, ApprovalStatusLabel> =
+  {
+    PENDING: 'Pending',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected',
+  };
 
 // Tickets that hold a seat (everything except cancelled).
 const ACTIVE_TICKET_FILTER = { status: { not: TicketStatus.CANCELLED } };
@@ -199,7 +274,530 @@ const ADMIN_EVENT_INCLUDE = {
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly invitationMailer: GuestInvitationMailer,
+  ) {}
+
+  async previewGuestFile(
+    user: UserSummaryDto,
+    eventId: string,
+    file: GuestImportFile | undefined,
+  ): Promise<GuestFilePreviewDto> {
+    await this.findManageableEvent(user, eventId);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('A CSV or XLSX file is required');
+    }
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    if (extension !== 'csv' && extension !== 'xlsx') {
+      throw new BadRequestException('Only .csv and .xlsx files are supported');
+    }
+
+    let worksheet: ExcelJS.Worksheet;
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const fileStream = Readable.from([file.buffer]);
+      if (extension === 'csv') {
+        worksheet = await workbook.csv.read(fileStream);
+      } else {
+        await workbook.xlsx.read(fileStream);
+        const first = workbook.worksheets[0];
+        if (!first) throw new BadRequestException('No worksheets found');
+        worksheet = first;
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Unable to parse file');
+    }
+
+    const detectedHeaders: string[] = [];
+    const firstRow = worksheet.getRow(1);
+    firstRow.eachCell({ includeEmpty: false }, (cell) => {
+      const text = cell.text.trim();
+      if (text) detectedHeaders.push(text);
+    });
+
+    const sampleRows: string[][] = [];
+    const maxSample = Math.min(worksheet.rowCount, 4);
+    for (let r = 2; r <= maxSample; r++) {
+      const row = worksheet.getRow(r);
+      const cells: string[] = [];
+      const colCount = Math.max(detectedHeaders.length, row.cellCount);
+      for (let c = 1; c <= colCount; c++) {
+        cells.push(row.getCell(c).text.trim());
+      }
+      sampleRows.push(cells);
+    }
+
+    return {
+      fileName: file.originalname,
+      totalRows: Math.max(0, worksheet.rowCount - 1),
+      detectedHeaders,
+      sampleRows,
+    };
+  }
+
+  async importGuestUsers(
+    user: UserSummaryDto,
+    eventId: string,
+    file: GuestImportFile | undefined,
+    includeCredentials?: string | boolean,
+    mapping?: GuestImportMappingDto,
+  ): Promise<GuestImportResult> {
+    const event = await this.findManageableEvent(user, eventId);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('A CSV or XLSX file is required');
+    }
+
+    const returnCredentials = this.parseCredentialFlag(includeCredentials);
+    if (
+      returnCredentials &&
+      (!['development', 'test'].includes(process.env.NODE_ENV ?? '') ||
+        process.env.GUEST_IMPORT_DEBUG_CREDENTIALS !== 'true')
+    ) {
+      throw new ForbiddenException(
+        'Temporary credential visibility is disabled on this server',
+      );
+    }
+
+    const parsedFile = await this.parseGuestFile(file, mapping);
+    const result: GuestImportResult = {
+      created: [],
+      skipped: parsedFile.skipped,
+      emailFailures: [],
+      summary: { created: 0, skipped: 0, emailFailures: 0 },
+      ...(returnCredentials ? { credentials: [] } : {}),
+    };
+
+    const uniqueGuests = new Map<string, ParsedGuest>();
+    for (const guest of parsedFile.guests) {
+      if (uniqueGuests.has(guest.email)) {
+        result.skipped.push({
+          row: guest.row,
+          email: guest.email,
+          reason: 'duplicate_in_file',
+        });
+      } else {
+        uniqueGuests.set(guest.email, guest);
+      }
+    }
+
+    const candidates = [...uniqueGuests.values()];
+    const existingUsers = candidates.length
+      ? await this.prisma.user.findMany({
+          where: {
+            email: {
+              in: candidates.map((guest) => guest.email),
+              mode: 'insensitive',
+            },
+          },
+          select: { email: true },
+        })
+      : [];
+    const existingEmails = new Set(
+      existingUsers.map((existing) => existing.email.toLowerCase()),
+    );
+    const existingTickets = candidates.length
+      ? await this.prisma.ticket.findMany({
+          where: {
+            eventId,
+            email: {
+              in: candidates.map((guest) => guest.email),
+              mode: 'insensitive',
+            },
+          },
+          select: { email: true },
+        })
+      : [];
+    const registeredEmails = new Set(
+      existingTickets.map((ticket) => ticket.email.toLowerCase()),
+    );
+    let activeRegistrations = await this.prisma.ticket.count({
+      where: { eventId, status: { not: TicketStatus.CANCELLED } },
+    });
+    if (
+      (event.capacity === null || activeRegistrations < event.capacity) &&
+      candidates.some(
+        (guest) =>
+          !existingEmails.has(guest.email) &&
+          !registeredEmails.has(guest.email),
+      )
+    ) {
+      await this.invitationMailer.assertConfigured();
+    }
+    const usedPasswords = new Set<string>();
+
+    for (const guest of candidates) {
+      if (existingEmails.has(guest.email)) {
+        result.skipped.push({
+          row: guest.row,
+          email: guest.email,
+          reason: 'email_already_registered',
+        });
+        continue;
+      }
+      if (registeredEmails.has(guest.email)) {
+        result.skipped.push({
+          row: guest.row,
+          email: guest.email,
+          reason: 'email_already_registered_for_event',
+        });
+        continue;
+      }
+      if (event.capacity !== null && activeRegistrations >= event.capacity) {
+        result.skipped.push({
+          row: guest.row,
+          email: guest.email,
+          reason: 'event_capacity_reached',
+        });
+        continue;
+      }
+
+      const temporaryPassword =
+        this.generateUniqueTemporaryPassword(usedPasswords);
+      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+      const ticketCode = `CHK-${randomUUID().toUpperCase()}`;
+      let account: {
+        id: string;
+        email: string;
+        fullName: string;
+        tickets: Array<{ id: string; ticketCode: string }>;
+      };
+      try {
+        account = await this.prisma.user.create({
+          data: {
+            email: guest.email,
+            passwordHash,
+            fullName:
+              guest.fullName || `${guest.firstName} ${guest.lastName}`.trim(),
+            role: UserRole.ATTENDEE,
+            studentId: guest.studentId || null,
+            contactNumber: guest.contactNumber || null,
+            affiliation: guest.affiliation || DEFAULT_GUEST_AFFILIATION,
+            isActive: true,
+            deletedAt: null,
+            mustChangePassword: true,
+            tickets: {
+              create: {
+                event: { connect: { id: eventId } },
+                firstName: guest.firstName,
+                lastName: guest.lastName,
+                email: guest.email,
+                studentId: guest.studentId || null,
+                contactNumber: guest.contactNumber || null,
+                affiliation: guest.affiliation || DEFAULT_GUEST_AFFILIATION,
+                ticketType: TicketType.REGULAR,
+                ticketCode,
+                qrPayload: ticketCode,
+                status: TicketStatus.REGISTERED,
+              },
+            },
+          },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            tickets: { select: { id: true, ticketCode: true } },
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          result.skipped.push({
+            row: guest.row,
+            email: guest.email,
+            reason: 'email_or_registration_already_exists',
+          });
+          continue;
+        }
+        throw error;
+      }
+      const ticket = account.tickets[0];
+      if (!ticket) {
+        throw new Error(
+          `Guest account '${account.id}' was created without its event registration`,
+        );
+      }
+      activeRegistrations += 1;
+
+      let emailStatus: 'SENT' | 'FAILED' = 'SENT';
+      try {
+        await this.invitationMailer.sendInvitation({
+          eventTitle: event.title,
+          email: account.email,
+          fullName: account.fullName,
+          temporaryPassword,
+          ticketCode: ticket.ticketCode,
+        });
+      } catch (error) {
+        emailStatus = 'FAILED';
+        result.emailFailures.push(account.email);
+        this.logger.warn(
+          `Guest invitation email failed for ${account.email}: ${
+            error instanceof Error ? error.message : 'Unknown mail error'
+          }`,
+        );
+      }
+
+      result.created.push({
+        id: account.id,
+        email: account.email,
+        fullName: account.fullName,
+        ticketId: ticket.id,
+        ticketCode: ticket.ticketCode,
+        emailStatus,
+      });
+      if (result.credentials) {
+        result.credentials.push({
+          email: account.email,
+          temporaryPassword,
+        });
+      }
+    }
+
+    result.summary = {
+      created: result.created.length,
+      skipped: result.skipped.length,
+      emailFailures: result.emailFailures.length,
+    };
+    return result;
+  }
+
+  private parseCredentialFlag(value?: string | boolean): boolean {
+    if (value === undefined || value === false || value === 'false') {
+      return false;
+    }
+    if (value === true || value === 'true') {
+      return true;
+    }
+    throw new BadRequestException(
+      'includeCredentials must be either true or false',
+    );
+  }
+
+  private generateUniqueTemporaryPassword(used: Set<string>): string {
+    let password = '';
+    do {
+      password = Array.from({ length: 10 }, () =>
+        TEMP_PASSWORD_ALPHABET.charAt(randomInt(TEMP_PASSWORD_ALPHABET.length)),
+      ).join('');
+    } while (used.has(password));
+    used.add(password);
+    return password;
+  }
+
+  private async parseGuestFile(
+    file: GuestImportFile,
+    mapping?: GuestImportMappingDto,
+  ): Promise<{
+    guests: ParsedGuest[];
+    skipped: GuestImportResult['skipped'];
+  }> {
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    if (extension !== 'csv' && extension !== 'xlsx') {
+      throw new BadRequestException('Only .csv and .xlsx files are supported');
+    }
+
+    let worksheet: ExcelJS.Worksheet;
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const fileStream = Readable.from([file.buffer]);
+      if (extension === 'csv') {
+        worksheet = await workbook.csv.read(fileStream);
+      } else {
+        await workbook.xlsx.read(fileStream);
+        const firstWorksheet = workbook.worksheets[0];
+        if (!firstWorksheet) {
+          throw new BadRequestException('The workbook contains no worksheets');
+        }
+        worksheet = firstWorksheet;
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      this.logger.warn(`Guest import file parsing failed: ${String(error)}`);
+      throw new BadRequestException('The uploaded file could not be parsed');
+    }
+
+    if (worksheet.rowCount > MAX_GUEST_ROWS + 1) {
+      throw new BadRequestException(
+        `A guest import may contain at most ${MAX_GUEST_ROWS} data rows`,
+      );
+    }
+
+    const hasHeaders = mapping?.hasHeaders !== false;
+    const headerIndexes = new Map<string, number>();
+
+    if (hasHeaders) {
+      worksheet.getRow(1).eachCell((cell, column) => {
+        const header = cell.text.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (header) headerIndexes.set(header, column);
+      });
+    }
+
+    const resolveCol = (colSpec?: string | number): number | undefined => {
+      if (typeof colSpec === 'number' && colSpec > 0) return colSpec;
+      if (!colSpec) return undefined;
+      const trimmed = String(colSpec).trim();
+      const lower = trimmed.toLowerCase().replace(/\s+/g, ' ');
+      if (headerIndexes.has(lower)) {
+        return headerIndexes.get(lower);
+      }
+      const parsed = parseInt(trimmed, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+      return undefined;
+    };
+
+    const isExplicitMapping = !!(
+      mapping &&
+      (mapping.emailColumn !== undefined ||
+        mapping.fullNameColumn !== undefined ||
+        mapping.firstNameColumn !== undefined ||
+        mapping.lastNameColumn !== undefined)
+    );
+
+    let colFullName: number | undefined;
+    let colFirstName: number | undefined;
+    let colLastName: number | undefined;
+    let colEmail: number | undefined;
+    let colStudentId: number | undefined;
+    let colContactNumber: number | undefined;
+    let colAffiliation: number | undefined;
+
+    const nameMode =
+      mapping?.nameMode ??
+      (mapping?.fullNameColumn !== undefined ? 'single' : 'split');
+
+    if (isExplicitMapping) {
+      colFullName = resolveCol(mapping?.fullNameColumn);
+      colFirstName = resolveCol(mapping?.firstNameColumn);
+      colLastName = resolveCol(mapping?.lastNameColumn);
+      colEmail = resolveCol(mapping?.emailColumn);
+      colStudentId = resolveCol(mapping?.studentIdColumn);
+      colContactNumber = resolveCol(mapping?.contactNumberColumn);
+      colAffiliation = resolveCol(mapping?.affiliationColumn);
+
+      if (!colEmail) {
+        throw new BadRequestException(
+          'The specified email column could not be found in the file',
+        );
+      }
+      if (nameMode === 'single' && !colFullName) {
+        throw new BadRequestException(
+          'The specified full name column could not be found in the file',
+        );
+      }
+      if (nameMode === 'split' && (!colFirstName || !colLastName)) {
+        throw new BadRequestException(
+          'Both first name and last name columns must be specified',
+        );
+      }
+    } else {
+      for (const requiredHeader of ['first name', 'last name', 'email']) {
+        if (!headerIndexes.has(requiredHeader)) {
+          throw new BadRequestException(
+            `The file is missing the '${requiredHeader}' column`,
+          );
+        }
+      }
+      colFirstName = headerIndexes.get('first name');
+      colLastName = headerIndexes.get('last name');
+      colEmail = headerIndexes.get('email');
+      colAffiliation = headerIndexes.get('affiliation');
+    }
+
+    const startRow = hasHeaders ? 2 : 1;
+    const guests: ParsedGuest[] = [];
+    const skipped: GuestImportResult['skipped'] = [];
+
+    for (let rowNumber = startRow; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+      const row = worksheet.getRow(rowNumber);
+      const read = (colIndex?: number) =>
+        colIndex ? row.getCell(colIndex).text.trim() : '';
+
+      let firstName = '';
+      let lastName = '';
+      let fullName = '';
+
+      if (nameMode === 'single' && colFullName) {
+        fullName = read(colFullName);
+        firstName = fullName;
+        lastName = fullName;
+      } else {
+        firstName = read(colFirstName);
+        lastName = read(colLastName);
+        fullName = `${firstName} ${lastName}`.trim();
+      }
+
+      const email = read(colEmail).toLowerCase();
+      const studentId = read(colStudentId) || null;
+      const contactNumber = read(colContactNumber) || null;
+      const affiliation = read(colAffiliation);
+
+      if (
+        !firstName &&
+        !lastName &&
+        !fullName &&
+        !email &&
+        !affiliation &&
+        !studentId &&
+        !contactNumber
+      ) {
+        continue;
+      }
+
+      const reasons: string[] = [];
+      if (nameMode === 'single') {
+        if (!fullName) reasons.push('name_required');
+      } else {
+        if (!firstName) reasons.push('first_name_required');
+        if (!lastName) reasons.push('last_name_required');
+      }
+
+      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        reasons.push('invalid_email');
+      }
+      if (
+        firstName.length > 100 ||
+        lastName.length > 100 ||
+        fullName.length > 200
+      ) {
+        reasons.push('name_too_long');
+      }
+      if (affiliation && affiliation.length > 200) {
+        reasons.push('affiliation_too_long');
+      }
+      if (studentId && studentId.length > 50) {
+        reasons.push('student_id_too_long');
+      }
+      if (contactNumber && contactNumber.length > 30) {
+        reasons.push('contact_number_too_long');
+      }
+
+      if (reasons.length) {
+        skipped.push({
+          row: rowNumber,
+          ...(email ? { email } : {}),
+          reason: reasons.join(','),
+        });
+      } else {
+        guests.push({
+          row: rowNumber,
+          fullName,
+          firstName,
+          lastName,
+          email,
+          studentId,
+          contactNumber,
+          affiliation,
+        });
+      }
+    }
+    return { guests, skipped };
+  }
 
   /** Public listing: only active, admin-approved events. */
   async findAll(): Promise<EventResponseDto[]> {
@@ -208,6 +806,7 @@ export class EventsService {
         isActive: true,
         deletedAt: null,
         approvalStatus: EventApprovalStatus.APPROVED,
+        isPrivate: false,
       },
       include: {
         organizer: {
@@ -260,10 +859,7 @@ export class EventsService {
       ) {
         category = 'WORKSHOP';
         categoryLabel = 'Workshop';
-      } else if (
-        lowerSlug.includes('expo') ||
-        lowerSlug.includes('showcase')
-      ) {
+      } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
         category = 'EXPO';
         categoryLabel = 'Expo';
       }
@@ -374,6 +970,11 @@ export class EventsService {
       throw new BadRequestException('Start date & time must be in the future');
     }
     const capacity = this.parseCapacity(dto.capacity);
+    const isPrivate = dto.is_private === true;
+    const approvalStatus =
+      isPrivate || user.role === 'ADMIN'
+        ? EventApprovalStatus.APPROVED
+        : EventApprovalStatus.PENDING;
 
     const event = await this.prisma.event.create({
       data: {
@@ -385,12 +986,13 @@ export class EventsService {
         endDate,
         capacity,
         allowWalkIns: dto.allow_walk_ins ?? false,
-        approvalStatus: EventApprovalStatus.PENDING,
+        isPrivate,
+        approvalStatus,
         organizerId: user.id,
       },
     });
 
-    this.logger.log(`Event '${event.id}' submitted for review by ${user.id}`);
+    this.logger.log(`Event '${event.id}' created by ${user.id} (private: ${isPrivate}, approval: ${approvalStatus})`);
     return this.toOrganizerEvent(event, 0);
   }
 
@@ -636,10 +1238,8 @@ export class EventsService {
     return this.toRegistrant(updated);
   }
 
-  private assertOrganizerRole(user: UserSummaryDto): void {
-    if (user.role !== 'ORGANIZER' && user.role !== 'ADMIN') {
-      throw new ForbiddenException('Only organizers can manage events');
-    }
+  private assertOrganizerRole(_user: UserSummaryDto): void {
+    // Dynamic event roles: permissions are evaluated per-event in findManageableEvent
   }
 
   private assertAdminRole(user: UserSummaryDto): void {
@@ -734,6 +1334,7 @@ export class EventsService {
       review_notes: ev.reviewNotes,
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
+      is_private: ev.isPrivate,
     };
   }
 
@@ -1193,4 +1794,71 @@ export class EventsService {
 
     return [headers.join(','), ...rows].join('\n');
   }
+
+  async getStaff(user: UserSummaryDto, eventId: string): Promise<EventStaffDto[]> {
+    await this.findManageableEvent(user, eventId);
+    const staffList = await this.prisma.eventStaff.findMany({
+      where: { eventId, isActive: true },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+      orderBy: { assignedAt: 'desc' },
+    });
+    return staffList.map((s) => ({
+      id: s.id,
+      userId: s.user.id,
+      email: s.user.email,
+      fullName: s.user.fullName,
+      affiliation: s.user.affiliation,
+      assignedAt: s.assignedAt.toISOString(),
+    }));
+  }
+
+  async addStaff(
+    user: UserSummaryDto,
+    eventId: string,
+    email: string,
+  ): Promise<EventStaffDto> {
+    await this.findManageableEvent(user, eventId);
+    const cleanEmail = email.trim().toLowerCase();
+    const targetUser = await this.prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+    if (!targetUser) {
+      throw new NotFoundException(
+        `User with email '${cleanEmail}' not found. They must register an account first.`,
+      );
+    }
+
+    const assignment = await this.prisma.eventStaff.upsert({
+      where: { eventId_userId: { eventId, userId: targetUser.id } },
+      update: { isActive: true },
+      create: { eventId, userId: targetUser.id, isActive: true },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+    });
+
+    return {
+      id: assignment.id,
+      userId: assignment.user.id,
+      email: assignment.user.email,
+      fullName: assignment.user.fullName,
+      affiliation: assignment.user.affiliation,
+      assignedAt: assignment.assignedAt.toISOString(),
+    };
+  }
+
+  async removeStaff(
+    user: UserSummaryDto,
+    eventId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    await this.findManageableEvent(user, eventId);
+    await this.prisma.eventStaff.updateMany({
+      where: { eventId, userId: targetUserId },
+      data: { isActive: false },
+    });
+  }
+
 }

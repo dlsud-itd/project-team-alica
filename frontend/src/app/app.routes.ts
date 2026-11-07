@@ -1,5 +1,11 @@
 import { Routes } from '@angular/router';
-import { guestGuard, roleGuard } from './core/auth/auth.guards';
+import {
+  authGuard,
+  guestGuard,
+  passwordChangeGuard,
+  profileAccessGuard,
+  roleGuard,
+} from './core/auth/auth.guards';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'events' },
@@ -15,12 +21,19 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/public/events/events.component').then((m) => m.Events),
       },
       {
+        path: 'hub',
+        canActivate: [authGuard],
+        loadComponent: () => import('./pages/hub/hub.component').then((m) => m.HubComponent),
+      },
+      {
         path: 'profile',
+        canActivate: [profileAccessGuard],
         loadComponent: () =>
           import('./user_profile/user_profile.component').then((m) => m.UserProfileComponent),
       },
       {
         path: 'profile/:ticketCode',
+        canActivate: [profileAccessGuard],
         loadComponent: () =>
           import('./user_profile/user_profile.component').then((m) => m.UserProfileComponent),
       },
@@ -36,6 +49,14 @@ export const routes: Routes = [
     canMatch: [guestGuard],
     loadComponent: () =>
       import('./pages/public/register/register.component').then((m) => m.RegisterComponent),
+  },
+  {
+    path: 'change-password',
+    canMatch: [passwordChangeGuard],
+    loadComponent: () =>
+      import('./pages/public/change-password/change-password.component').then(
+        (m) => m.ChangePasswordComponent,
+      ),
   },
 
   // ADMIN
@@ -57,7 +78,7 @@ export const routes: Routes = [
   // ORGANIZER
   {
     path: 'organizer',
-    canMatch: [roleGuard(['ORGANIZER'])],
+    canMatch: [authGuard],
     loadComponent: () =>
       import('./layouts/organizer-layout/organizer-layout.component').then(
         (m) => m.OrganizerLayout,
@@ -117,7 +138,7 @@ export const routes: Routes = [
     children: [
       {
         path: '',
-        canMatch: [roleGuard(['STAFF'])],
+        canMatch: [authGuard],
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'scanner' },
           {
@@ -161,21 +182,9 @@ export const routes: Routes = [
     ],
   },
 
-  // ATTENDEE
-  {
-    path: 'attendee',
-    canMatch: [roleGuard(['ATTENDEE'])],
-    loadComponent: () =>
-      import('./layouts/attendee-layout/attendee-layout.component').then((m) => m.AttendeeLayout),
-    children: [
-      { path: '', pathMatch: 'full', redirectTo: '/profile' },
-      {
-        path: 'history',
-        loadComponent: () =>
-          import('./pages/attendee/history/history.component').then((m) => m.History),
-      },
-    ],
-  },
+  // ATTENDEE (Redirect to Hub)
+  { path: 'attendee', redirectTo: 'hub' },
+  { path: 'attendee/history', redirectTo: 'hub' },
 
   { path: '**', redirectTo: 'events' },
 ];

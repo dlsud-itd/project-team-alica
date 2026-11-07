@@ -1,0 +1,2 @@
+export const MAIL_PROVIDER = 'MAIL_PROVIDER';
+

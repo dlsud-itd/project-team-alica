@@ -1,13 +1,19 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   AdminEventDto,
   CreateEventDto,
@@ -16,10 +22,15 @@ import {
   EventRegistrantDto,
   EventLiveOverviewDto,
   EventCheckpointDto,
+  EventStaffDto,
   ScanResultDto,
   OrganizerEventDto,
   ReviewEventDto,
   UpdateEventDto,
+  type GuestImportFile,
+  type GuestImportResult,
+  type GuestImportMappingDto,
+  type GuestFilePreviewDto,
 } from './events.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -171,6 +182,42 @@ export class EventsController {
     };
   }
 
+  @Post(':eventId/guests/import-users')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    }),
+  )
+  @Header('Cache-Control', 'no-store')
+  async importGuestUsers(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @UploadedFile() file: GuestImportFile | undefined,
+    @Body('includeCredentials') includeCredentials?: string | boolean,
+    @Body('mapping') mapping?: string | GuestImportMappingDto,
+  ): Promise<{ success: boolean; data: GuestImportResult }> {
+    let parsedMapping: GuestImportMappingDto | undefined;
+    if (typeof mapping === 'string' && mapping.trim()) {
+      try {
+        parsedMapping = JSON.parse(mapping);
+      } catch {
+        throw new BadRequestException('Invalid mapping JSON format');
+      }
+    } else if (typeof mapping === 'object' && mapping !== null) {
+      parsedMapping = mapping;
+    }
+
+    const data = await this.eventsService.importGuestUsers(
+      user,
+      eventId,
+      file,
+      includeCredentials,
+      parsedMapping,
+    );
+    return { success: true, data };
+  }
+
   @Get(':eventId/live-overview')
   @UseGuards(JwtAuthGuard)
   async getLiveOverview(
@@ -228,5 +275,37 @@ export class EventsController {
       success: true,
       data,
     };
+  }
+
+  @Get(':eventId/staff')
+  @UseGuards(JwtAuthGuard)
+  async getStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventStaffDto[] }> {
+    const data = await this.eventsService.getStaff(user, eventId);
+    return { success: true, data };
+  }
+
+  @Post(':eventId/staff')
+  @UseGuards(JwtAuthGuard)
+  async addStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Body('email') email: string,
+  ): Promise<{ success: boolean; data: EventStaffDto }> {
+    const data = await this.eventsService.addStaff(user, eventId, email);
+    return { success: true, data };
+  }
+
+  @Delete(':eventId/staff/:userId')
+  @UseGuards(JwtAuthGuard)
+  async removeStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('userId') targetUserId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.eventsService.removeStaff(user, eventId, targetUserId);
+    return { success: true, message: 'Staff member removed successfully' };
   }
 }

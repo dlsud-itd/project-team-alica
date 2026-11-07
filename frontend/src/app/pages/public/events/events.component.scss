@@ -974,3 +974,39 @@
     border-color: var(--color-emerald-accent, #1d9e75);
   }
 }
+
+.profile-select-group {
+  margin-bottom: 0.25rem;
+}
+
+.save-profile-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--color-mint-subtle, #f1f5f3);
+  border: 1px solid var(--color-border-light, #e2e5e9);
+  border-radius: 8px;
+  margin-top: 0.25rem;
+}
+
+.save-profile-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-charcoal-dark, #1a1a1a);
+  cursor: pointer;
+
+  .profile-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-forest-green, #0f6e56);
+    cursor: pointer;
+  }
+}
+
+.profile-name-input-wrapper {
+  margin-top: 0.25rem;
+}

@@ -3,6 +3,7 @@
 .login-page {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   background-color: var(--color-white, #ffffff);
 }
@@ -22,12 +23,17 @@
   @media (max-width: 960px) {
     padding: 2rem 1.5rem 1.5rem;
   }
+
+  @media (max-width: 480px) {
+    padding: 1.5rem 1rem 1rem;
+  }
 }
 
 .brand-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
@@ -387,6 +393,13 @@
   padding-top: 1.5rem;
   font-size: 0.75rem;
   color: var(--color-gray-placeholder, #9a9a9a);
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+    text-align: center;
+  }
 }
 
 .copyright {
@@ -438,7 +451,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 4rem 3.5rem;
+  padding: clamp(2.5rem, 4.5vw, 4rem) clamp(2rem, 3.5vw, 3.5rem);
   box-sizing: border-box;
 }
 
@@ -461,7 +474,7 @@
 
 .banner-headline {
   margin: 0 0 1rem;
-  font-size: 2.75rem;
+  font-size: clamp(1.85rem, 3.2vw, 2.75rem);
   font-weight: 800;
   line-height: 1.15;
   letter-spacing: -0.025em;

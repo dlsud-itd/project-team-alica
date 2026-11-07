@@ -17,6 +17,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
+
+  @media (max-width: 640px) {
+    padding: 0.625rem 1rem;
+    gap: 0.75rem;
+  }
 }
 
 // Brand Logo
@@ -26,6 +31,7 @@
   gap: 0.625rem;
   text-decoration: none;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .brand-icon {
@@ -46,6 +52,10 @@
   display: flex;
   align-items: center;
   gap: 0.875rem;
+
+  @media (max-width: 640px) {
+    gap: 0.5rem;
+  }
 }
 
 .nav-history-link {
@@ -60,6 +70,11 @@
   &:hover {
     color: var(--color-forest-green, #0f6e56);
   }
+
+  @media (max-width: 640px) {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8125rem;
+  }
 }
 
 .btn-auth-link {
@@ -69,11 +84,18 @@
   text-decoration: none;
   padding: 0.5rem 0.875rem;
   border-radius: 8px;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
 
   &:hover {
     color: var(--color-forest-green, #0f6e56);
     background-color: rgba(0, 0, 0, 0.04);
+  }
+
+  @media (max-width: 640px) {
+    padding: 0.4rem 0.625rem;
+    font-size: 0.8125rem;
   }
 }
 
@@ -86,7 +108,9 @@
   padding: 0.5rem 1rem;
   border-radius: 8px;
   border: 1px solid var(--color-forest-green, #0f6e56);
-  transition: background-color 0.15s ease, transform 0.05s ease;
+  transition:
+    background-color 0.15s ease,
+    transform 0.05s ease;
 
   &:hover {
     background-color: var(--color-emerald-accent, #1d9e75);
@@ -95,6 +119,11 @@
 
   &:active {
     transform: translateY(1px);
+  }
+
+  @media (max-width: 640px) {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
   }
 }
 
@@ -136,8 +165,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
 
+  @media (max-width: 640px) {
+    display: none;
+  }
+}
 
 .btn-quick-logout {
   display: inline-flex;
@@ -178,6 +210,7 @@
 
   @media (max-width: 640px) {
     padding: 0 0.5rem;
+
     .logout-text {
       display: none;
     }

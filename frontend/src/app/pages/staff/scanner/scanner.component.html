@@ -1,1 +1,269 @@
-<p>scanner works!</p>
+<main class="scanner-page">
+  @if (loadingCheckpoints()) {
+    <section class="state-card" aria-busy="true">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>Loading your assigned station…</p>
+    </section>
+  } @else if (loadError()) {
+    <section class="state-card" role="alert">
+      <h1>Couldn't load stations</h1>
+      <p>{{ loadError() }}</p>
+      <button type="button" class="btn-primary" (click)="loadCheckpoints()">Retry</button>
+    </section>
+  } @else if (!station()) {
+    <section class="state-card">
+      <h1>No station assigned</h1>
+      <p>
+        You aren't assigned to any checkpoint yet. Ask the event organizer to assign you a station.
+      </p>
+    </section>
+  } @else {
+    @let current = station()!;
+
+    <!-- Station header -->
+    <header class="station-header">
+      <div class="station-info">
+        <span class="eyebrow">{{ current.eventName }}</span>
+        <h1>{{ current.name }}</h1>
+        @if (current.location) {
+          <p class="station-location">{{ current.location }}</p>
+        }
+        <div class="station-tags">
+          <span class="tag tag-type">{{ typeLabel(current.type) }}</span>
+          <span class="tag">{{
+            current.allowMultipleScans ? 'Re-entry allowed' : 'Single scan'
+          }}</span>
+          @if (current.requireMainEntry) {
+            <span class="tag">Requires main entry</span>
+          }
+        </div>
+      </div>
+
+      @if (checkpoints().length > 1) {
+        <label class="station-switch">
+          <span>Station</span>
+          <select (change)="selectStation($any($event.target).value)">
+            @for (cp of checkpoints(); track cp.id) {
+              <option [value]="cp.id" [selected]="cp.id === current.id">{{ cp.name }}</option>
+            }
+          </select>
+        </label>
+      }
+    </header>
+
+    <div class="scanner-grid">
+      <div class="scanner-main">
+        <!-- Viewfinder -->
+        <section class="viewfinder" [class.is-live]="cameraState() === 'active'">
+          <video
+            #video
+            class="viewfinder-video"
+            muted
+            playsinline
+            aria-label="Camera preview"
+          ></video>
+
+          @if (cameraState() === 'active' && !result()) {
+            <div class="frame" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <p class="viewfinder-hint">
+              {{ processing() ? 'Checking ticket…' : 'Point the camera at the attendee’s QR pass' }}
+            </p>
+          }
+
+          @if (cameraState() !== 'active') {
+            <div class="camera-state">
+              @switch (cameraState()) {
+                @case ('starting') {
+                  <span class="spinner spinner-light" aria-hidden="true"></span>
+                  <p>Starting camera…</p>
+                }
+                @case ('denied') {
+                  <p><strong>Camera access was blocked.</strong></p>
+                  <p>Allow camera access in your browser settings, then try again.</p>
+                  <button type="button" class="btn-light" (click)="startCamera()">Try again</button>
+                }
+                @case ('insecure') {
+                  <p><strong>Camera needs a secure connection.</strong></p>
+                  <p>Open the scanner over HTTPS (or localhost). Manual entry still works below.</p>
+                }
+                @case ('unavailable') {
+                  <p><strong>No camera available.</strong></p>
+                  <p>Use manual code entry below.</p>
+                }
+                @case ('error') {
+                  <p><strong>The camera couldn't start.</strong></p>
+                  <button type="button" class="btn-light" (click)="startCamera()">Try again</button>
+                }
+                @default {
+                  <p>Camera is paused.</p>
+                  <button type="button" class="btn-light" (click)="startCamera()">
+                    Start camera
+                  </button>
+                }
+              }
+            </div>
+          }
+
+          <!-- Scan result -->
+          @if (result(); as r) {
+            <div
+              class="result-card"
+              [class]="'tone-' + resultTone(r.scanResult)"
+              role="status"
+              aria-live="assertive"
+            >
+              <div class="result-icon" aria-hidden="true">
+                @switch (resultTone(r.scanResult)) {
+                  @case ('success') {
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  }
+                  @case ('warning') {
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="12" y1="8" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  }
+                  @default {
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  }
+                }
+              </div>
+              <h2>{{ resultTitle(r.scanResult) }}</h2>
+              <p class="result-message">{{ r.message }}</p>
+
+              @if (r.attendee; as a) {
+                <dl class="attendee">
+                  <div class="attendee-name">{{ a.fullName }}</div>
+                  <div>
+                    <dt>Ticket</dt>
+                    <dd>{{ a.ticketCode }}</dd>
+                  </div>
+                  <div>
+                    <dt>Type</dt>
+                    <dd>{{ a.ticketType }}</dd>
+                  </div>
+                  @if (a.studentId) {
+                    <div>
+                      <dt>Student ID</dt>
+                      <dd>{{ a.studentId }}</dd>
+                    </div>
+                  }
+                  @if (r.firstScannedAt) {
+                    <div>
+                      <dt>First check-in</dt>
+                      <dd>{{ r.firstScannedAt | date: 'MMM d, h:mm:ss a' }}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+
+              <button type="button" class="btn-next" (click)="dismissResult()">Scan next</button>
+            </div>
+          }
+        </section>
+
+        @if (cameraState() === 'active') {
+          <button type="button" class="btn-text" (click)="stopCamera()">Pause camera</button>
+        }
+
+        @if (scanError()) {
+          <div class="alert-banner" role="alert">{{ scanError() }}</div>
+        }
+
+        <!-- Manual entry fallback -->
+        <form class="manual-entry" (submit)="$event.preventDefault(); submitManual()">
+          <label for="manual-code">Manual code entry</label>
+          <div class="manual-row">
+            <input
+              id="manual-code"
+              type="text"
+              [formControl]="manualCode"
+              placeholder="CHK-2026-0000A"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+            />
+            <button
+              type="submit"
+              class="btn-primary"
+              [disabled]="manualCode.invalid || processing()"
+            >
+              {{ processing() ? 'Checking…' : 'Submit check-in' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Station stats & recent scans -->
+      <aside class="scanner-side">
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-label">Admitted</span>
+            <strong class="stat-value">{{ admittedCount() }}</strong>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Flagged</span>
+            <strong class="stat-value">{{ flaggedCount() }}</strong>
+          </div>
+        </div>
+
+        <section class="recent">
+          <h2>Recent scans</h2>
+          @if (stationScans().length === 0) {
+            <p class="recent-empty">Scans at this station will appear here.</p>
+          } @else {
+            <ul>
+              @for (scan of stationScans(); track scan.scannedAt + scan.scanResult) {
+                <li class="recent-item">
+                  <span
+                    class="dot"
+                    [class]="'dot-' + resultTone(scan.scanResult)"
+                    aria-hidden="true"
+                  ></span>
+                  <div class="recent-main">
+                    <strong>{{ scan.attendee?.fullName ?? 'Unknown ticket' }}</strong>
+                    <span>{{ scan.ticketCode }}</span>
+                  </div>
+                  <div class="recent-meta">
+                    <span class="badge" [class]="'badge-' + resultTone(scan.scanResult)">
+                      {{ resultTitle(scan.scanResult) }}
+                    </span>
+                    <time [attr.datetime]="scan.scannedAt">{{ relativeTime(scan.scannedAt) }}</time>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      </aside>
+    </div>
+  }
+</main>

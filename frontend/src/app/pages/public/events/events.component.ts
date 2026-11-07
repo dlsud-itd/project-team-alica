@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../../core/auth/auth.service';
+import { SavedProfile } from '../../../core/auth/auth.models';
 import { environment } from '../../../../environments/environment';
 
 export interface EventCardData {
@@ -174,11 +175,15 @@ export class Events implements OnInit {
   readonly rsvpError = signal('');
   readonly rsvpSuccess = signal<{ ticketCode: string; attendeeName: string } | null>(null);
   readonly copyFeedback = signal(false);
+  readonly savedProfiles = signal<SavedProfile[]>([]);
+  readonly selectedProfileId = signal<string>('');
 
   readonly rsvpForm = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.minLength(2)]],
     email: ['', [Validators.required, Validators.email]],
     studentId: ['', [Validators.required]],
+    saveProfile: [false],
+    profileName: [''],
   });
 
   onSearch(event: Event): void {
@@ -195,11 +200,12 @@ export class Events implements OnInit {
     this.selectedCategory.set('ALL');
   }
 
-  openRsvp(event: EventCardData): void {
+    openRsvp(event: EventCardData): void {
     this.activeRsvpEvent.set(event);
     this.rsvpSuccess.set(null);
     this.rsvpError.set('');
     this.copyFeedback.set(false);
+    this.selectedProfileId.set('');
 
     // Pre-populate if user is already authenticated
     const user = this.auth.user();
@@ -207,13 +213,49 @@ export class Events implements OnInit {
       this.rsvpForm.patchValue({
         fullName: user.fullName,
         email: user.email,
-        studentId: '',
+        studentId: user.studentId || '',
+        saveProfile: false,
+        profileName: '',
+      });
+      this.auth.getProfiles().subscribe({
+        next: (profiles) => {
+          this.savedProfiles.set(profiles);
+        },
+        error: () => {
+          this.savedProfiles.set([]);
+        },
       });
     } else {
+      this.savedProfiles.set([]);
       this.rsvpForm.reset({
         fullName: '',
         email: '',
         studentId: '',
+        saveProfile: false,
+        profileName: '',
+      });
+    }
+  }
+
+  onSelectProfile(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    const profileId = target.value;
+    this.selectedProfileId.set(profileId);
+    if (!profileId) {
+      const user = this.auth.user();
+      if (user) {
+        this.rsvpForm.patchValue({
+          fullName: user.fullName,
+          studentId: user.studentId || '',
+        });
+      }
+      return;
+    }
+    const profile = this.savedProfiles().find((p) => p.id === profileId);
+    if (profile) {
+      this.rsvpForm.patchValue({
+        fullName: profile.fullName,
+        studentId: profile.studentId || '',
       });
     }
   }
@@ -245,6 +287,21 @@ export class Events implements OnInit {
       studentId: formVal.studentId,
       userId: currentUser?.id,
     };
+
+        if (currentUser && formVal.saveProfile && formVal.profileName?.trim()) {
+      this.auth
+        .saveProfile({
+          profileName: formVal.profileName.trim(),
+          fullName: formVal.fullName.trim(),
+          studentId: formVal.studentId.trim(),
+        })
+        .subscribe({
+          next: (saved) => {
+            this.savedProfiles.update((list) => [...list, saved]);
+          },
+          error: () => {},
+        });
+    }
 
     this.http
       .post<{

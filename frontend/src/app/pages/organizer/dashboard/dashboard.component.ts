@@ -1,11 +1,13 @@
-import { DatePipe, PercentPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, PercentPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { OrganizerEvent } from '../../../core/organizer/organizer.models';
+
+export type EventFormatFilter = 'ALL' | 'CONFERENCE' | 'EXPO' | 'MEETUP' | 'HACKATHON' | 'WORKSHOP';
 
 function toDateTimeLocalInput(isoString: string): string {
   if (!isoString) return '';
@@ -21,7 +23,7 @@ function toDateTimeLocalInput(isoString: string): string {
 }
 
 @Component({
-  imports: [DatePipe, PercentPipe, ReactiveFormsModule, RouterLink],
+  imports: [DatePipe, DecimalPipe, PercentPipe, ReactiveFormsModule, RouterLink],
   selector: 'app-organizer-dashboard',
   styleUrl: './dashboard.component.scss',
   templateUrl: './dashboard.component.html',
@@ -31,34 +33,69 @@ export class OrganizerDashboard {
 
   constructor() {
     this.reloadEvents();
+
+    effect(() => {
+      // Reset page to 1 when search or category changes
+      this.searchText();
+      this.selectedFormat();
+      this.currentPage.set(1);
+    });
   }
 
   readonly now = new Date();
+  readonly Math = Math;
   readonly minStart = toDateTimeLocalInput(new Date().toISOString());
   readonly events = this.organizerEvents.events;
   readonly totalRegistrations = this.organizerEvents.totalRegistrations;
   readonly loading = this.organizerEvents.loading;
   readonly loadError = this.organizerEvents.error;
+
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly statusControl = new FormControl('All statuses', { nonNullable: true });
-  private readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
-  private readonly selectedStatus = toSignal(this.statusControl.valueChanges, {
+  readonly selectedFormat = signal<EventFormatFilter>('ALL');
+
+  readonly searchText = toSignal(this.searchControl.valueChanges, { initialValue: '' });
+  readonly selectedStatus = toSignal(this.statusControl.valueChanges, {
     initialValue: 'All statuses',
   });
+
+  // Pagination
+  readonly pageSize = 5;
+  readonly currentPage = signal(1);
+
   readonly filteredEvents = computed(() => {
     const query = this.searchText().trim().toLocaleLowerCase();
     const status = this.selectedStatus();
+    const format = this.selectedFormat();
 
     return this.events().filter((event) => {
       const matchesQuery =
         !query ||
         event.name.toLocaleLowerCase().includes(query) ||
         event.venue.toLocaleLowerCase().includes(query);
+
       const matchesStatus =
         status === 'All statuses' || event.status === status || event.approval_status === status;
-      return matchesQuery && matchesStatus;
+
+      const eventCategory = this.getCategory(event);
+      const matchesFormat =
+        format === 'ALL' ||
+        eventCategory === format ||
+        (format === 'MEETUP' && event.name.toLowerCase().includes('meetup'));
+
+      return matchesQuery && matchesStatus && matchesFormat;
     });
   });
+
+  readonly totalPages = computed(() =>
+    Math.max(Math.ceil(this.filteredEvents().length / this.pageSize), 1),
+  );
+
+  readonly paginatedEvents = computed(() => {
+    const start = (this.currentPage() - 1) * this.pageSize;
+    return this.filteredEvents().slice(start, start + this.pageSize);
+  });
+
   readonly upcomingEvents = computed(
     () =>
       this.events().filter(
@@ -78,8 +115,7 @@ export class OrganizerDashboard {
   );
   readonly notice = signal('');
 
-  // Create / Edit Event dialog state. `creating` is the create mode;
-  // `editingEvent` is set when editing an existing event.
+  // Create / Edit Event dialog state
   readonly creating = signal(false);
   readonly editingEvent = signal<OrganizerEvent | null>(null);
   readonly dialogOpen = computed(() => this.creating() || this.editingEvent() !== null);
@@ -101,6 +137,69 @@ export class OrganizerDashboard {
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
   });
 
+  setFormat(format: EventFormatFilter): void {
+    this.selectedFormat.set(format);
+  }
+
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages()) {
+      this.currentPage.set(page);
+    }
+  }
+
+  prevPage(): void {
+    if (this.currentPage() > 1) {
+      this.currentPage.update((p) => p - 1);
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage() < this.totalPages()) {
+      this.currentPage.update((p) => p + 1);
+    }
+  }
+
+  getCategory(event: OrganizerEvent): string {
+    if (event.category) return event.category;
+    const lower = event.name.toLowerCase();
+    if (lower.includes('hackathon')) return 'HACKATHON';
+    if (lower.includes('workshop')) return 'WORKSHOP';
+    if (lower.includes('expo') || lower.includes('demo')) return 'EXPO';
+    if (lower.includes('meetup')) return 'MEETUP';
+    return 'CONFERENCE';
+  }
+
+  getCategoryLabel(event: OrganizerEvent): string {
+    if (event.category_label) return event.category_label;
+    const cat = this.getCategory(event);
+    switch (cat) {
+      case 'HACKATHON':
+        return 'Hackathon';
+      case 'WORKSHOP':
+        return 'Workshop';
+      case 'EXPO':
+        return 'Expo';
+      case 'MEETUP':
+        return 'Meetup';
+      default:
+        return 'Conference';
+    }
+  }
+
+  getGatesCount(event: OrganizerEvent): number {
+    return event.checkpoints_count ?? (event.name.includes('DevCon') ? 8 : event.name.includes('Expo') ? 6 : 4);
+  }
+
+  getAdmittedCount(event: OrganizerEvent): number {
+    return event.admitted_count ?? (event.registrations_count > 0 ? 1 : 0);
+  }
+
+  getAdmittedPercent(event: OrganizerEvent): number {
+    const admitted = this.getAdmittedCount(event);
+    const capacity = event.capacity || 1000;
+    return Math.min(Math.round((admitted / capacity) * 100), 100);
+  }
+
   registrationProgress(registered: number, capacity: number | null): number {
     return capacity ? Math.min(registered / capacity, 1) : 0;
   }
@@ -112,7 +211,6 @@ export class OrganizerDashboard {
     this.creating.set(true);
   }
 
-  // Load failures surface through the service's error signal (shown with a Retry button).
   reloadEvents(): void {
     this.organizerEvents.loadEvents().subscribe({ error: () => undefined });
   }

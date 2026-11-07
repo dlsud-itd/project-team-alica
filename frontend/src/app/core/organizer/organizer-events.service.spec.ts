@@ -103,9 +103,7 @@ describe('OrganizerEventsService', () => {
 
   it('should load registrants and toggle check-in through the API', () => {
     service.loadRegistrants('evt-1').subscribe();
-    httpMock
-      .expectOne(`${API}/evt-1/registrants`)
-      .flush({ success: true, data: [REGISTRANT] });
+    httpMock.expectOne(`${API}/evt-1/registrants`).flush({ success: true, data: [REGISTRANT] });
     expect(service.registrants()).toEqual([REGISTRANT]);
 
     service.toggleCheckIn(REGISTRANT).subscribe();
@@ -116,11 +114,51 @@ describe('OrganizerEventsService', () => {
     expect(service.registrants()[0].status).toBe('Checked In');
   });
 
+  it('should upload a guest list and return imported account results', () => {
+    const file = new File(
+      ['First Name,Last Name,Email\nAlex,Guest,alex@example.org'],
+      'guests.csv',
+      { type: 'text/csv' },
+    );
+    const expected = {
+      created: [
+        {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          email: 'alex@example.org',
+          fullName: 'Alex Guest',
+          ticketId: 'ticket-1',
+          ticketCode: 'CHK-TEST',
+          emailStatus: 'SENT' as const,
+        },
+      ],
+      skipped: [],
+      emailFailures: [],
+      summary: { created: 1, skipped: 0, emailFailures: 0 },
+      credentials: [{ email: 'alex@example.org', temporaryPassword: 'a1B2c3D4e5' }],
+    };
+
+    service.loadEvents().subscribe();
+    httpMock.expectOne(`${API}/mine`).flush({ success: true, data: [EVENT] });
+
+    let response: unknown;
+    service.importGuestUsers('evt-1', file, true).subscribe((result) => {
+      response = result;
+    });
+
+    const req = httpMock.expectOne(`${API}/evt-1/guests/import-users`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toBeInstanceOf(FormData);
+    expect((req.request.body as FormData).get('file')).toBe(file);
+    expect((req.request.body as FormData).get('includeCredentials')).toBe('true');
+    req.flush({ success: true, data: expected });
+
+    expect(response).toEqual(expected);
+    expect(service.eventById('evt-1')?.registrations_count).toBe(3);
+  });
+
   it('should cancel a registrant through the API and update state', () => {
     service.loadRegistrants('evt-1').subscribe();
-    httpMock
-      .expectOne(`${API}/evt-1/registrants`)
-      .flush({ success: true, data: [REGISTRANT] });
+    httpMock.expectOne(`${API}/evt-1/registrants`).flush({ success: true, data: [REGISTRANT] });
 
     service.cancelRegistrant('evt-1', 'tkt-1').subscribe();
     const req = httpMock.expectOne(`${API}/evt-1/registrants/tkt-1/cancel`);
@@ -167,5 +205,36 @@ describe('OrganizerEventsService', () => {
 
     expect(service.events()).toEqual([]);
     expect(service.registrants()).toEqual([]);
+  });
+
+  it('should load live overview, checkpoints, record scan, and export csv', () => {
+    service.loadLiveOverview('evt-1').subscribe((res) => {
+      expect(res.name).toBe('Tech Summit');
+    });
+    httpMock
+      .expectOne(`${API}/evt-1/live-overview`)
+      .flush({ success: true, data: { name: 'Tech Summit' } });
+
+    service.loadEventCheckpoints('evt-1').subscribe((res) => {
+      expect(res.length).toBe(1);
+    });
+    httpMock
+      .expectOne(`${API}/evt-1/checkpoints`)
+      .flush({ success: true, data: [{ id: 'chk-1', name: 'Main Gate' }] });
+
+    service.recordScan('evt-1', 'chk-1', 'TKT-1').subscribe((res) => {
+      expect(res.scanResult).toBe('SUCCESS');
+    });
+    const scanReq = httpMock.expectOne(`${API}/evt-1/checkpoints/chk-1/scan`);
+    expect(scanReq.request.method).toBe('POST');
+    expect(scanReq.request.body).toEqual({ ticketCode: 'TKT-1' });
+    scanReq.flush({ success: true, data: { scanResult: 'SUCCESS', ticketCode: 'TKT-1' } });
+
+    service.exportScansCsv('evt-1').subscribe((res) => {
+      expect(res).toContain('Ticket Code');
+    });
+    httpMock
+      .expectOne(`${API}/evt-1/scans/export`)
+      .flush({ success: true, data: 'Ticket Code,Attendee Name\nTKT-1,John' });
   });
 });

@@ -1,0 +1,418 @@
+<div class="hub-container">
+  <!-- Hub Header -->
+  <header class="hub-header">
+    <div class="header-content">
+      <h1 class="hub-title">My Hub</h1>
+      <p class="hub-subtitle">Manage your event reservations, organized events, and assigned station duties in one place.</p>
+    </div>
+
+    @if (activeTab() === 'organizing') {
+      <button type="button" class="btn-primary create-btn" (click)="openCreateModal()">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Create Event</span>
+      </button>
+    }
+  </header>
+
+  <!-- Segmented Tabs -->
+  <nav class="hub-tabs" aria-label="Hub sections">
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'attending'"
+      (click)="setTab('attending')"
+    >
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path>
+        <path d="M13 5v2"></path>
+        <path d="M13 17v2"></path>
+        <path d="M13 11v2"></path>
+      </svg>
+      <span>Attending</span>
+      <span class="count-pill">{{ attendingCount() }}</span>
+    </button>
+
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'organizing'"
+      (click)="setTab('organizing')"
+    >
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <span>Organizing</span>
+      <span class="count-pill">{{ organizingCount() }}</span>
+    </button>
+
+    <button
+      type="button"
+      class="tab-btn"
+      [class.active]="activeTab() === 'staffing'"
+      (click)="setTab('staffing')"
+    >
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+        <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+        <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+        <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+        <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+      </svg>
+      <span>Staffing</span>
+      <span class="count-pill">{{ staffingCount() }}</span>
+    </button>
+  </nav>
+
+  <!-- TAB 1: ATTENDING -->
+  @if (activeTab() === 'attending') {
+    <section class="hub-section" aria-label="Attending events">
+      @if (rsvpsLoading()) {
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading your event reservations...</p>
+        </div>
+      } @else if (rsvps().length === 0) {
+        <div class="empty-state">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path>
+          </svg>
+          <h3>No event reservations yet</h3>
+          <p>Explore upcoming campus conferences, workshops, and expos to claim your pass.</p>
+          <a routerLink="/events" class="btn-primary">Browse Events</a>
+        </div>
+      } @else {
+        <div class="cards-grid">
+          @for (rsvp of rsvps(); track rsvp.ticketCode) {
+            <article class="hub-card">
+              <div class="card-header">
+                <span class="badge-category">{{ rsvp.categoryLabel }}</span>
+                <span class="badge-status" [attr.data-status]="rsvp.status">{{ rsvp.status }}</span>
+              </div>
+
+              <h2 class="card-title">{{ rsvp.eventName }}</h2>
+
+              <div class="meta-row">
+                <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>{{ rsvp.startsAt | date:'MMM d, y • h:mm a' }}</span>
+              </div>
+
+              <div class="meta-row">
+                <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>{{ rsvp.venue }}</span>
+              </div>
+
+              <div class="ticket-bar">
+                <span class="ticket-label">Ticket Pass</span>
+                <div class="ticket-code-pill">
+                  <span class="code-text">{{ rsvp.ticketCode }}</span>
+                  <button type="button" class="btn-copy" (click)="copyTicketCode(rsvp.ticketCode)" title="Copy ticket code">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <button type="button" class="btn-primary-outline" (click)="openQrPass(rsvp)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                  </svg>
+                  <span>View Pass</span>
+                </button>
+                <a [routerLink]="['/profile', rsvp.ticketCode]" class="btn-secondary-link">Full Details</a>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- TAB 2: ORGANIZING -->
+  @if (activeTab() === 'organizing') {
+    <section class="hub-section" aria-label="Organized events">
+      @if (organizedLoading()) {
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading your organized events...</p>
+        </div>
+      } @else if (organizedEvents().length === 0) {
+        <div class="empty-state">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <h3>You have not created any events</h3>
+          <p>Host your own student organization events, conferences, or private workshops with ease.</p>
+          <button type="button" class="btn-primary" (click)="openCreateModal()">Create Your First Event</button>
+        </div>
+      } @else {
+        <div class="cards-grid">
+          @for (event of organizedEvents(); track event.id) {
+            <article class="hub-card organizer-card">
+              <div class="card-header">
+                <span class="badge-visibility" [class.badge-private]="event.is_private">
+                  {{ event.is_private ? 'Private Event' : 'Public Event' }}
+                </span>
+                <span class="badge-status" [attr.data-status]="event.approval_status">{{ event.approval_status }}</span>
+              </div>
+
+              <h2 class="card-title">{{ event.name }}</h2>
+
+              <div class="meta-row">
+                <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>{{ event.starts_at | date:'MMM d, y • h:mm a' }}</span>
+              </div>
+
+              <div class="meta-row">
+                <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>{{ event.venue }}</span>
+              </div>
+
+              <div class="stats-row">
+                <div class="stat-item">
+                  <span class="stat-number">{{ event.registrations_count }}</span>
+                  <span class="stat-label">Registrants</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-number">{{ event.checkpoints_count || 0 }}</span>
+                  <span class="stat-label">Stations</span>
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <a [routerLink]="['/organizer/events', event.id, 'overview']" class="btn-primary-outline">Workspace</a>
+                <a [routerLink]="['/organizer/events', event.id, 'guests']" class="btn-secondary-link">Guests</a>
+                <a [routerLink]="['/organizer/events', event.id, 'scanner']" class="btn-secondary-link">Scanner</a>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- TAB 3: STAFFING -->
+  @if (activeTab() === 'staffing') {
+    <section class="hub-section" aria-label="Staffing stations">
+      @if (staffingLoading()) {
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading your assigned stations...</p>
+        </div>
+      } @else if (assignedCheckpoints().length === 0) {
+        <div class="empty-state">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+            <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+            <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+            <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+            <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+          </svg>
+          <h3>No assigned staff duties</h3>
+          <p>When an organizer designates you as station staff for their event, your scanner stations will appear here.</p>
+        </div>
+      } @else {
+        <div class="cards-grid">
+          @for (chk of assignedCheckpoints(); track chk.id) {
+            <article class="hub-card staff-card">
+              <div class="card-header">
+                <span class="badge-category">{{ chk.type }}</span>
+                <span class="badge-status" data-status="ACTIVE">Assigned Station</span>
+              </div>
+
+              <h2 class="card-title">{{ chk.name }}</h2>
+              <p class="event-parent-title">{{ chk.eventName }}</p>
+
+              <div class="meta-row">
+                <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>{{ chk.location || 'Main Area' }}</span>
+              </div>
+
+              <div class="card-actions full-width-action">
+                <button type="button" class="btn-primary" (click)="launchScanner(chk)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+                    <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+                    <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+                    <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+                  </svg>
+                  <span>Launch QR Scanner</span>
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+</div>
+
+<!-- QR PASS MODAL -->
+@if (activeQrRsvp(); as rsvp) {
+  <div class="modal-backdrop" (click)="closeQrPass()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Your Event Pass</h3>
+        <button type="button" class="btn-close" (click)="closeQrPass()" aria-label="Close pass">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body text-center">
+        <p class="modal-event-name">{{ rsvp.eventName }}</p>
+
+        <div class="qr-code-wrapper">
+          @if (qrLoading()) {
+            <div class="spinner"></div>
+          } @else if (qrDataUrl()) {
+            <img [src]="qrDataUrl()" alt="QR Code Ticket" class="qr-image" />
+          }
+        </div>
+
+        <div class="ticket-code-display">
+          <span class="code-label">TICKET CODE</span>
+          <span class="code-value">{{ rsvp.ticketCode }}</span>
+        </div>
+
+        <p class="modal-instruction">Present this pass at venue gates and session stations for instant check-in.</p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="closeQrPass()">Done</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- CREATE EVENT MODAL -->
+@if (isCreateModalOpen()) {
+  <div class="modal-backdrop" (click)="closeCreateModal()">
+    <div class="modal-card modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">Create New Event</h3>
+        <button type="button" class="btn-close" (click)="closeCreateModal()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <form [formGroup]="eventForm" (ngSubmit)="onSubmitCreateEvent()">
+        <div class="modal-body">
+          @if (createEventError()) {
+            <div class="alert-error" role="alert">
+              {{ createEventError() }}
+            </div>
+          }
+
+          <!-- Event Visibility Picker -->
+          <div class="form-group">
+            <label class="form-label">Event Visibility</label>
+            <div class="visibility-options">
+              <label class="radio-card" [class.selected]="!eventForm.controls.is_private.value">
+                <input type="radio" [value]="false" formControlName="is_private" />
+                <div class="radio-card-content">
+                  <span class="radio-title">Public Event</span>
+                  <span class="radio-desc">Listed on the global Events page. Requires quick Admin review before appearing publicly.</span>
+                </div>
+              </label>
+
+              <label class="radio-card" [class.selected]="eventForm.controls.is_private.value">
+                <input type="radio" [value]="true" formControlName="is_private" />
+                <div class="radio-card-content">
+                  <span class="radio-title">Private Event</span>
+                  <span class="radio-desc">Immediately active. Unlisted from the global feed; attendees join via direct link or imported roster.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="event-name" class="form-label">Event Title</label>
+            <input id="event-name" type="text" formControlName="name" class="form-input" placeholder="e.g. AI Builder Hackathon 2026" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="event-venue" class="form-label">Venue Location</label>
+              <input id="event-venue" type="text" formControlName="venue" class="form-input" placeholder="e.g. Ugnayang La Salle Gymnasium" />
+            </div>
+
+            <div class="form-group">
+              <label for="event-capacity" class="form-label">Attendee Capacity</label>
+              <input id="event-capacity" type="number" formControlName="capacity" class="form-input" min="1" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="event-starts" class="form-label">Start Time</label>
+              <input id="event-starts" type="datetime-local" formControlName="starts_at" class="form-input" [min]="minStart" />
+            </div>
+
+            <div class="form-group">
+              <label for="event-ends" class="form-label">End Time</label>
+              <input id="event-ends" type="datetime-local" formControlName="ends_at" class="form-input" [min]="minStart" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="event-desc" class="form-label">Event Description (Optional)</label>
+            <textarea id="event-desc" formControlName="description" class="form-textarea" rows="3" placeholder="Brief outline of the agenda, topics, and attendee instructions..."></textarea>
+          </div>
+
+          <div class="checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" formControlName="allow_walk_ins" />
+              <span>Allow on-site walk-in registrations at entry turnstiles</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" (click)="closeCreateModal()">Cancel</button>
+          <button type="submit" class="btn-primary" [disabled]="isSubmittingEvent() || eventForm.invalid">
+            @if (isSubmittingEvent()) {
+              <span>Creating...</span>
+            } @else {
+              <span>Publish Event</span>
+            }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

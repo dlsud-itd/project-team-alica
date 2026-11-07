@@ -1,5 +1,6 @@
-// Prisma Schema for Checkpoint (Team ALICA)
-// Database: PostgreSQL (Supabase)
+// Checkpoint Database Schema
+// PostgreSQL schema matching technical requirements for attendance tracking,
+// QR code scanning, role-based workflows, and administrative event approvals.
 
 generator client {
   provider = "prisma-client-js"
@@ -12,10 +13,11 @@ datasource db {
 }
 
 enum UserRole {
+  USER
+  ADMIN
   ATTENDEE
   STAFF
   ORGANIZER
-  ADMIN
 }
 
 enum TicketType {
@@ -53,17 +55,19 @@ enum ScanResult {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  passwordHash String
-  fullName     String
-  role         UserRole  @default(ATTENDEE)
-  studentId    String?
-  affiliation  String?
-  isActive     Boolean   @default(true)
-  deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  passwordHash       String
+  fullName           String
+  role               UserRole  @default(USER)
+  studentId          String?
+  contactNumber      String?
+  affiliation        String?
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
   organizedEvents       Event[]           @relation("OrganizedEvents")
@@ -72,8 +76,26 @@ model User {
   checkpointAssignments CheckpointStaff[]
   scannedLogs           AttendanceLog[]   @relation("ScannedByStaff")
   reviewedEvents        Event[]           @relation("ReviewedEvents")
+  savedProfiles         SavedProfile[]
 
   @@map("users")
+}
+
+model SavedProfile {
+  id            String   @id @default(uuid())
+  userId        String
+  profileName   String
+  fullName      String
+  studentId     String?
+  contactNumber String?
+  affiliation   String?
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("saved_profiles")
 }
 
 model Event {
@@ -86,13 +108,14 @@ model Event {
   endDate      DateTime
   capacity     Int?
   allowWalkIns Boolean   @default(false)
+  isPrivate    Boolean   @default(false)
   isActive     Boolean   @default(true)
   deletedAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   // Organizer-submitted events start as PENDING until an admin reviews them.
-  // Defaults to APPROVED so pre-existing rows stay publicly listed.
+  // Private events or admin-created events default to APPROVED.
   approvalStatus EventApprovalStatus @default(APPROVED)
   reviewNotes    String?
   reviewedAt     DateTime?
@@ -123,26 +146,6 @@ model EventStaff {
   @@map("event_staff")
 }
 
-model Checkpoint {
-  id                 String         @id @default(uuid())
-  eventId            String
-  name               String
-  location           String?
-  type               CheckpointType @default(MAIN_ENTRY)
-  allowMultipleScans Boolean        @default(false)
-  requireMainEntry   Boolean        @default(false)
-  isActive           Boolean        @default(true)
-  deletedAt          DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-
-  event          Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  assignedStaff  CheckpointStaff[]
-  attendanceLogs AttendanceLog[]
-
-  @@map("checkpoints")
-}
-
 model CheckpointStaff {
   id           String   @id @default(uuid())
   checkpointId String
@@ -165,6 +168,7 @@ model Ticket {
   lastName       String
   email          String
   studentId      String?
+  contactNumber  String?
   affiliation    String?
   ticketType     TicketType   @default(STUDENT)
   ticketCode     String       @unique
@@ -203,4 +207,28 @@ model AttendanceLog {
   @@index([checkpointId, scannedAt])
   @@index([ticketCode, scannedAt])
   @@map("attendance_logs")
+}
+
+model Checkpoint {
+  id                 String         @id @default(uuid())
+  eventId            String
+  parentId           String?
+  name               String
+  location           String?
+  type               CheckpointType @default(MAIN_ENTRY)
+  allowMultipleScans Boolean        @default(false)
+  requireMainEntry   Boolean        @default(false)
+  isActive           Boolean        @default(true)
+  deletedAt          DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  event          Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  parent         Checkpoint?       @relation("SubBooths", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Checkpoint[]      @relation("SubBooths")
+  assignedStaff  CheckpointStaff[]
+  attendanceLogs AttendanceLog[]
+
+  @@index([parentId])
+  @@map("checkpoints")
 }

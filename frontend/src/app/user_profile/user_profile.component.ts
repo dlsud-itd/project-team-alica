@@ -1,6 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { of, from, timer } from 'rxjs';
 import { switchMap, catchError, map } from 'rxjs/operators';
@@ -77,8 +78,14 @@ export class UserProfileComponent implements OnInit {
           this.userProfile = profile;
           return this.userProfileService.generateQrCode(profile.qrPayload);
         }),
-        catchError(() => {
-          this.errorMessage = 'Failed to load user profile and QR code.';
+        catchError((error: unknown) => {
+          const response = error instanceof HttpErrorResponse ? error : null;
+          this.errorMessage =
+            response?.status === 403
+              ? 'Change your temporary password before opening your profile.'
+              : response?.status === 401
+                ? 'Sign in to load your profile.'
+                : 'Failed to load user profile and QR code.';
           this.isLoading = false;
           this.cdr.markForCheck();
           return of('');
@@ -339,8 +346,8 @@ export class UserProfileComponent implements OnInit {
       return;
     }
 
-    if (this.newPassword.length < 6) {
-      this.passwordError = 'New password must be at least 6 characters long.';
+    if (this.newPassword.length < 8) {
+      this.passwordError = 'New password must be at least 8 characters long.';
       this.cdr.markForCheck();
       return;
     }
@@ -351,12 +358,27 @@ export class UserProfileComponent implements OnInit {
       return;
     }
 
-    this.passwordSuccess = 'Password updated successfully!';
-    this.cdr.markForCheck();
+    if (!this.auth) {
+      this.passwordError = 'Sign in before changing your password.';
+      this.cdr.markForCheck();
+      return;
+    }
 
-    from(timer(1500)).subscribe({
+    this.auth.changePassword(this.currentPassword, this.newPassword).subscribe({
       next: () => {
-        this.closeChangePassword();
+        this.passwordSuccess = 'Password updated successfully!';
+        this.currentPassword = '';
+        this.newPassword = '';
+        this.confirmPassword = '';
+        this.cdr.markForCheck();
+        from(timer(1500)).subscribe(() => this.closeChangePassword());
+      },
+      error: (error: HttpErrorResponse) => {
+        const message = error.error?.message;
+        this.passwordError = Array.isArray(message)
+          ? message.join(', ')
+          : message ?? 'Could not change your password. Please try again.';
+        this.cdr.markForCheck();
       },
     });
   }

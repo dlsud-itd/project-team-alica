@@ -1,0 +1,206 @@
+<div class="event-shell-page">
+  <div class="shell-container">
+    <!-- Subheader / Event Identity -->
+    <header class="event-identity-bar">
+      <div class="identity-left">
+        <a
+          class="btn-back"
+          [routerLink]="isStaff() ? '/events' : '/organizer/dashboard'"
+          aria-label="Back to dashboard"
+        >
+          <svg class="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+        </a>
+
+        <div class="identity-meta-col">
+          <div class="meta-row">
+            <span class="badge-category" [class]="'cat-' + category().toLowerCase()">
+              {{ category() }}
+            </span>
+            <span class="badge-id">ID: {{ shortId() }}</span>
+          </div>
+          <h1 class="event-name">{{ event()?.name || 'Loading event…' }}</h1>
+        </div>
+      </div>
+
+      <div class="identity-right">
+        @if (isOrganizer()) {
+          <div class="shell-actions">
+            <button type="button" class="btn-action-outline" (click)="openEdit()" title="Edit event settings">
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              <span>Edit</span>
+            </button>
+            <button type="button" class="btn-action-danger" (click)="openDelete()" title="Delete this event">
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>Delete</span>
+            </button>
+          </div>
+        }
+      </div>
+    </header>
+
+    <!-- Sub-Tab Navigation Bar -->
+    <nav class="subtab-bar" aria-label="Event workspace sections">
+      <div class="subtab-pills">
+        <a
+          class="subtab-link"
+          routerLink="overview"
+          routerLinkActive="active"
+        >
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          <span>Overview &amp; Stream</span>
+        </a>
+
+        <a
+          class="subtab-link"
+          routerLink="scanner"
+          routerLinkActive="active"
+        >
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>Scanner View</span>
+        </a>
+
+        <a
+          class="subtab-link"
+          routerLink="guests"
+          routerLinkActive="active"
+        >
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Guest List ({{ guestCount() }})</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Sub-Tab Child Content -->
+    <main class="subtab-content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
+
+<!-- Edit Event Modal -->
+@if (editing()) {
+  <div class="dialog-backdrop" (click)="closeEdit()" tabindex="-1">
+    <section class="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-edit-title" (click)="$event.stopPropagation()">
+      <header class="dialog-header">
+        <div>
+          <h2 id="dialog-edit-title">Edit Event Settings</h2>
+          <p class="dialog-subtitle">Update parameters, venue details, or schedule for this event.</p>
+        </div>
+        <button type="button" class="dialog-close" (click)="closeEdit()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <form [formGroup]="editForm" (ngSubmit)="saveEdit()" class="dialog-body">
+        @if (editErrorMessage()) {
+          <div class="form-alert" role="alert">
+            <span>{{ editErrorMessage() }}</span>
+          </div>
+        }
+
+        <div class="form-group">
+          <label for="edit-event-name">Event Title *</label>
+          <input id="edit-event-name" type="text" formControlName="name" placeholder="e.g. DLSU-D Tech Summit 2026" />
+        </div>
+
+        <div class="form-group">
+          <label for="edit-event-venue">Venue *</label>
+          <input id="edit-event-venue" type="text" formControlName="venue" placeholder="e.g. Ugnayang La Salle Gymnasium" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-starts-at">Starts At *</label>
+            <input id="edit-starts-at" type="datetime-local" formControlName="starts_at" />
+          </div>
+          <div class="form-group">
+            <label for="edit-ends-at">Ends At *</label>
+            <input id="edit-ends-at" type="datetime-local" formControlName="ends_at" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-capacity">Max Capacity *</label>
+            <input id="edit-capacity" type="number" min="1" formControlName="capacity" placeholder="e.g. 500" />
+          </div>
+          <div class="form-group">
+            <span class="field-label">Walk-in Policy</span>
+            <label class="checkbox-card">
+              <input type="checkbox" formControlName="allow_walk_ins" class="custom-checkbox" />
+              <span class="checkbox-text">Allow Walk-ins</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-description">Description</label>
+          <textarea id="edit-description" rows="3" formControlName="description" placeholder="Brief event summary and details..."></textarea>
+        </div>
+
+        <footer class="dialog-footer">
+          <button type="button" class="btn-cancel" (click)="closeEdit()" [disabled]="isSaving()">Cancel</button>
+          <button type="submit" class="btn-submit" [disabled]="isSaving() || editForm.invalid">
+            {{ isSaving() ? 'Saving...' : 'Save Changes' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}
+
+<!-- Delete Confirmation Modal -->
+@if (deleting()) {
+  <div class="dialog-backdrop" (click)="closeDelete()" tabindex="-1">
+    <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-del-title" (click)="$event.stopPropagation()">
+      <header class="dialog-header">
+        <div>
+          <h2 id="dialog-del-title">Delete Event</h2>
+          <p class="dialog-subtitle">Are you sure you want to delete "{{ event()?.name }}"?</p>
+        </div>
+        <button type="button" class="dialog-close" (click)="closeDelete()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <div class="dialog-body">
+        <p class="delete-warning">
+          This will remove the event from your dashboard and archive associated ticket records.
+        </p>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="btn-cancel" (click)="closeDelete()">Cancel</button>
+        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()">Delete Event</button>
+      </footer>
+    </section>
+  </div>
+}
+

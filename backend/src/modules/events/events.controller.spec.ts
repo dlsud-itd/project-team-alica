@@ -58,6 +58,14 @@ describe('EventsController', () => {
       create: vi.fn().mockResolvedValue({ id: 'evt-new', approval_status: 'Pending' }),
       findAllForAdmin: vi.fn().mockResolvedValue([]),
       review: vi.fn().mockResolvedValue({ id: 'evt-1', approval_status: 'Approved' }),
+      getLiveOverview: vi.fn().mockResolvedValue({
+        id: 'evt-1',
+        name: 'Test Event',
+        kpis: { totalRsvps: 10, checkedInAttendees: 5 },
+      }),
+      getEventCheckpoints: vi.fn().mockResolvedValue([{ id: 'chk-1', name: 'Main Gate' }]),
+      recordScan: vi.fn().mockResolvedValue({ scanResult: 'SUCCESS', ticketCode: 'TKT-1' }),
+      exportScansCsv: vi.fn().mockResolvedValue('Ticket Code,Attendee Name\nTKT-1,John Doe'),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -172,5 +180,31 @@ describe('EventsController', () => {
     expect(mockEventsService.review).toHaveBeenCalledWith(admin, 'evt-1', {
       decision: 'APPROVED',
     });
+  });
+
+  it('should return live overview, checkpoints, record scan, and export scans', async () => {
+    const user = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'ORGANIZER' as const,
+    };
+
+    const overview = await controller.getLiveOverview(user, 'evt-1');
+    expect(overview.success).toBe(true);
+    expect(overview.data.id).toBe('evt-1');
+    expect(mockEventsService.getLiveOverview).toHaveBeenCalledWith(user, 'evt-1');
+
+    const checkpoints = await controller.getEventCheckpoints(user, 'evt-1');
+    expect(checkpoints.success).toBe(true);
+    expect(checkpoints.data[0].id).toBe('chk-1');
+
+    const scan = await controller.recordScan(user, 'evt-1', 'chk-1', 'TKT-1');
+    expect(scan.success).toBe(true);
+    expect(scan.data.scanResult).toBe('SUCCESS');
+
+    const csv = await controller.exportScans(user, 'evt-1');
+    expect(csv.success).toBe(true);
+    expect(csv.data).toContain('Ticket Code');
   });
 });

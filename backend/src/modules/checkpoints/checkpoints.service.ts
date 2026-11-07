@@ -83,7 +83,7 @@ export class CheckpointsService {
   }
 
   async findMyCheckpoints(user: UserSummaryDto): Promise<StaffCheckpointDto[]> {
-    if (user.role === 'ADMIN' || user.role === 'ORGANIZER') {
+    if (user.role === 'ADMIN') {
       const allActive = await this.prisma.checkpoint.findMany({
         where: { isActive: true, deletedAt: null },
         include: { event: { select: { title: true } } },
@@ -93,7 +93,7 @@ export class CheckpointsService {
       return allActive.map((c) => this.toStaffDto(c));
     }
 
-    // For STAFF users:
+    // For non-admin users, only return explicitly assigned checkpoints:
     // 1. Direct checkpoint assignments
     const directAssignments = await this.prisma.checkpointStaff.findMany({
       where: { userId: user.id, isActive: true },
@@ -107,6 +107,10 @@ export class CheckpointsService {
       select: { eventId: true },
     });
     const eventIds = eventAssignments.map((a) => a.eventId);
+
+    if (directIds.length === 0 && eventIds.length === 0) {
+      return [];
+    }
 
     const checkpoints = await this.prisma.checkpoint.findMany({
       where: {
@@ -123,19 +127,8 @@ export class CheckpointsService {
       orderBy: { name: 'asc' },
     });
 
-    // If staff has no specific assignments yet (e.g. testing in dev), fallback to all active checkpoints
-    if (checkpoints.length === 0) {
-      const fallback = await this.prisma.checkpoint.findMany({
-        where: { isActive: true, deletedAt: null },
-        include: { event: { select: { title: true } } },
-        orderBy: { name: 'asc' },
-      });
-      return fallback.map((c) => this.toStaffDto(c));
-    }
-
     return checkpoints.map((c) => this.toStaffDto(c));
   }
-
   async createSubBooth(parentId: string, dto: CreateSubBoothDto): Promise<StaffCheckpointDto> {
     const name = dto.name?.trim();
     if (!name) {

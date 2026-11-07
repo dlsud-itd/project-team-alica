@@ -144,6 +144,35 @@ describe('CheckpointsService', () => {
     expect(list[0].parentId).toBeNull();
   });
 
+  it('should return empty list when user has no staff assignments', async () => {
+    mockPrisma.checkpointStaff.findMany = vi.fn().mockResolvedValue([]);
+    mockPrisma.eventStaff.findMany = vi.fn().mockResolvedValue([]);
+    mockPrisma.checkpoint.findMany = vi.fn().mockResolvedValue([]);
+
+    const list = await service.findMyCheckpoints({
+      id: 'usr-attendee-alen',
+      email: 'amc.umandal@gmail.com',
+      fullName: 'Alen Mikel Umandal',
+      role: 'USER',
+    });
+
+    expect(list).toEqual([]);
+    expect(mockPrisma.checkpoint.findMany).not.toHaveBeenCalled();
+  });
+
+  it('should return all active checkpoints for admin user', async () => {
+    mockPrisma.checkpoint.findMany = vi.fn().mockResolvedValue([mockBooth, mockMainGate]);
+
+    const list = await service.findMyCheckpoints({
+      id: 'usr-admin-1',
+      email: 'admin@dlsud.edu.ph',
+      fullName: 'Admin',
+      role: 'ADMIN',
+    });
+
+    expect(list.length).toBe(2);
+  });
+
   it('should allow valid booth scan with multiple scans permitted', async () => {
     const result = await service.scan(mockUser, 'chk-booth-1', {
       ticketCode: 'CHK-2026-9812A',

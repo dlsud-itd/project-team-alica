@@ -30,6 +30,7 @@ export interface OrganizerEvent {
   category_label?: string;
   checkpoints_count?: number;
   admitted_count?: number;
+  is_private?: boolean;
 }
 
 export interface EventLiveKpis {
@@ -93,6 +94,15 @@ export interface EventCheckpoint {
   eventName: string;
 }
 
+export interface EventStaff {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+}
+
 export interface RecordScanResponse {
   scanResult: 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET';
   ticketCode: string;
@@ -110,7 +120,8 @@ type EditableEventFields =
   | 'starts_at'
   | 'ends_at'
   | 'capacity'
-  | 'allow_walk_ins';
+  | 'allow_walk_ins'
+  | 'is_private';
 
 export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>>;
 

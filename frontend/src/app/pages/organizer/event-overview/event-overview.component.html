@@ -238,6 +238,97 @@
         </table>
       </div>
     </article>
+
+    <!-- 4. Event Staff & Checkpoint Operators -->
+    <article class="telemetry-card staff-card">
+      <header class="telemetry-header staff-header">
+        <div>
+          <h2 class="telemetry-title">EVENT STAFF &amp; CHECKPOINT OPERATORS</h2>
+          <p class="telemetry-subtitle">Authorize team members to scan tickets and manage checkpoints for this event</p>
+        </div>
+      </header>
+
+      <div class="staff-card-content">
+        <!-- Add Staff Form -->
+        <div class="add-staff-bar">
+          <div class="input-wrapper">
+            <input
+              #staffEmailInput
+              type="email"
+              class="form-input"
+              placeholder="Enter user email (e.g. staff@dlsud.edu.ph)"
+              (keydown.enter)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+            />
+          </div>
+          <button
+            type="button"
+            class="btn-add-staff"
+            [disabled]="addingStaff()"
+            (click)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+          >
+            @if (addingStaff()) {
+              <span>Adding...</span>
+            } @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-plus" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add Staff</span>
+            }
+          </button>
+        </div>
+
+        @if (staffError()) {
+          <div class="staff-error-banner" role="alert">
+            <span>{{ staffError() }}</span>
+          </div>
+        }
+
+        <!-- Staff Members Table -->
+        <div class="staff-table-wrapper">
+          @if (staffLoading()) {
+            <div class="staff-loading">Loading event staff roster...</div>
+          } @else if (staffList().length === 0) {
+            <div class="staff-empty">
+              <p>No staff assigned yet. As the organizer, you have scanner access automatically.</p>
+            </div>
+          } @else {
+            <table class="stream-table">
+              <thead>
+                <tr>
+                  <th scope="col">NAME</th>
+                  <th scope="col">EMAIL</th>
+                  <th scope="col">AFFILIATION</th>
+                  <th scope="col">ASSIGNED</th>
+                  <th scope="col">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (member of staffList(); track member.id) {
+                  <tr class="stream-row">
+                    <td><strong class="attendee-name">{{ member.fullName }}</strong></td>
+                    <td><span class="member-email">{{ member.email }}</span></td>
+                    <td><span class="member-org">{{ member.affiliation || 'Staff Member' }}</span></td>
+                    <td><span class="time-text">{{ member.assignedAt | date: 'MMM d, y' }}</span></td>
+                    <td>
+                      <button
+                        type="button"
+                        class="btn-remove-staff"
+                        (click)="removeStaffMember(member.userId)"
+                        aria-label="Remove staff member"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+    </article>
+
   }
 </div>
 

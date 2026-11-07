@@ -4,6 +4,7 @@ import { Observable, finalize, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   EventCheckpoint,
+  EventStaff,
   EventLiveOverview,
   EventRegistrant,
   GuestFilePreview,
@@ -247,4 +248,23 @@ export class OrganizerEventsService {
       .get<ApiResponse<string>>(`${this.api}/${eventId}/scans/export`)
       .pipe(map((res) => res.data));
   }
+
+  loadStaff(eventId: UUID): Observable<EventStaff[]> {
+    return this.http
+      .get<ApiResponse<EventStaff[]>>(`${this.api}/${eventId}/staff`)
+      .pipe(map((res) => res.data));
+  }
+
+  addStaff(eventId: UUID, email: string): Observable<EventStaff> {
+    return this.http
+      .post<ApiResponse<EventStaff>>(`${this.api}/${eventId}/staff`, { email })
+      .pipe(map((res) => res.data));
+  }
+
+  removeStaff(eventId: UUID, userId: string): Observable<void> {
+    return this.http
+      .delete<ApiResponse<unknown>>(`${this.api}/${eventId}/staff/${userId}`)
+      .pipe(map(() => undefined));
+  }
+
 }

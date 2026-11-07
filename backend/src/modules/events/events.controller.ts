@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
@@ -21,6 +22,7 @@ import {
   EventRegistrantDto,
   EventLiveOverviewDto,
   EventCheckpointDto,
+  EventStaffDto,
   ScanResultDto,
   OrganizerEventDto,
   ReviewEventDto,
@@ -180,7 +182,7 @@ export class EventsController {
     };
   }
 
-@Post(':eventId/guests/import-users')
+  @Post(':eventId/guests/import-users')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
@@ -273,5 +275,37 @@ export class EventsController {
       success: true,
       data,
     };
+  }
+
+  @Get(':eventId/staff')
+  @UseGuards(JwtAuthGuard)
+  async getStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventStaffDto[] }> {
+    const data = await this.eventsService.getStaff(user, eventId);
+    return { success: true, data };
+  }
+
+  @Post(':eventId/staff')
+  @UseGuards(JwtAuthGuard)
+  async addStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Body('email') email: string,
+  ): Promise<{ success: boolean; data: EventStaffDto }> {
+    const data = await this.eventsService.addStaff(user, eventId, email);
+    return { success: true, data };
+  }
+
+  @Delete(':eventId/staff/:userId')
+  @UseGuards(JwtAuthGuard)
+  async removeStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('userId') targetUserId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.eventsService.removeStaff(user, eventId, targetUserId);
+    return { success: true, message: 'Staff member removed successfully' };
   }
 }

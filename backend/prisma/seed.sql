@@ -3,14 +3,14 @@
 
 BEGIN;
 
--- 1. Insert Users
+-- 1. Insert Users (Strict Binary Global Role: ADMIN vs USER)
 INSERT INTO "public"."users" (
   "id", "email", "passwordHash", "fullName", "role", "studentId", "affiliation", "isActive", "createdAt", "updatedAt"
 ) VALUES
-  ('usr-attendee-alen', 'amc.umandal@gmail.com', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Alen Mikel Umandal', 'ATTENDEE'::"UserRole", '2023-01982-MN-0', 'College of Science and Computer Studies', true, NOW(), NOW()),
-  ('usr-organizer-campus', 'organizer@alica.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Campus Organizer', 'ORGANIZER'::"UserRole", NULL, 'University Student Council', true, NOW(), NOW()),
-  ('usr-organizer-example', 'organizer@example.com', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Campus Organizer', 'ORGANIZER'::"UserRole", NULL, 'University Student Council', true, NOW(), NOW()),
-  ('usr-staff-station', 'staff@checkpoint.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Station Operator', 'STAFF'::"UserRole", NULL, 'Event Operations Team', true, NOW(), NOW()),
+  ('usr-attendee-alen', 'amc.umandal@gmail.com', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Alen Mikel Umandal', 'USER'::"UserRole", '2023-01982-MN-0', 'College of Science and Computer Studies', true, NOW(), NOW()),
+  ('usr-organizer-campus', 'organizer@alica.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Campus Organizer', 'USER'::"UserRole", NULL, 'University Student Council', true, NOW(), NOW()),
+  ('usr-organizer-example', 'organizer@example.com', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Campus Organizer', 'USER'::"UserRole", NULL, 'University Student Council', true, NOW(), NOW()),
+  ('usr-staff-station', 'staff@checkpoint.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'Station Operator', 'USER'::"UserRole", NULL, 'Event Operations Team', true, NOW(), NOW()),
   ('usr-admin-system', 'admin@dlsud.edu.ph', '$2b$10$xhBiOs1.J/.L/pnJEax7h.KhthJkxv4MeEkt8Du4Au7gGPGG55.xy', 'System Administrator', 'ADMIN'::"UserRole", NULL, 'Information & Communications Technology', true, NOW(), NOW())
 ON CONFLICT ("email") DO UPDATE SET
   "passwordHash" = EXCLUDED."passwordHash",
@@ -20,15 +20,15 @@ ON CONFLICT ("email") DO UPDATE SET
   "affiliation" = EXCLUDED."affiliation",
   "updatedAt" = NOW();
 
--- 2. Insert Events
+-- 2. Insert Events (Public vs Private)
 INSERT INTO "public"."events" (
-  "id", "title", "slug", "description", "venueName", "startDate", "endDate", "capacity", "allowWalkIns", "isActive", "approvalStatus", "organizerId", "createdAt", "updatedAt"
+  "id", "title", "slug", "description", "venueName", "startDate", "endDate", "capacity", "allowWalkIns", "isPrivate", "isActive", "approvalStatus", "organizerId", "createdAt", "updatedAt"
 ) VALUES
-  ('evt-devcon-manila-2026', 'DevCon Manila 2026', 'devcon-manila-2026', 'The largest developer conference connecting tech innovators, cloud architects, and builders.', 'SMX Convention Center, Mall of Asia', '2026-09-24 08:00:00', '2026-09-24 18:00:00', 1240, true, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
-  ('evt-global-tech-expo-2026', 'Global Tech & AI Expo 2026', 'global-tech-ai-expo-2026', 'International exhibition featuring cutting-edge artificial intelligence, robotics, and cloud enterprise demonstrations.', 'World Trade Center, Pasay City', '2026-10-28 09:00:00', '2026-10-28 19:00:00', 2500, true, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
-  ('evt-ai-hackathon-2026', 'National AI Hackathon 2026', 'national-ai-hackathon-2026', '24-hour nationwide hackathon focused on building intelligent agent workflows, modern AI tools, and autonomous coding systems.', 'Innovation Complex, Taft Ave', '2026-11-20 09:00:00', '2026-11-21 18:00:00', 3000, false, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
-  ('evt-tech-summit-2026', 'DLSU-D Tech Summit 2026', 'tech-summit-2026', 'Annual flagship technology gathering uniting student innovators, industry keynote speakers, and project demonstrations.', 'Ugnayang La Salle Gymnasium', '2026-11-15 08:00:00', '2026-11-15 17:00:00', 500, true, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
-  ('evt-leadership-conclave-2026', 'University Leadership Conclave', 'leadership-conclave-2026', 'Symposium for student leaders, organization officers, and committee chairs on governance and event management.', 'Test Convention Hall', '2026-11-30 13:00:00', '2026-11-30 18:00:00', 300, true, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW())
+  ('evt-devcon-manila-2026', 'DevCon Manila 2026', 'devcon-manila-2026', 'The largest developer conference connecting tech innovators, cloud architects, and builders.', 'SMX Convention Center, Mall of Asia', '2026-09-24 08:00:00', '2026-09-24 18:00:00', 1240, true, false, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
+  ('evt-global-tech-expo-2026', 'Global Tech & AI Expo 2026', 'global-tech-ai-expo-2026', 'International exhibition featuring cutting-edge artificial intelligence, robotics, and cloud enterprise demonstrations.', 'World Trade Center, Pasay City', '2026-10-28 09:00:00', '2026-10-28 19:00:00', 2500, true, false, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
+  ('evt-ai-hackathon-2026', 'National AI Hackathon 2026', 'national-ai-hackathon-2026', '24-hour nationwide hackathon focused on building intelligent agent workflows, modern AI tools, and autonomous coding systems.', 'Innovation Complex, Taft Ave', '2026-11-20 09:00:00', '2026-11-21 18:00:00', 3000, false, false, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
+  ('evt-tech-summit-2026', 'DLSU-D Tech Summit 2026', 'tech-summit-2026', 'Annual flagship technology gathering uniting student innovators, industry keynote speakers, and project demonstrations.', 'Ugnayang La Salle Gymnasium', '2026-11-15 08:00:00', '2026-11-15 17:00:00', 500, true, false, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW()),
+  ('evt-leadership-conclave-2026', 'University Leadership Conclave', 'leadership-conclave-2026', 'Symposium for student leaders, organization officers, and committee chairs on governance and event management.', 'Test Convention Hall', '2026-11-30 13:00:00', '2026-11-30 18:00:00', 300, true, true, true, 'APPROVED'::"EventApprovalStatus", 'usr-organizer-campus', NOW(), NOW())
 ON CONFLICT ("id") DO UPDATE SET
   "title" = EXCLUDED."title",
   "slug" = EXCLUDED."slug",
@@ -36,6 +36,7 @@ ON CONFLICT ("id") DO UPDATE SET
   "startDate" = EXCLUDED."startDate",
   "endDate" = EXCLUDED."endDate",
   "capacity" = EXCLUDED."capacity",
+  "isPrivate" = EXCLUDED."isPrivate",
   "approvalStatus" = EXCLUDED."approvalStatus",
   "updatedAt" = NOW();
 
@@ -100,5 +101,13 @@ VALUES
   ('cs-staff-main-gate', 'chk-main-gate', 'usr-staff-station', NOW(), true),
   ('cs-staff-devcon-gate1', 'chk-devcon-gate-1', 'usr-staff-station', NOW(), true)
 ON CONFLICT ("checkpointId", "userId") DO NOTHING;
+
+-- 7. Insert Saved Autofill Profiles
+INSERT INTO "public"."saved_profiles" (
+  "id", "userId", "profileName", "fullName", "studentId", "contactNumber", "affiliation", "isDefault", "createdAt", "updatedAt"
+) VALUES
+  ('prf-alen-student', 'usr-attendee-alen', 'Student Profile', 'Alen Mikel Umandal', '2023-01982-MN-0', '+63 917 123 4567', 'College of Science and Computer Studies', true, NOW(), NOW()),
+  ('prf-alen-work', 'usr-attendee-alen', 'Professional Profile', 'Alen Mikel Umandal', NULL, '+63 917 987 6543', 'Project Alica Team', false, NOW(), NOW())
+ON CONFLICT ("id") DO NOTHING;
 
 COMMIT;

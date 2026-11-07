@@ -120,6 +120,7 @@ export interface OrganizerEventDto {
   review_notes: string | null;
   reviewed_at: string | null;
   submitted_at: string;
+  is_private?: boolean;
   category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
   category_label?: string;
   checkpoints_count?: number;
@@ -223,6 +224,15 @@ export class UpdateEventDto {
   allow_walk_ins?: boolean;
 }
 
+export interface EventStaffDto {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+}
+
 export class CreateEventDto {
   name!: string;
   description?: string;
@@ -231,6 +241,7 @@ export class CreateEventDto {
   ends_at!: string;
   capacity!: number;
   allow_walk_ins?: boolean;
+  is_private?: boolean;
 }
 
 export class ReviewEventDto {
@@ -795,6 +806,7 @@ export class EventsService {
         isActive: true,
         deletedAt: null,
         approvalStatus: EventApprovalStatus.APPROVED,
+        isPrivate: false,
       },
       include: {
         organizer: {
@@ -958,6 +970,11 @@ export class EventsService {
       throw new BadRequestException('Start date & time must be in the future');
     }
     const capacity = this.parseCapacity(dto.capacity);
+    const isPrivate = dto.is_private === true;
+    const approvalStatus =
+      isPrivate || user.role === 'ADMIN'
+        ? EventApprovalStatus.APPROVED
+        : EventApprovalStatus.PENDING;
 
     const event = await this.prisma.event.create({
       data: {
@@ -969,12 +986,13 @@ export class EventsService {
         endDate,
         capacity,
         allowWalkIns: dto.allow_walk_ins ?? false,
-        approvalStatus: EventApprovalStatus.PENDING,
+        isPrivate,
+        approvalStatus,
         organizerId: user.id,
       },
     });
 
-    this.logger.log(`Event '${event.id}' submitted for review by ${user.id}`);
+    this.logger.log(`Event '${event.id}' created by ${user.id} (private: ${isPrivate}, approval: ${approvalStatus})`);
     return this.toOrganizerEvent(event, 0);
   }
 
@@ -1220,10 +1238,8 @@ export class EventsService {
     return this.toRegistrant(updated);
   }
 
-  private assertOrganizerRole(user: UserSummaryDto): void {
-    if (user.role !== 'ORGANIZER' && user.role !== 'ADMIN') {
-      throw new ForbiddenException('Only organizers can manage events');
-    }
+  private assertOrganizerRole(_user: UserSummaryDto): void {
+    // Dynamic event roles: permissions are evaluated per-event in findManageableEvent
   }
 
   private assertAdminRole(user: UserSummaryDto): void {
@@ -1318,6 +1334,7 @@ export class EventsService {
       review_notes: ev.reviewNotes,
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
+      is_private: ev.isPrivate,
     };
   }
 
@@ -1777,4 +1794,71 @@ export class EventsService {
 
     return [headers.join(','), ...rows].join('\n');
   }
+
+  async getStaff(user: UserSummaryDto, eventId: string): Promise<EventStaffDto[]> {
+    await this.findManageableEvent(user, eventId);
+    const staffList = await this.prisma.eventStaff.findMany({
+      where: { eventId, isActive: true },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+      orderBy: { assignedAt: 'desc' },
+    });
+    return staffList.map((s) => ({
+      id: s.id,
+      userId: s.user.id,
+      email: s.user.email,
+      fullName: s.user.fullName,
+      affiliation: s.user.affiliation,
+      assignedAt: s.assignedAt.toISOString(),
+    }));
+  }
+
+  async addStaff(
+    user: UserSummaryDto,
+    eventId: string,
+    email: string,
+  ): Promise<EventStaffDto> {
+    await this.findManageableEvent(user, eventId);
+    const cleanEmail = email.trim().toLowerCase();
+    const targetUser = await this.prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+    if (!targetUser) {
+      throw new NotFoundException(
+        `User with email '${cleanEmail}' not found. They must register an account first.`,
+      );
+    }
+
+    const assignment = await this.prisma.eventStaff.upsert({
+      where: { eventId_userId: { eventId, userId: targetUser.id } },
+      update: { isActive: true },
+      create: { eventId, userId: targetUser.id, isActive: true },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+    });
+
+    return {
+      id: assignment.id,
+      userId: assignment.user.id,
+      email: assignment.user.email,
+      fullName: assignment.user.fullName,
+      affiliation: assignment.user.affiliation,
+      assignedAt: assignment.assignedAt.toISOString(),
+    };
+  }
+
+  async removeStaff(
+    user: UserSummaryDto,
+    eventId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    await this.findManageableEvent(user, eventId);
+    await this.prisma.eventStaff.updateMany({
+      where: { eventId, userId: targetUserId },
+      data: { isActive: false },
+    });
+  }
+
 }

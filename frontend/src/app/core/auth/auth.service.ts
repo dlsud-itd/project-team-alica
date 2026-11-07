@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { AuthUser, ROLE_HOME, UserRole } from './auth.models';
+import { AuthUser, ROLE_HOME, SavedProfile, UserRole } from './auth.models';
 
 export type RegisterPayload = {
   fullName: string;
@@ -75,6 +75,31 @@ export class AuthService {
           }
         }),
       );
+  }
+
+  getProfiles(): Observable<SavedProfile[]> {
+    return this.http
+      .get<{ success: boolean; data: SavedProfile[] }>(`${this.api}/auth/profiles`)
+      .pipe(map((res) => res.data));
+  }
+
+  saveProfile(profile: {
+    profileName: string;
+    fullName: string;
+    studentId?: string;
+    contactNumber?: string;
+    affiliation?: string;
+    isDefault?: boolean;
+  }): Observable<SavedProfile> {
+    return this.http
+      .post<{ success: boolean; data: SavedProfile }>(`${this.api}/auth/profiles`, profile)
+      .pipe(map((res) => res.data));
+  }
+
+  deleteProfile(profileId: string): Observable<void> {
+    return this.http
+      .delete<{ success: boolean; message: string }>(`${this.api}/auth/profiles/${profileId}`)
+      .pipe(map(() => undefined));
   }
 
   /** Call this after a successful login/register API response. */

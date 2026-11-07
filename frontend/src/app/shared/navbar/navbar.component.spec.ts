@@ -64,11 +64,11 @@ describe('NavbarComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     const userPill = el.querySelector('.user-pill');
     const logoutBtn = el.querySelector('.btn-quick-logout');
-    const dashboardLink = el.querySelector('.desktop-nav a[href="/organizer/dashboard"]');
+    const hubLink = el.querySelector('.desktop-nav a[href="/hub"]');
 
     expect(userPill).toBeTruthy();
     expect(logoutBtn).toBeTruthy();
-    expect(dashboardLink).toBeTruthy();
+    expect(hubLink).toBeTruthy();
   });
 });
 

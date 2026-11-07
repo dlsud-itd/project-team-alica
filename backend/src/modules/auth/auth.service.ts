@@ -28,6 +28,26 @@ export class ChangePasswordDto {
   newPassword!: string;
 }
 
+export interface SavedProfileDto {
+  id: string;
+  profileName: string;
+  fullName: string;
+  studentId: string | null;
+  contactNumber: string | null;
+  affiliation: string | null;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export class CreateSavedProfileDto {
+  profileName!: string;
+  fullName!: string;
+  studentId?: string;
+  contactNumber?: string;
+  affiliation?: string;
+  isDefault?: boolean;
+}
+
 export interface UserSummaryDto {
   id: string;
   email: string;
@@ -116,7 +136,7 @@ export class AuthService {
         email,
         passwordHash,
         fullName: dto.fullName.trim(),
-        role: UserRole.ATTENDEE,
+        role: UserRole.USER,
         studentId: dto.studentId?.trim() || null,
         affiliation: dto.affiliation?.trim() || 'Attendee',
         isActive: true,
@@ -223,6 +243,71 @@ export class AuthService {
       affiliation: account.affiliation,
       mustChangePassword: false,
     };
+  }
+
+  async getSavedProfiles(user: UserSummaryDto): Promise<SavedProfileDto[]> {
+    const profiles = await this.prisma.savedProfile.findMany({
+      where: { userId: user.id },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    });
+    return profiles.map((p) => ({
+      id: p.id,
+      profileName: p.profileName,
+      fullName: p.fullName,
+      studentId: p.studentId,
+      contactNumber: p.contactNumber,
+      affiliation: p.affiliation,
+      isDefault: p.isDefault,
+      createdAt: p.createdAt.toISOString(),
+    }));
+  }
+
+  async createSavedProfile(
+    user: UserSummaryDto,
+    dto: CreateSavedProfileDto,
+  ): Promise<SavedProfileDto> {
+    if (!dto.profileName?.trim() || !dto.fullName?.trim()) {
+      throw new BadRequestException('Profile name and full name are required');
+    }
+
+    if (dto.isDefault) {
+      await this.prisma.savedProfile.updateMany({
+        where: { userId: user.id },
+        data: { isDefault: false },
+      });
+    }
+
+    const created = await this.prisma.savedProfile.create({
+      data: {
+        userId: user.id,
+        profileName: dto.profileName.trim(),
+        fullName: dto.fullName.trim(),
+        studentId: dto.studentId?.trim() || null,
+        contactNumber: dto.contactNumber?.trim() || null,
+        affiliation: dto.affiliation?.trim() || null,
+        isDefault: dto.isDefault ?? false,
+      },
+    });
+
+    return {
+      id: created.id,
+      profileName: created.profileName,
+      fullName: created.fullName,
+      studentId: created.studentId,
+      contactNumber: created.contactNumber,
+      affiliation: created.affiliation,
+      isDefault: created.isDefault,
+      createdAt: created.createdAt.toISOString(),
+    };
+  }
+
+  async deleteSavedProfile(
+    user: UserSummaryDto,
+    profileId: string,
+  ): Promise<void> {
+    await this.prisma.savedProfile.deleteMany({
+      where: { id: profileId, userId: user.id },
+    });
   }
 
   private generateToken(userId: string, email: string, role: string): string {

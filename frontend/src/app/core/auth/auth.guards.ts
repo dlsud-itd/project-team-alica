@@ -4,6 +4,24 @@ import { UserRole } from './auth.models';
 import { AuthService } from './auth.service';
 
 /**
+ * Allows the route only for authenticated users regardless of specific roles.
+ * Redirects unauthenticated users to `/login`.
+ */
+export const authGuard: CanMatchFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  if (!auth.isAuthenticated()) {
+    const returnUrl = router.currentNavigation()?.extractedUrl.toString();
+    return router.createUrlTree(['/login'], { queryParams: { returnUrl } });
+  }
+  if (auth.user()?.mustChangePassword) {
+    return router.parseUrl('/change-password');
+  }
+  return true;
+};
+
+/**
  * Allows the route only for the given roles.
  * - Not logged in: redirect to `loginUrl` with a `returnUrl` query param.
  * - Logged in with the wrong role: redirect to that role's home page.

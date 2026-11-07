@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import {
+  authGuard,
   guestGuard,
   passwordChangeGuard,
   profileAccessGuard,
@@ -18,6 +19,11 @@ export const routes: Routes = [
       {
         path: 'events',
         loadComponent: () => import('./pages/public/events/events.component').then((m) => m.Events),
+      },
+      {
+        path: 'hub',
+        canActivate: [authGuard],
+        loadComponent: () => import('./pages/hub/hub.component').then((m) => m.HubComponent),
       },
       {
         path: 'profile',
@@ -72,7 +78,7 @@ export const routes: Routes = [
   // ORGANIZER
   {
     path: 'organizer',
-    canMatch: [roleGuard(['ORGANIZER'])],
+    canMatch: [authGuard],
     loadComponent: () =>
       import('./layouts/organizer-layout/organizer-layout.component').then(
         (m) => m.OrganizerLayout,
@@ -132,7 +138,7 @@ export const routes: Routes = [
     children: [
       {
         path: '',
-        canMatch: [roleGuard(['STAFF'])],
+        canMatch: [authGuard],
         children: [
           { path: '', pathMatch: 'full', redirectTo: 'scanner' },
           {
@@ -176,21 +182,9 @@ export const routes: Routes = [
     ],
   },
 
-  // ATTENDEE
-  {
-    path: 'attendee',
-    canMatch: [roleGuard(['ATTENDEE'])],
-    loadComponent: () =>
-      import('./layouts/attendee-layout/attendee-layout.component').then((m) => m.AttendeeLayout),
-    children: [
-      { path: '', pathMatch: 'full', redirectTo: '/profile' },
-      {
-        path: 'history',
-        loadComponent: () =>
-          import('./pages/attendee/history/history.component').then((m) => m.History),
-      },
-    ],
-  },
+  // ATTENDEE (Redirect to Hub)
+  { path: 'attendee', redirectTo: 'hub' },
+  { path: 'attendee/history', redirectTo: 'hub' },
 
   { path: '**', redirectTo: 'events' },
 ];

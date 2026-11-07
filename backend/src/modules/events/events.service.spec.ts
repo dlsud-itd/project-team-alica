@@ -378,10 +378,16 @@ describe('EventsService', () => {
       expect(res.approval_status).toBe('Pending');
     });
 
-    it('rejects attendees', async () => {
-      await expect(
-        service.create({ ...ORGANIZER, role: 'ATTENDEE' }, dto),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+    it('allows any user to create a private event with immediate approval', async () => {
+      prisma.event.create.mockImplementation(({ data }) =>
+        Promise.resolve(dbEvent({ ...data, id: 'evt-private' })),
+      );
+      const res = await service.create(
+        { ...ORGANIZER, role: 'USER' as any },
+        { ...dto, is_private: true },
+      );
+      expect(res.approval_status).toBe('Approved');
+      expect(res.is_private).toBe(true);
     });
 
     it('rejects events that start in the past', async () => {

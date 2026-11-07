@@ -16,14 +16,9 @@
       <nav class="desktop-nav" aria-label="Primary navigation">
         <a routerLink="/events" routerLinkActive="active" class="nav-item">Events</a>
         @if (auth.isAuthenticated()) {
-          @if (auth.hasRole('ORGANIZER')) {
-            <a routerLink="/organizer/dashboard" routerLinkActive="active" class="nav-item">Dashboard</a>
-          } @else if (auth.hasRole('STAFF')) {
-            <a routerLink="/staff/scanner" routerLinkActive="active" class="nav-item">Scanner</a>
-          } @else if (auth.hasRole('ADMIN')) {
+          <a routerLink="/hub" routerLinkActive="active" class="nav-item">My Hub</a>
+          @if (auth.hasRole('ADMIN')) {
             <a routerLink="/admin/dashboard" routerLinkActive="active" class="nav-item">Admin Console</a>
-          } @else {
-            <a routerLink="/attendee/history" routerLinkActive="active" class="nav-item">My History</a>
           }
         }
       </nav>
@@ -57,4 +52,3 @@
     </div>
   </div>
 </header>
-

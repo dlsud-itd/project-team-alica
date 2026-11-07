@@ -51,22 +51,24 @@
       <span class="count-pill">{{ organizingCount() }}</span>
     </button>
 
-    <button
-      type="button"
-      class="tab-btn"
-      [class.active]="activeTab() === 'staffing'"
-      (click)="setTab('staffing')"
-    >
-      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
-        <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
-        <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
-        <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
-        <rect x="7" y="7" width="10" height="10" rx="1"></rect>
-      </svg>
-      <span>Staffing</span>
-      <span class="count-pill">{{ staffingCount() }}</span>
-    </button>
+    @if (staffingCount() > 0 || auth.hasRole('ADMIN')) {
+      <button
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'staffing'"
+        (click)="setTab('staffing')"
+      >
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+          <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+          <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+          <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+          <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+        </svg>
+        <span>Staffing</span>
+        <span class="count-pill">{{ staffingCount() }}</span>
+      </button>
+    }
   </nav>
 
   <!-- TAB 1: ATTENDING -->
@@ -218,7 +220,7 @@
   }
 
   <!-- TAB 3: STAFFING -->
-  @if (activeTab() === 'staffing') {
+  @if (activeTab() === 'staffing' && (staffingCount() > 0 || auth.hasRole('ADMIN'))) {
     <section class="hub-section" aria-label="Staffing stations">
       @if (staffingLoading()) {
         <div class="loading-state">

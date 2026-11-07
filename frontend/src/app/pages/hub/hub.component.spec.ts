@@ -77,4 +77,31 @@ describe('HubComponent', () => {
     component.closeCreateModal();
     expect(component.isCreateModalOpen()).toBe(false);
   });
+
+  it('does not display the staffing tab button for normal users with no assignments', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const tabButtons = compiled.querySelectorAll('.tab-btn');
+    const tabTexts = Array.from(tabButtons).map((btn) => btn.textContent);
+    expect(tabTexts.some((text) => text?.includes('Staffing'))).toBe(false);
+  });
+
+  it('displays the staffing tab button when user has assigned checkpoints', () => {
+    component.assignedCheckpoints.set([
+      {
+        id: 'chk-1',
+        name: 'Gate 1',
+        location: 'North',
+        type: 'MAIN_ENTRY',
+        allowMultipleScans: false,
+        requireMainEntry: false,
+        eventId: 'evt-1',
+        eventName: 'Tech Summit',
+      },
+    ]);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const tabButtons = compiled.querySelectorAll('.tab-btn');
+    const tabTexts = Array.from(tabButtons).map((btn) => btn.textContent);
+    expect(tabTexts.some((text) => text?.includes('Staffing'))).toBe(true);
+  });
 });

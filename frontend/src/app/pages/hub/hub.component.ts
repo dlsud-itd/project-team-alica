@@ -113,6 +113,9 @@ export class HubComponent implements OnInit {
       next: (checkpoints) => {
         this.assignedCheckpoints.set(checkpoints);
         this.staffingLoading.set(false);
+        if (this.activeTab() === 'staffing' && checkpoints.length === 0 && !this.auth.hasRole('ADMIN')) {
+          this.activeTab.set(this.rsvps().length > 0 ? 'attending' : (this.organizedEvents().length > 0 ? 'organizing' : 'attending'));
+        }
       },
       error: (err) => {
         this.staffingError.set('Unable to load assigned checkpoints');

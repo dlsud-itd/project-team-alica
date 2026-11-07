@@ -3,6 +3,7 @@ import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { UserProfileComponent } from './user_profile.component';
 import { UserProfileService } from './user_profile.service';
+import { AuthService } from '../core/auth/auth.service';
 import {
   UserProfile,
   UserRole,
@@ -19,6 +20,10 @@ describe('UserProfileComponent', () => {
   };
   let mockRouter: {
     navigate: ReturnType<typeof vi.fn>;
+  };
+  let mockAuthService: {
+    changePassword: ReturnType<typeof vi.fn>;
+    logout: ReturnType<typeof vi.fn>;
   };
 
   const mockProfile: UserProfile = {
@@ -44,6 +49,16 @@ describe('UserProfileComponent', () => {
     mockRouter = {
       navigate: vi.fn().mockReturnValue(Promise.resolve(true)),
     };
+    mockAuthService = {
+      changePassword: vi.fn().mockReturnValue(of({
+        id: 'user-1',
+        email: mockProfile.email,
+        fullName: mockProfile.fullName,
+        role: 'ATTENDEE',
+        mustChangePassword: false,
+      })),
+      logout: vi.fn(),
+    };
 
     await TestBed.configureTestingModule({
       imports: [UserProfileComponent],
@@ -62,6 +77,7 @@ describe('UserProfileComponent', () => {
           provide: Router,
           useValue: mockRouter,
         },
+        { provide: AuthService, useValue: mockAuthService },
       ],
     }).compileComponents();
 
@@ -227,7 +243,7 @@ describe('UserProfileComponent', () => {
       component.confirmPassword = 'abc';
       component.submitChangePassword();
 
-      expect(component.passwordError).toBe('New password must be at least 6 characters long.');
+      expect(component.passwordError).toBe('New password must be at least 8 characters long.');
     });
 
     it('should validate password mismatch', () => {
@@ -251,21 +267,19 @@ describe('UserProfileComponent', () => {
       component.confirmPassword = 'newpassword123';
       component.submitChangePassword();
 
+      expect(mockAuthService.changePassword).toHaveBeenCalledWith(
+        'oldpassword123',
+        'newpassword123',
+      );
       expect(component.passwordError).toBe('');
       expect(component.passwordSuccess).toBe('Password updated successfully!');
     });
 
-    it('should clear storage and navigate to root on signOut', () => {
-      const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
-      const clearSpy = vi.spyOn(Storage.prototype, 'clear');
-
+    it('should clear the authenticated session and navigate home on signOut', () => {
       component.signOut();
 
-      expect(removeItemSpy).toHaveBeenCalledWith('checkpoint_user');
-      expect(removeItemSpy).toHaveBeenCalledWith('registered_attendee');
-      expect(clearSpy).toHaveBeenCalled();
+      expect(mockAuthService.logout).toHaveBeenCalledWith(null);
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
     });
   });
 });
-

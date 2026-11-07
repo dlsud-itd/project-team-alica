@@ -23,6 +23,31 @@ export class RegisterDto {
   affiliation?: string;
 }
 
+export class ChangePasswordDto {
+  currentPassword!: string;
+  newPassword!: string;
+}
+
+export interface SavedProfileDto {
+  id: string;
+  profileName: string;
+  fullName: string;
+  studentId: string | null;
+  contactNumber: string | null;
+  affiliation: string | null;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export class CreateSavedProfileDto {
+  profileName!: string;
+  fullName!: string;
+  studentId?: string;
+  contactNumber?: string;
+  affiliation?: string;
+  isDefault?: boolean;
+}
+
 export interface UserSummaryDto {
   id: string;
   email: string;
@@ -30,6 +55,7 @@ export interface UserSummaryDto {
   role: UserRole;
   studentId?: string | null;
   affiliation?: string | null;
+  mustChangePassword?: boolean;
 }
 
 export interface AuthResponseDto {
@@ -74,6 +100,7 @@ export class AuthService {
         role: user.role,
         studentId: user.studentId,
         affiliation: user.affiliation,
+        mustChangePassword: user.mustChangePassword,
       },
       token,
     };
@@ -109,10 +136,11 @@ export class AuthService {
         email,
         passwordHash,
         fullName: dto.fullName.trim(),
-        role: UserRole.ATTENDEE,
+        role: UserRole.USER,
         studentId: dto.studentId?.trim() || null,
         affiliation: dto.affiliation?.trim() || 'Attendee',
         isActive: true,
+        mustChangePassword: false,
       },
     });
 
@@ -126,6 +154,7 @@ export class AuthService {
         role: user.role,
         studentId: user.studentId,
         affiliation: user.affiliation,
+        mustChangePassword: false,
       },
       token,
     };
@@ -158,12 +187,127 @@ export class AuthService {
         role: user.role,
         studentId: user.studentId,
         affiliation: user.affiliation,
+        mustChangePassword: user.mustChangePassword,
       };
     } catch {
       throw new UnauthorizedException(
         'Invalid or expired authentication token',
       );
     }
+  }
+
+  async changePassword(
+    user: UserSummaryDto,
+    dto: ChangePasswordDto,
+  ): Promise<UserSummaryDto> {
+    if (!dto.currentPassword || !dto.newPassword) {
+      throw new BadRequestException(
+        'Current password and new password are required',
+      );
+    }
+    if (dto.newPassword.length < 8) {
+      throw new BadRequestException(
+        'New password must be at least 8 characters long',
+      );
+    }
+
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.id },
+    });
+    if (!account || !account.isActive) {
+      throw new UnauthorizedException('User account not found or inactive');
+    }
+    if (!(await bcrypt.compare(dto.currentPassword, account.passwordHash))) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id: account.id },
+      data: {
+        passwordHash: await bcrypt.hash(dto.newPassword, 10),
+        mustChangePassword: false,
+      },
+    });
+
+    return {
+      id: account.id,
+      email: account.email,
+      fullName: account.fullName,
+      role: account.role,
+      studentId: account.studentId,
+      affiliation: account.affiliation,
+      mustChangePassword: false,
+    };
+  }
+
+  async getSavedProfiles(user: UserSummaryDto): Promise<SavedProfileDto[]> {
+    const profiles = await this.prisma.savedProfile.findMany({
+      where: { userId: user.id },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    });
+    return profiles.map((p) => ({
+      id: p.id,
+      profileName: p.profileName,
+      fullName: p.fullName,
+      studentId: p.studentId,
+      contactNumber: p.contactNumber,
+      affiliation: p.affiliation,
+      isDefault: p.isDefault,
+      createdAt: p.createdAt.toISOString(),
+    }));
+  }
+
+  async createSavedProfile(
+    user: UserSummaryDto,
+    dto: CreateSavedProfileDto,
+  ): Promise<SavedProfileDto> {
+    if (!dto.profileName?.trim() || !dto.fullName?.trim()) {
+      throw new BadRequestException('Profile name and full name are required');
+    }
+
+    if (dto.isDefault) {
+      await this.prisma.savedProfile.updateMany({
+        where: { userId: user.id },
+        data: { isDefault: false },
+      });
+    }
+
+    const created = await this.prisma.savedProfile.create({
+      data: {
+        userId: user.id,
+        profileName: dto.profileName.trim(),
+        fullName: dto.fullName.trim(),
+        studentId: dto.studentId?.trim() || null,
+        contactNumber: dto.contactNumber?.trim() || null,
+        affiliation: dto.affiliation?.trim() || null,
+        isDefault: dto.isDefault ?? false,
+      },
+    });
+
+    return {
+      id: created.id,
+      profileName: created.profileName,
+      fullName: created.fullName,
+      studentId: created.studentId,
+      contactNumber: created.contactNumber,
+      affiliation: created.affiliation,
+      isDefault: created.isDefault,
+      createdAt: created.createdAt.toISOString(),
+    };
+  }
+
+  async deleteSavedProfile(
+    user: UserSummaryDto,
+    profileId: string,
+  ): Promise<void> {
+    await this.prisma.savedProfile.deleteMany({
+      where: { id: profileId, userId: user.id },
+    });
   }
 
   private generateToken(userId: string, email: string, role: string): string {

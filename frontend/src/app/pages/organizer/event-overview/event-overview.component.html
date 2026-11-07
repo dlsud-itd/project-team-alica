@@ -1,0 +1,456 @@
+<div class="overview-dashboard">
+  @if (loading() && !overview()) {
+    <div class="overview-loading" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading live event telemetry…</p>
+    </div>
+  } @else if (error()) {
+    <div class="overview-error" role="alert">
+      <h3>Unable to load event overview</h3>
+      <p>{{ error() }}</p>
+      <button type="button" class="btn-retry" (click)="fetchOverview()">Retry</button>
+    </div>
+  } @else {
+    <!-- 1. Four KPI Metric Cards -->
+    <section class="kpi-grid" aria-label="Event Key Performance Indicators">
+      <!-- Card 1: Total RSVPs -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total RSVPs</span>
+          <div class="kpi-icon-wrap icon-teal" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().totalRsvps }}</strong>
+        <span class="kpi-subtext">Confirmed passes</span>
+      </article>
+
+      <!-- Card 2: Checked-In Attendees -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Checked-In Attendees</span>
+          <div class="kpi-icon-wrap icon-green" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().checkedInAttendees }}</strong>
+        <span class="kpi-subtext">{{ kpis().attendanceRate }}% attendance rate</span>
+      </article>
+
+      <!-- Card 3: Venue Occupancy -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Venue Occupancy</span>
+          <div class="kpi-icon-wrap icon-emerald" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+              <polyline points="17 6 23 6 23 12"></polyline>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().venueOccupancy }}%</strong>
+        <span class="kpi-subtext">
+          Max {{ kpis().maxCapacity ? (kpis().maxCapacity | number) : '1,240' }} guests
+        </span>
+      </article>
+
+      <!-- Card 4: Active Stations -->
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Active Stations</span>
+          <div class="kpi-icon-wrap icon-cyan" aria-hidden="true">
+            <svg class="kpi-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+          </div>
+        </div>
+        <strong class="kpi-metric">{{ kpis().activeStationsCount }}</strong>
+        <span class="kpi-subtext">{{ kpis().totalVerifiedScans }} verified scans</span>
+      </article>
+    </section>
+
+    <!-- 2. Middle Row: Flow Chart & Station Traffic Breakdown -->
+    <section class="telemetry-grid">
+      <!-- Hourly Arrival Flow Rate -->
+      <article class="telemetry-card flow-card">
+        <header class="telemetry-header">
+          <div>
+            <h2 class="telemetry-title">HOURLY ARRIVAL FLOW RATE</h2>
+            <p class="telemetry-subtitle">Arrivals across all stations</p>
+          </div>
+          <div class="active-stream-badge">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <span>Active Stream</span>
+          </div>
+        </header>
+
+        <div class="chart-wrapper">
+          <svg class="flow-svg" viewBox="0 0 600 160" preserveAspectRatio="none" aria-label="Hourly arrival chart">
+            <defs>
+              <linearGradient id="flowGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#10b981" stop-opacity="0.3"></stop>
+                <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"></stop>
+              </linearGradient>
+            </defs>
+
+            <!-- Grid Lines -->
+            <line x1="40" y1="24" x2="560" y2="24" stroke="#f1f5f9" stroke-width="1"></line>
+            <line x1="40" y1="69" x2="560" y2="69" stroke="#f1f5f9" stroke-width="1"></line>
+            <line x1="40" y1="114" x2="560" y2="114" stroke="#f1f5f9" stroke-width="1"></line>
+            <line x1="40" y1="136" x2="560" y2="136" stroke="#e2e8f0" stroke-width="1"></line>
+
+            <!-- Area & Path -->
+            @if (chartSvgData().area) {
+              <path [attr.d]="chartSvgData().area" fill="url(#flowGradient)"></path>
+              <path [attr.d]="chartSvgData().path" fill="none" stroke="#0d5c46" stroke-width="2.5" stroke-linecap="round"></path>
+
+              <!-- Points -->
+              @for (pt of chartSvgData().points; track pt.hour) {
+                <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="3.5" fill="#ffffff" stroke="#0d5c46" stroke-width="2"></circle>
+              }
+            }
+          </svg>
+
+          <!-- X-Axis Labels -->
+          <div class="chart-axis-labels">
+            <span>8:00</span>
+            <span>9:00</span>
+            <span>10:00</span>
+            <span>11:00</span>
+            <span>12:00</span>
+            <span>1:00</span>
+            <span>2:00</span>
+            <span>3:00</span>
+            <span>4:00</span>
+            <span>5:00</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Station Traffic Breakdown -->
+      <article class="telemetry-card traffic-card">
+        <header class="telemetry-header">
+          <div>
+            <h2 class="telemetry-title">STATION TRAFFIC BREAKDOWN</h2>
+            <p class="telemetry-subtitle">Volume per gate &amp; booth</p>
+          </div>
+        </header>
+
+        <div class="station-list">
+          @if (stationTraffic().length === 0) {
+            <p class="no-stations">No station traffic recorded yet.</p>
+          } @else {
+            @for (station of orderedStations(); track station.id) {
+              <div class="station-row" [class.station-row--sub]="isSubBooth(station.id)">
+                <div class="station-info">
+                  <span class="station-name">
+                    @if (isSubBooth(station.id)) {
+                      <button type="button" class="sub-link" (click)="openSubDetail(station.id)">
+                        {{ station.name }}
+                      </button>
+                      <span class="sub-tag">Sub-booth</span>
+                    } @else {
+                      {{ station.name }}
+                    }
+                  </span>
+                  <span class="station-actions">
+                    @if (canAddSubBooth(station.id)) {
+                      <button
+                        type="button"
+                        class="btn-add-sub"
+                        (click)="openSubBoothForm(station.id)"
+                      >
+                        + Sub-booth
+                      </button>
+                    }
+                    <strong class="station-scans">{{ station.scans }} {{ station.scans === 1 ? 'scan' : 'scans' }}</strong>
+                  </span>
+                </div>
+
+                @if (subTotalFor(station.id); as sub) {
+                  <p class="sub-total">
+                    Total with sub-booths: {{ station.scans + sub.scans }}
+                    {{ station.scans + sub.scans === 1 ? 'scan' : 'scans' }}
+                    ({{ sub.count }} {{ sub.count === 1 ? 'sub-booth' : 'sub-booths' }})
+                  </p>
+                }
+
+                <div class="station-track" aria-hidden="true">
+                  <div class="station-fill" [style.width.%]="station.percentage"></div>
+                </div>
+
+                @if (addingFor() === station.id) {
+                  <form class="sub-form" (submit)="submitSubBooth($event)">
+                    <p class="sub-form-title">Add a sub-booth to {{ station.name }}</p>
+                    <input
+                      type="text"
+                      class="sub-input"
+                      placeholder="Sub-booth name (e.g. Demo Station 1)"
+                      maxlength="80"
+                      [value]="subName()"
+                      (input)="subName.set($any($event.target).value)"
+                    />
+                    <input
+                      type="text"
+                      class="sub-input"
+                      placeholder="Location (optional, defaults to the booth's location)"
+                      maxlength="120"
+                      [value]="subLocation()"
+                      (input)="subLocation.set($any($event.target).value)"
+                    />
+                    @if (subError()) {
+                      <p class="sub-error" role="alert">{{ subError() }}</p>
+                    }
+                    <div class="sub-actions">
+                      <button type="button" class="btn-sub-cancel" (click)="cancelSubBooth()">Cancel</button>
+                      <button type="submit" class="btn-sub-save" [disabled]="savingSub()">
+                        {{ savingSub() ? 'Saving…' : 'Add sub-booth' }}
+                      </button>
+                    </div>
+                  </form>
+                }
+              </div>
+            }
+          }
+        </div>
+      </article>
+    </section>
+
+    <!-- Sub-booth detail (opens when a sub-booth name is clicked) -->
+    @if (selectedSub(); as detail) {
+      <article class="telemetry-card sub-detail-card">
+        <header class="telemetry-header">
+          <div>
+            <h2 class="telemetry-title">SUB-BOOTH: {{ detail.station.name }}</h2>
+            <p class="telemetry-subtitle">Part of {{ detail.parentName }}</p>
+          </div>
+          <button type="button" class="btn-sub-cancel" (click)="closeSubDetail()">Close</button>
+        </header>
+
+        <div class="sub-detail-stats">
+          <div class="sub-detail-stat">
+            <strong>{{ detail.station.scans }}</strong>
+            <span>{{ detail.station.scans === 1 ? 'scan' : 'scans' }} at this sub-booth</span>
+          </div>
+          <div class="sub-detail-stat">
+            <strong>{{ detail.parentScans }}</strong>
+            <span>{{ detail.parentScans === 1 ? 'scan' : 'scans' }} at {{ detail.parentName }}</span>
+          </div>
+          <div class="sub-detail-stat">
+            <strong>{{ detail.share }}%</strong>
+            <span>of the booth and sub-booth total</span>
+          </div>
+        </div>
+
+        <h3 class="sub-detail-heading">Recent scans here</h3>
+        @if (detail.scans.length === 0) {
+          <p class="no-stations">No recent scans at this sub-booth yet.</p>
+        } @else {
+          <div class="stream-table-wrapper">
+            <table class="stream-table">
+              <thead>
+                <tr>
+                  <th scope="col">ATTENDEE</th>
+                  <th scope="col">PASS CODE</th>
+                  <th scope="col">TIME</th>
+                  <th scope="col">STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (scan of detail.scans; track scan.id) {
+                  <tr class="stream-row">
+                    <td class="td-attendee">
+                      <strong class="attendee-name">{{ scan.attendeeName }}</strong>
+                      <span class="attendee-org">{{ scan.affiliation }}</span>
+                    </td>
+                    <td class="td-code"><code class="pass-code">{{ scan.ticketCode }}</code></td>
+                    <td class="td-time"><span class="time-text">{{ scan.scannedAt | date: 'hh:mm:ss a' }}</span></td>
+                    <td class="td-status">
+                      <span class="stream-status-badge" [class.status-success]="scan.status === 'SUCCESS'" [class.status-duplicate]="scan.status === 'DUPLICATE'" [class.status-invalid]="scan.status === 'INVALID_TICKET'" [class.status-warning]="scan.status === 'WARNING_NO_MAIN_ENTRY'">
+                        {{ scan.statusLabel }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </article>
+    }
+
+    <!-- 3. Bottom Row: Recent Check-In Activity Stream -->
+    <article class="telemetry-card activity-card">
+      <header class="telemetry-header activity-header">
+        <div>
+          <h2 class="telemetry-title">RECENT CHECK-IN ACTIVITY STREAM</h2>
+          <p class="telemetry-subtitle">Real-time scan logs across all gates</p>
+        </div>
+        <button
+          type="button"
+          class="btn-export-csv"
+          (click)="exportCsv()"
+          [disabled]="exporting()"
+        >
+          <svg class="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>{{ exporting() ? 'Exporting…' : 'Export Scans CSV' }}</span>
+        </button>
+      </header>
+
+      <div class="stream-table-wrapper">
+        <table class="stream-table">
+          <thead>
+            <tr>
+              <th scope="col">ATTENDEE</th>
+              <th scope="col">PASS CODE</th>
+              <th scope="col">STATION</th>
+              <th scope="col">TIME</th>
+              <th scope="col">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (recentScans().length === 0) {
+              <tr>
+                <td colspan="5" class="empty-stream-cell">
+                  <span>No check-in activity recorded yet for this event.</span>
+                </td>
+              </tr>
+            } @else {
+              @for (scan of recentScans(); track scan.id) {
+                <tr class="stream-row">
+                  <td class="td-attendee">
+                    <strong class="attendee-name">{{ scan.attendeeName }}</strong>
+                    <span class="attendee-org">{{ scan.affiliation }}</span>
+                  </td>
+                  <td class="td-code">
+                    <code class="pass-code">{{ scan.ticketCode }}</code>
+                  </td>
+                  <td class="td-station">
+                    <span class="station-text">{{ scan.stationName }}</span>
+                  </td>
+                  <td class="td-time">
+                    <span class="time-text">{{ scan.scannedAt | date: 'hh:mm:ss a' }}</span>
+                  </td>
+                  <td class="td-status">
+                    <span
+                      class="stream-status-badge"
+                      [class.status-duplicate]="scan.status === 'DUPLICATE'"
+                      [class.status-success]="scan.status === 'SUCCESS'"
+                      [class.status-invalid]="scan.status === 'INVALID_TICKET'"
+                      [class.status-warning]="scan.status === 'WARNING_NO_MAIN_ENTRY'"
+                    >
+                      {{ scan.statusLabel }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <!-- 4. Event Staff & Checkpoint Operators -->
+    <article class="telemetry-card staff-card">
+      <header class="telemetry-header staff-header">
+        <div>
+          <h2 class="telemetry-title">EVENT STAFF &amp; CHECKPOINT OPERATORS</h2>
+          <p class="telemetry-subtitle">Authorize team members to scan tickets and manage checkpoints for this event</p>
+        </div>
+      </header>
+
+      <div class="staff-card-content">
+        <!-- Add Staff Form -->
+        <div class="add-staff-bar">
+          <div class="input-wrapper">
+            <input
+              #staffEmailInput
+              type="email"
+              class="form-input"
+              placeholder="Enter user email (e.g. staff@dlsud.edu.ph)"
+              (keydown.enter)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+            />
+          </div>
+          <button
+            type="button"
+            class="btn-add-staff"
+            [disabled]="addingStaff()"
+            (click)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+          >
+            @if (addingStaff()) {
+              <span>Adding...</span>
+            } @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-plus" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add Staff</span>
+            }
+          </button>
+        </div>
+
+        @if (staffError()) {
+          <div class="staff-error-banner" role="alert">
+            <span>{{ staffError() }}</span>
+          </div>
+        }
+
+        <!-- Staff Members Table -->
+        <div class="staff-table-wrapper">
+          @if (staffLoading()) {
+            <div class="staff-loading">Loading event staff roster...</div>
+          } @else if (staffList().length === 0) {
+            <div class="staff-empty">
+              <p>No staff assigned yet. As the organizer, you have scanner access automatically.</p>
+            </div>
+          } @else {
+            <table class="stream-table">
+              <thead>
+                <tr>
+                  <th scope="col">NAME</th>
+                  <th scope="col">EMAIL</th>
+                  <th scope="col">AFFILIATION</th>
+                  <th scope="col">ASSIGNED</th>
+                  <th scope="col">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (member of staffList(); track member.id) {
+                  <tr class="stream-row">
+                    <td><strong class="attendee-name">{{ member.fullName }}</strong></td>
+                    <td><span class="member-email">{{ member.email }}</span></td>
+                    <td><span class="member-org">{{ member.affiliation || 'Staff Member' }}</span></td>
+                    <td><span class="time-text">{{ member.assignedAt | date: 'MMM d, y' }}</span></td>
+                    <td>
+                      <button
+                        type="button"
+                        class="btn-remove-staff"
+                        (click)="removeStaffMember(member.userId)"
+                        aria-label="Remove staff member"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+    </article>
+
+  }
+</div>

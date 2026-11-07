@@ -26,6 +26,91 @@ export interface OrganizerEvent {
   review_notes: string | null;
   reviewed_at: string | null;
   submitted_at: string;
+  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category_label?: string;
+  checkpoints_count?: number;
+  admitted_count?: number;
+  is_private?: boolean;
+}
+
+export interface EventLiveKpis {
+  totalRsvps: number;
+  checkedInAttendees: number;
+  attendanceRate: number;
+  venueOccupancy: number;
+  maxCapacity: number | null;
+  activeStationsCount: number;
+  totalVerifiedScans: number;
+}
+
+export interface HourlyFlowPoint {
+  hour: string;
+  scans: number;
+}
+
+export interface StationTraffic {
+  id: string;
+  name: string;
+  type: string;
+  scans: number;
+  percentage: number;
+}
+
+export interface RecentScanItem {
+  id: string;
+  attendeeName: string;
+  affiliation: string;
+  ticketCode: string;
+  stationName: string;
+  scannedAt: string;
+  status: string;
+  statusLabel: string;
+}
+
+export interface EventLiveOverview {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  categoryLabel: string;
+  capacity: number | null;
+  venue: string;
+  startsAt: string;
+  endsAt: string;
+  kpis: EventLiveKpis;
+  hourlyFlow: HourlyFlowPoint[];
+  stationTraffic: StationTraffic[];
+  recentScans: RecentScanItem[];
+}
+
+export interface EventCheckpoint {
+  id: string;
+  name: string;
+  location: string | null;
+  type: string;
+  allowMultipleScans: boolean;
+  requireMainEntry: boolean;
+  eventId: string;
+  eventName: string;
+}
+
+export interface EventStaff {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+}
+
+export interface RecordScanResponse {
+  scanResult: 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET';
+  ticketCode: string;
+  attendeeName?: string;
+  affiliation?: string;
+  stationName?: string;
+  scannedAt: string;
+  message: string;
 }
 
 type EditableEventFields =
@@ -35,7 +120,8 @@ type EditableEventFields =
   | 'starts_at'
   | 'ends_at'
   | 'capacity'
-  | 'allow_walk_ins';
+  | 'allow_walk_ins'
+  | 'is_private';
 
 export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>>;
 
@@ -50,4 +136,23 @@ export interface EventRegistrant {
   ticket_id: string;
   registered_at: string;
   status: RegistrationStatus;
+}
+
+export interface GuestFilePreview {
+  fileName: string;
+  totalRows: number;
+  detectedHeaders: string[];
+  sampleRows: string[][];
+}
+
+export interface GuestImportMapping {
+  hasHeaders?: boolean;
+  nameMode?: 'single' | 'split';
+  fullNameColumn?: string | number;
+  firstNameColumn?: string | number;
+  lastNameColumn?: string | number;
+  emailColumn: string | number;
+  studentIdColumn?: string | number;
+  contactNumberColumn?: string | number;
+  affiliationColumn?: string | number;
 }

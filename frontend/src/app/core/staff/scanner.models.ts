@@ -4,6 +4,7 @@ export type ScanResult = 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'IN
 
 /** A checkpoint the signed-in staff member is assigned to (checkpoint_staff). */
 export interface StaffCheckpoint {
+  parentId?: string | null;
   id: string;
   name: string;
   location: string | null;

@@ -6,8 +6,8 @@
 
 /* Station Selector Card */
 .station-selector-card {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
+  background-color: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border-light, #e2e5e9);
   border-radius: 12px;
   padding: 16px 20px;
   display: flex;
@@ -31,12 +31,12 @@
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: var(--color-slate-dark, #5f5e5a);
 
   .icon-station {
     width: 16px;
     height: 16px;
-    color: #0d5c46;
+    color: var(--color-forest-green, #0f6e56);
   }
 }
 
@@ -48,20 +48,20 @@
 
 .station-select-input {
   appearance: none;
-  background-color: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  background-color: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border-light, #e2e5e9);
+  border-radius: 8px;
   padding: 8px 34px 8px 12px;
   font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--color-charcoal-dark, #1a1a1a);
   outline: none;
   cursor: pointer;
   min-width: 240px;
 
   &:focus {
-    border-color: #0d5c46;
-    box-shadow: 0 0 0 3px rgba(13, 92, 70, 0.1);
+    border-color: var(--color-forest-green, #0f6e56);
+    box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.12);
   }
 }
 
@@ -70,19 +70,20 @@
   right: 10px;
   width: 14px;
   height: 14px;
-  color: #64748b;
+  color: var(--color-slate-medium, #6b6b6b);
   pointer-events: none;
 }
 
 .station-meta-badge {
   font-size: 12px;
-  color: #475569;
-  background-color: #f1f5f9;
+  color: var(--color-slate-dark, #5f5e5a);
+  background-color: var(--color-mint-subtle, #f1f5f3);
+  border: 1px solid var(--color-border-light, #e2e5e9);
   padding: 4px 10px;
   border-radius: 6px;
 
   strong {
-    color: #0d5c46;
+    color: var(--color-forest-green, #0f6e56);
     font-weight: 700;
   }
 }
@@ -94,15 +95,15 @@
   gap: 16px;
   padding: 16px 20px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border-light, #e2e5e9);
   animation: slideIn 0.2s ease;
 
   &.feedback-success {
-    background-color: #ecfdf5;
-    border-color: #a7f3d0;
-    color: #065f46;
+    background-color: var(--color-mint-light, #e1f5ee);
+    border-color: #bce3d6;
+    color: var(--color-forest-green, #0f6e56);
     .feedback-icon-wrap {
-      background-color: #059669;
+      background-color: var(--color-forest-green, #0f6e56);
       color: #ffffff;
     }
   }
@@ -215,8 +216,8 @@
 
 /* Camera Card */
 .camera-card {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
+  background-color: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border-light, #e2e5e9);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
@@ -226,7 +227,7 @@
   position: relative;
   width: 100%;
   height: 300px;
-  background-color: #0f172a;
+  background-color: var(--color-charcoal-dark, #1a1a1a);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -249,7 +250,7 @@
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #94a3b8;
+  color: var(--color-gray-placeholder, #9a9a9a);
   padding: 24px;
   text-align: center;
 
@@ -261,7 +262,7 @@
   .idle-cam-icon {
     width: 44px;
     height: 44px;
-    color: #475569;
+    color: var(--color-slate-medium, #6b6b6b);
   }
 }
 
@@ -269,10 +270,10 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: #0d5c46;
+  background-color: var(--color-forest-green, #0f6e56);
   color: #ffffff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 9px 18px;
   font-size: 13px;
   font-weight: 600;
@@ -280,7 +281,7 @@
   transition: background-color 0.15s ease;
 
   &:hover {
-    background-color: #094534;
+    background-color: var(--color-emerald-accent, #1d9e75);
   }
 
   .btn-svg {
@@ -301,7 +302,7 @@
   position: absolute;
   width: 24px;
   height: 24px;
-  border-color: #10b981;
+  border-color: var(--color-emerald-accent, #1d9e75);
   border-style: solid;
 
   &.corner-tl {
@@ -331,8 +332,8 @@
   left: 0;
   right: 0;
   height: 2px;
-  background-color: #10b981;
-  box-shadow: 0 0 8px #10b981;
+  background-color: var(--color-emerald-accent, #1d9e75);
+  box-shadow: 0 0 8px var(--color-emerald-accent, #1d9e75);
   animation: scanLaser 2s linear infinite;
 }
 
@@ -356,14 +357,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background-color: #ffffff;
-  border-top: 1px solid #e2e8f0;
+  background-color: var(--color-white, #ffffff);
+  border-top: 1px solid var(--color-border-light, #e2e5e9);
 }
 
 .btn-stop-camera {
   padding: 6px 14px;
-  background-color: #ffffff;
-  border: 1px solid #cbd5e1;
+  background-color: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border-light, #e2e5e9);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -378,7 +379,7 @@
 
 .camera-status-text {
   font-size: 12px;
-  color: #0d5c46;
+  color: var(--color-forest-green, #0f6e56);
   font-weight: 600;
 }
 
@@ -392,8 +393,8 @@
 
 /* Manual Code Card */
 .manual-code-card {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
+  background-color: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border-light, #e2e5e9);
   border-radius: 12px;
   padding: 18px 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
@@ -406,13 +407,13 @@
     margin: 0;
     font-size: 14px;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--color-charcoal-dark, #1a1a1a);
   }
 
   .card-subtitle {
     margin: 2px 0 0;
     font-size: 12px;
-    color: #64748b;
+    color: var(--color-slate-medium, #6b6b6b);
   }
 }
 
@@ -423,32 +424,32 @@
   .code-input {
     flex: 1;
     padding: 9px 14px;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
+    border: 1px solid var(--color-border-light, #e2e5e9);
+    border-radius: 8px;
     font-size: 14px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    color: #0f172a;
+    color: var(--color-charcoal-dark, #1a1a1a);
     outline: none;
 
     &:focus {
-      border-color: #0d5c46;
-      box-shadow: 0 0 0 3px rgba(13, 92, 70, 0.12);
+      border-color: var(--color-forest-green, #0f6e56);
+      box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.12);
     }
   }
 
   .btn-verify {
     padding: 9px 20px;
-    background-color: #0d5c46;
+    background-color: var(--color-forest-green, #0f6e56);
     color: #ffffff;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
 
     &:hover:not(:disabled) {
-      background-color: #094534;
+      background-color: var(--color-emerald-accent, #1d9e75);
     }
 
     &:disabled {
@@ -465,8 +466,8 @@
 }
 
 .station-feed-card {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
+  background-color: var(--color-white, #ffffff);
+  border: 1px solid var(--color-border-light, #e2e5e9);
   border-radius: 12px;
   padding: 18px 20px;
   display: flex;
@@ -481,19 +482,19 @@
   justify-content: space-between;
   align-items: center;
   padding-bottom: 12px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #eef1f0;
 
   .feed-title {
     margin: 0;
     font-size: 14px;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--color-charcoal-dark, #1a1a1a);
   }
 
   .feed-badge {
     font-size: 11px;
-    color: #64748b;
-    background-color: #f1f5f9;
+    color: var(--color-slate-medium, #6b6b6b);
+    background-color: var(--color-mint-subtle, #f1f5f3);
     padding: 2px 8px;
     border-radius: 4px;
   }
@@ -510,7 +511,7 @@
 .feed-empty {
   padding: 40px 16px;
   text-align: center;
-  color: #94a3b8;
+  color: var(--color-gray-placeholder, #9a9a9a);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -532,8 +533,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px;
-  background-color: #f8fafc;
-  border: 1px solid #f1f5f9;
+  background-color: var(--color-mint-subtle, #f1f5f3);
+  border: 1px solid #eef1f0;
   border-radius: 8px;
 }
 
@@ -546,7 +547,7 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: 700;
-    color: #0d5c46;
+    color: var(--color-forest-green, #0f6e56);
   }
 
   .feed-pill {
@@ -556,8 +557,8 @@
     border-radius: 4px;
 
     &.pill-success {
-      background-color: #ecfdf5;
-      color: #065f46;
+      background-color: var(--color-mint-light, #e1f5ee);
+      color: var(--color-forest-green, #0f6e56);
     }
     &.pill-duplicate,
     &.pill-warning {
@@ -579,11 +580,11 @@
 
   .feed-name {
     font-weight: 600;
-    color: #1e293b;
+    color: var(--color-charcoal-dark, #1a1a1a);
   }
 
   .feed-time {
-    color: #94a3b8;
+    color: var(--color-gray-placeholder, #9a9a9a);
   }
 }
 

@@ -102,19 +102,19 @@
             </defs>
 
             <!-- Grid Lines -->
-            <line x1="40" y1="24" x2="560" y2="24" stroke="#f1f5f9" stroke-width="1"></line>
-            <line x1="40" y1="69" x2="560" y2="69" stroke="#f1f5f9" stroke-width="1"></line>
-            <line x1="40" y1="114" x2="560" y2="114" stroke="#f1f5f9" stroke-width="1"></line>
-            <line x1="40" y1="136" x2="560" y2="136" stroke="#e2e8f0" stroke-width="1"></line>
+            <line x1="40" y1="24" x2="560" y2="24" stroke="#eef1f0" stroke-width="1"></line>
+            <line x1="40" y1="69" x2="560" y2="69" stroke="#eef1f0" stroke-width="1"></line>
+            <line x1="40" y1="114" x2="560" y2="114" stroke="#eef1f0" stroke-width="1"></line>
+            <line x1="40" y1="136" x2="560" y2="136" stroke="#e2e5e9" stroke-width="1"></line>
 
             <!-- Area & Path -->
             @if (chartSvgData().area) {
               <path [attr.d]="chartSvgData().area" fill="url(#flowGradient)"></path>
-              <path [attr.d]="chartSvgData().path" fill="none" stroke="#0d5c46" stroke-width="2.5" stroke-linecap="round"></path>
+              <path [attr.d]="chartSvgData().path" fill="none" stroke="#0f6e56" stroke-width="2.5" stroke-linecap="round"></path>
 
               <!-- Points -->
               @for (pt of chartSvgData().points; track pt.hour) {
-                <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="3.5" fill="#ffffff" stroke="#0d5c46" stroke-width="2"></circle>
+                <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="3.5" fill="#ffffff" stroke="#0f6e56" stroke-width="2"></circle>
               }
             }
           </svg>

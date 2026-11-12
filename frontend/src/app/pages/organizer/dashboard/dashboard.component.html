@@ -1,278 +1,400 @@
-<div class="organizer-container">
-  <!-- Page Header -->
-  <header class="page-topline">
-    <div class="header-titles">
-      <h1 class="main-title">My Organized Events</h1>
-      <p class="main-subtitle">Overview of events you coordinate, venue occupancy metrics, and operational gates.</p>
-    </div>
-    <div class="header-actions">
-      <button class="btn-host-event" type="button" (click)="openCreate()">
-        <svg class="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>Host or Propose Event</span>
-      </button>
-    </div>
-  </header>
-
-  @if (notice()) {
-    <div class="notice-banner" role="status">
-      <span>{{ notice() }}</span>
-      <button type="button" class="notice-dismiss" (click)="notice.set('')" aria-label="Dismiss notice">×</button>
-    </div>
-  }
-
-  <!-- Toolbar: Search & Format Filter Pills -->
-  <section class="events-toolbar" aria-label="Event filters">
-    <div class="search-box">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="11" cy="11" r="8"></circle>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-      </svg>
-      <input
-        type="search"
-        class="search-input"
-        [formControl]="searchControl"
-        placeholder="Search events by title or venue..."
-        aria-label="Search events by title or venue"
-      />
-      @if (searchControl.value) {
-        <button type="button" class="btn-clear-search" (click)="searchControl.setValue('')" aria-label="Clear search">
-          ×
+<div class="dashboard-shell">
+  <div class="organizer-container">
+    <!-- Page Header -->
+    <header class="page-topline">
+      <div class="header-titles">
+        <h1 class="main-title">My Organized Events</h1>
+        <p class="main-subtitle">Overview of events you coordinate, venue occupancy metrics, and operational gates.</p>
+      </div>
+      <div class="header-actions">
+        <span class="today">{{ now | date: 'EEEE, MMMM d, y' }}</span>
+        <button class="btn-host-event" type="button" (click)="openCreate()">
+          <svg class="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Host or Propose Event</span>
         </button>
-      }
-    </div>
-
-    <div class="format-pills" role="tablist" aria-label="Filter by format">
-      <button
-        type="button"
-        class="filter-pill"
-        [class.active]="selectedFormat() === 'ALL'"
-        (click)="setFormat('ALL')"
-      >
-        All Formats
-      </button>
-      <button
-        type="button"
-        class="filter-pill"
-        [class.active]="selectedFormat() === 'CONFERENCE'"
-        (click)="setFormat('CONFERENCE')"
-      >
-        Conference
-      </button>
-      <button
-        type="button"
-        class="filter-pill"
-        [class.active]="selectedFormat() === 'EXPO'"
-        (click)="setFormat('EXPO')"
-      >
-        Expo
-      </button>
-      <button
-        type="button"
-        class="filter-pill"
-        [class.active]="selectedFormat() === 'MEETUP'"
-        (click)="setFormat('MEETUP')"
-      >
-        Meetup
-      </button>
-      <button
-        type="button"
-        class="filter-pill"
-        [class.active]="selectedFormat() === 'HACKATHON'"
-        (click)="setFormat('HACKATHON')"
-      >
-        Hackathon
-      </button>
-      <button
-        type="button"
-        class="filter-pill"
-        [class.active]="selectedFormat() === 'WORKSHOP'"
-        (click)="setFormat('WORKSHOP')"
-      >
-        Workshop
-      </button>
-    </div>
-  </section>
-
-  <!-- Table Section -->
-  <section class="table-card">
-    @if (loading()) {
-      <div class="table-loading" role="status">
-        <div class="loading-spinner" aria-hidden="true"></div>
-        <p>Loading your events…</p>
       </div>
-    } @else if (loadError()) {
-      <div class="table-error" role="alert">
-        <h3>Unable to load events</h3>
-        <p>{{ loadError() }}</p>
-        <button type="button" class="btn-retry" (click)="reloadEvents()">Retry</button>
+    </header>
+
+    @if (notice()) {
+      <div class="notice-banner" role="status">
+        <span>{{ notice() }}</span>
+        <button type="button" class="notice-dismiss" (click)="notice.set('')" aria-label="Dismiss notice">×</button>
       </div>
-    } @else if (filteredEvents().length === 0) {
-      <div class="table-empty">
-        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <h3>{{ events().length ? 'No matching events found' : 'No organized events yet' }}</h3>
-        <p>
-          {{
-            events().length
-              ? 'Try adjusting your search query or format filter.'
-              : 'Propose your first event to start coordinating attendees and gates.'
-          }}
-        </p>
+    }
+
+    <!-- Summary KPI Grid -->
+    <section class="summary-grid" aria-label="Organizer event metrics">
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>Organized Events</span>
+          <span class="summary-icon events-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </span>
+        </div>
+        <strong class="summary-value">{{ events().length }}</strong>
+        <small>{{ pendingEvents() }} awaiting admin approval</small>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>Total Registrations</span>
+          <span class="summary-icon registration-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </span>
+        </div>
+        <strong class="summary-value">{{ totalRegistrations() | number }}</strong>
+        <small>Across all organized events</small>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>Upcoming Events</span>
+          <span class="summary-icon upcoming-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </span>
+        </div>
+        <strong class="summary-value">{{ upcomingEvents() }}</strong>
+        <small>Approved and ready for check-in</small>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-topline">
+          <span>Open Seats</span>
+          <span class="summary-icon seats-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path>
+              <path d="M13 5v2"></path>
+              <path d="M13 17v2"></path>
+            </svg>
+          </span>
+        </div>
+        <strong class="summary-value">{{ openSeats() | number }}</strong>
+        <small>Remaining registration capacity</small>
+      </article>
+    </section>
+
+    <!-- Events Roster Card -->
+    <section class="table-card">
+      <div class="section-heading">
+        <div>
+          <h2>Event Roster</h2>
+          <p>Filter events, track live admissions, or open a workspace to manage gates and guests.</p>
+        </div>
+        <span class="event-count">{{ filteredEvents().length }} of {{ events().length }} events</span>
       </div>
-    } @else {
-      <div class="table-scroll-wrapper">
-        <table class="events-table">
-          <thead>
-            <tr>
-              <th scope="col" class="th-details">EVENT DETAILS</th>
-              <th scope="col" class="th-visibility">VISIBILITY</th>
-              <th scope="col" class="th-date-venue">DATE &amp; VENUE</th>
-              <th scope="col" class="th-rsvp">RSVP &amp; CAPACITY</th>
-              <th scope="col" class="th-admitted">ADMITTED</th>
-              <th scope="col" class="th-status">STATUS</th>
-              <th scope="col" class="th-actions">ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (event of paginatedEvents(); track event.id) {
-              <tr class="event-row">
-                <!-- 1. EVENT DETAILS -->
-                <td class="td-details">
-                  <div class="details-group">
-                    <span class="event-name">{{ event.name }}</span>
-                    <div class="tags-group">
-                      <span class="badge-format" [class]="'format-' + getCategory(event).toLowerCase()">
-                        {{ getCategory(event) }}
-                      </span>
-                      <span class="badge-gates">{{ getGatesCount(event) }} gates</span>
-                    </div>
-                  </div>
-                </td>
 
-                <!-- 2. VISIBILITY -->
-                <td class="td-visibility">
-                  <div class="visibility-cell">
-                    <svg class="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="2" y1="12" x2="22" y2="12"></line>
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                    </svg>
-                    <span>Public</span>
-                  </div>
-                </td>
-
-                <!-- 3. DATE & VENUE -->
-                <td class="td-date-venue">
-                  <div class="date-venue-cell">
-                    <strong class="event-date">{{ event.starts_at | date: 'MMM d, y' }}</strong>
-                    <span class="event-venue">{{ event.venue }}</span>
-                  </div>
-                </td>
-
-                <!-- 4. RSVP & CAPACITY -->
-                <td class="td-rsvp">
-                  <div class="rsvp-cell">
-                    <strong class="rsvp-numbers">
-                      {{ event.registrations_count }} / {{ event.capacity ? (event.capacity | number) : '∞' }}
-                    </strong>
-                    <span class="rsvp-subtext">
-                      {{ registrationProgress(event.registrations_count, event.capacity) | percent: '1.0-0' }} booked
-                    </span>
-                  </div>
-                </td>
-
-                <!-- 5. ADMITTED -->
-                <td class="td-admitted">
-                  <div class="admitted-cell">
-                    <strong class="admitted-numbers">
-                      {{ getAdmittedCount(event) }} ({{ getAdmittedPercent(event) }}%)
-                    </strong>
-                    <div class="progress-track" aria-hidden="true">
-                      <div class="progress-fill" [style.width.%]="getAdmittedPercent(event)"></div>
-                    </div>
-                  </div>
-                </td>
-
-                <!-- 6. STATUS -->
-                <td class="td-status">
-                  <div class="status-cell">
-                    <span class="status-dot"></span>
-                    <span class="status-label">
-                      {{ event.approval_status === 'Approved' ? 'PUBLISHED' : event.approval_status.toUpperCase() }}
-                    </span>
-                  </div>
-                </td>
-
-                <!-- 7. ACTIONS -->
-                <td class="td-actions">
-                  <div class="actions-group">
-                    <a
-                      class="btn-view-event"
-                      [routerLink]="['/organizer/events', event.id, 'overview']"
-                    >
-                      <span>View Event</span>
-                      <svg class="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                        <polyline points="12 5 19 12 12 19"></polyline>
-                      </svg>
-                    </a>
-                    <a
-                      class="btn-scan-action"
-                      [routerLink]="['/organizer/events', event.id, 'scanner']"
-                      title="Open Scanner for {{ event.name }}"
-                    >
-                      <svg class="icon-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <rect x="3" y="3" width="7" height="7"></rect>
-                        <rect x="14" y="3" width="7" height="7"></rect>
-                        <rect x="14" y="14" width="7" height="7"></rect>
-                        <rect x="3" y="14" width="7" height="7"></rect>
-                      </svg>
-                      <span>Scan</span>
-                    </a>
-                  </div>
-                </td>
-              </tr>
+      <!-- Toolbar: Search, Status & Format Filters -->
+      <div class="events-toolbar" aria-label="Event filters">
+        <div class="toolbar-controls">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="search"
+              class="search-input"
+              [formControl]="searchControl"
+              placeholder="Search events by title or venue..."
+              aria-label="Search events by title or venue"
+            />
+            @if (searchControl.value) {
+              <button type="button" class="btn-clear-search" (click)="searchControl.setValue('')" aria-label="Clear search">
+                ×
+              </button>
             }
-          </tbody>
-        </table>
-      </div>
+          </div>
 
-      <!-- Pagination Footer -->
-      <footer class="pagination-footer">
-        <span class="pagination-meta">
-          Showing <strong>{{ (currentPage() - 1) * pageSize + 1 }}</strong> to
-          <strong>{{ Math.min(currentPage() * pageSize, filteredEvents().length) }}</strong> of
-          <strong>{{ filteredEvents().length }}</strong> events
-        </span>
-        <div class="pagination-controls">
+          <label class="status-filter">
+            <span class="sr-only">Filter events by status</span>
+            <select [formControl]="statusControl">
+              <option>All statuses</option>
+              <optgroup label="Schedule">
+                <option>Upcoming</option>
+                <option>In progress</option>
+                <option>Completed</option>
+              </optgroup>
+              <optgroup label="Approval">
+                <option>Pending</option>
+                <option>Approved</option>
+                <option>Rejected</option>
+              </optgroup>
+            </select>
+          </label>
+        </div>
+
+        <div class="format-pills" role="tablist" aria-label="Filter by format">
           <button
             type="button"
-            class="btn-page"
-            [disabled]="currentPage() === 1"
-            (click)="prevPage()"
-            aria-label="Previous page"
+            class="filter-pill"
+            [class.active]="selectedFormat() === 'ALL'"
+            (click)="setFormat('ALL')"
           >
-            Previous
+            All Formats
           </button>
-          <span class="page-indicator">Page {{ currentPage() }} of {{ totalPages() }}</span>
           <button
             type="button"
-            class="btn-page"
-            [disabled]="currentPage() === totalPages()"
-            (click)="nextPage()"
-            aria-label="Next page"
+            class="filter-pill"
+            [class.active]="selectedFormat() === 'CONFERENCE'"
+            (click)="setFormat('CONFERENCE')"
           >
-            Next
+            Conference
+          </button>
+          <button
+            type="button"
+            class="filter-pill"
+            [class.active]="selectedFormat() === 'EXPO'"
+            (click)="setFormat('EXPO')"
+          >
+            Expo
+          </button>
+          <button
+            type="button"
+            class="filter-pill"
+            [class.active]="selectedFormat() === 'MEETUP'"
+            (click)="setFormat('MEETUP')"
+          >
+            Meetup
+          </button>
+          <button
+            type="button"
+            class="filter-pill"
+            [class.active]="selectedFormat() === 'HACKATHON'"
+            (click)="setFormat('HACKATHON')"
+          >
+            Hackathon
+          </button>
+          <button
+            type="button"
+            class="filter-pill"
+            [class.active]="selectedFormat() === 'WORKSHOP'"
+            (click)="setFormat('WORKSHOP')"
+          >
+            Workshop
           </button>
         </div>
-      </footer>
-    }
-  </section>
+      </div>
+
+      @if (loading()) {
+        <div class="table-loading" role="status">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p>Loading your events…</p>
+        </div>
+      } @else if (loadError()) {
+        <div class="table-error" role="alert">
+          <h3>Unable to load events</h3>
+          <p>{{ loadError() }}</p>
+          <button type="button" class="btn-retry" (click)="reloadEvents()">Retry</button>
+        </div>
+      } @else if (filteredEvents().length === 0) {
+        <div class="table-empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <h3>{{ events().length ? 'No matching events found' : 'No organized events yet' }}</h3>
+          <p>
+            {{
+              events().length
+                ? 'Try adjusting your search query, status, or format filter.'
+                : 'Propose your first event to start coordinating attendees and gates.'
+            }}
+          </p>
+        </div>
+      } @else {
+        <div class="table-scroll-wrapper" tabindex="0" role="region" aria-label="Organized events table">
+          <table class="events-table">
+            <thead>
+              <tr>
+                <th scope="col" class="th-details">Event Details</th>
+                <th scope="col" class="th-visibility">Visibility</th>
+                <th scope="col" class="th-date-venue">Date &amp; Venue</th>
+                <th scope="col" class="th-rsvp">RSVP &amp; Capacity</th>
+                <th scope="col" class="th-admitted">Admitted</th>
+                <th scope="col" class="th-status">Status</th>
+                <th scope="col" class="th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (event of paginatedEvents(); track event.id) {
+                <tr class="event-row">
+                  <!-- 1. EVENT DETAILS -->
+                  <th scope="row" class="td-details">
+                    <div class="details-group">
+                      <span class="event-name">{{ event.name }}</span>
+                      <div class="tags-group">
+                        <span class="badge-format" [class]="'format-' + getCategory(event).toLowerCase()">
+                          {{ getCategory(event) }}
+                        </span>
+                        <span class="badge-gates">{{ getGatesCount(event) }} gates</span>
+                      </div>
+                      @if (event.approval_status === 'Rejected' && event.review_notes) {
+                        <small class="review-note" [title]="event.review_notes">
+                          Admin: {{ event.review_notes }}
+                        </small>
+                      }
+                    </div>
+                  </th>
+
+                  <!-- 2. VISIBILITY -->
+                  <td class="td-visibility">
+                    <div class="visibility-cell">
+                      @if (event.is_private) {
+                        <svg class="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <span>Private</span>
+                      } @else {
+                        <svg class="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="2" y1="12" x2="22" y2="12"></line>
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                        <span>Public</span>
+                      }
+                    </div>
+                  </td>
+
+                  <!-- 3. DATE & VENUE -->
+                  <td class="td-date-venue">
+                    <div class="date-venue-cell">
+                      <strong class="event-date">{{ event.starts_at | date: 'MMM d, y' }}</strong>
+                      <span class="event-venue">{{ event.venue }}</span>
+                    </div>
+                  </td>
+
+                  <!-- 4. RSVP & CAPACITY -->
+                  <td class="td-rsvp">
+                    <div class="rsvp-cell">
+                      <strong class="rsvp-numbers">
+                        {{ event.registrations_count }} / {{ event.capacity ? (event.capacity | number) : '∞' }}
+                      </strong>
+                      <span class="rsvp-subtext">
+                        {{ registrationProgress(event.registrations_count, event.capacity) | percent: '1.0-0' }} booked
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- 5. ADMITTED -->
+                  <td class="td-admitted">
+                    <div class="admitted-cell">
+                      <strong class="admitted-numbers">
+                        {{ getAdmittedCount(event) }} ({{ getAdmittedPercent(event) }}%)
+                      </strong>
+                      <div class="progress-track" aria-hidden="true">
+                        <div class="progress-fill" [style.width.%]="getAdmittedPercent(event)"></div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- 6. STATUS -->
+                  <td class="td-status">
+                    <span class="status-cell" [attr.data-status]="event.approval_status">
+                      <span class="status-dot" aria-hidden="true"></span>
+                      <span class="status-label">
+                        {{ event.approval_status === 'Approved' ? 'Published' : event.approval_status }}
+                      </span>
+                    </span>
+                  </td>
+
+                  <!-- 7. ACTIONS -->
+                  <td class="td-actions">
+                    <div class="actions-group">
+                      <a
+                        class="btn-view-event"
+                        [routerLink]="['/organizer/events', event.id, 'overview']"
+                      >
+                        <span>Workspace</span>
+                        <svg class="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                          <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                      </a>
+                      <a
+                        class="btn-scan-action"
+                        [routerLink]="['/organizer/events', event.id, 'scanner']"
+                        title="Open Scanner for {{ event.name }}"
+                      >
+                        <svg class="icon-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <rect x="3" y="3" width="7" height="7"></rect>
+                          <rect x="14" y="3" width="7" height="7"></rect>
+                          <rect x="14" y="14" width="7" height="7"></rect>
+                          <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                        <span>Scan</span>
+                      </a>
+                      <button
+                        type="button"
+                        class="btn-row-action"
+                        (click)="openEdit(event)"
+                      >
+                        {{ event.approval_status === 'Rejected' ? 'Revise' : 'Edit' }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-row-danger"
+                        (click)="openDelete(event)"
+                        aria-label="Delete {{ event.name }}"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Footer -->
+        <footer class="pagination-footer">
+          <span class="pagination-meta">
+            Showing <strong>{{ (currentPage() - 1) * pageSize + 1 }}</strong> to
+            <strong>{{ Math.min(currentPage() * pageSize, filteredEvents().length) }}</strong> of
+            <strong>{{ filteredEvents().length }}</strong> events
+          </span>
+          <div class="pagination-controls">
+            <button
+              type="button"
+              class="btn-page"
+              [disabled]="currentPage() === 1"
+              (click)="prevPage()"
+              aria-label="Previous page"
+            >
+              Previous
+            </button>
+            <span class="page-indicator">Page {{ currentPage() }} of {{ totalPages() }}</span>
+            <button
+              type="button"
+              class="btn-page"
+              [disabled]="currentPage() === totalPages()"
+              (click)="nextPage()"
+              aria-label="Next page"
+            >
+              Next
+            </button>
+          </div>
+        </footer>
+      }
+    </section>
+  </div>
 </div>
 
 <!-- Create / Edit Event Dialog -->
@@ -414,6 +536,53 @@
           </button>
         </footer>
       </form>
+    </section>
+  </div>
+}
+
+<!-- Delete Confirmation Dialog -->
+@if (deletingEvent(); as target) {
+  <div
+    class="dialog-backdrop"
+    (click)="closeDelete()"
+    (keydown.escape)="closeDelete()"
+    tabindex="-1"
+  >
+    <section
+      class="edit-dialog confirm-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="dialog-header">
+        <div>
+          <h2 id="delete-dialog-title">Delete Event</h2>
+          <p class="dialog-subtitle">Are you sure you want to remove "{{ target.name }}"?</p>
+        </div>
+        <button
+          type="button"
+          class="dialog-close"
+          aria-label="Close delete dialog"
+          (click)="closeDelete()"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <div class="dialog-body">
+        <p class="delete-copy">
+          This removes "{{ target.name }}" from your current dashboard list.
+        </p>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="btn-cancel" (click)="closeDelete()">Cancel</button>
+        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()">Delete Event</button>
+      </footer>
     </section>
   </div>
 }

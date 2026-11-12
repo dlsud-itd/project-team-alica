@@ -231,12 +231,25 @@ describe('OrganizerDashboard', () => {
   it('should remove an event after the delete is confirmed', () => {
     const targetEvent = component.events()[0];
     component.openDelete(targetEvent);
+    fixture.detectChanges();
     expect(component.deletingEvent()).toEqual(targetEvent);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Delete Event');
 
     component.confirmDelete();
+    fixture.detectChanges();
 
     expect(component.deletingEvent()).toBeNull();
     expect(component.events()).toEqual([]);
     expect(component.notice()).toContain(targetEvent.name);
+  });
+
+  it('should render KPI summary cards and accurate event visibility', () => {
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Organized Events');
+    expect(text).toContain('Total Registrations');
+    expect(text).toContain('Upcoming Events');
+    expect(text).toContain('Open Seats');
+    expect(text).toContain('Public');
   });
 });

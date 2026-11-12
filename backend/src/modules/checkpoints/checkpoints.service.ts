@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -83,6 +84,19 @@ export class CheckpointsService {
   }
 
   async findMyCheckpoints(user: UserSummaryDto): Promise<StaffCheckpointDto[]> {
+    return this.findUserCheckpoints(user, false);
+  }
+
+  async findAccessibleCheckpoints(
+    user: UserSummaryDto,
+  ): Promise<StaffCheckpointDto[]> {
+    return this.findUserCheckpoints(user, true);
+  }
+
+  private async findUserCheckpoints(
+    user: UserSummaryDto,
+    includeOwnedEvents: boolean,
+  ): Promise<StaffCheckpointDto[]> {
     if (user.role === 'ADMIN') {
       const allActive = await this.prisma.checkpoint.findMany({
         where: { isActive: true, deletedAt: null },
@@ -93,7 +107,8 @@ export class CheckpointsService {
       return allActive.map((c) => this.toStaffDto(c));
     }
 
-    // For non-admin users, only return explicitly assigned checkpoints:
+    // For non-admin users, return explicitly assigned checkpoints
+    // (and checkpoints for events they organize when requested):
     // 1. Direct checkpoint assignments
     const directAssignments = await this.prisma.checkpointStaff.findMany({
       where: { userId: user.id, isActive: true },
@@ -108,7 +123,21 @@ export class CheckpointsService {
     });
     const eventIds = eventAssignments.map((a) => a.eventId);
 
-    if (directIds.length === 0 && eventIds.length === 0) {
+    if (!includeOwnedEvents && directIds.length === 0 && eventIds.length === 0) {
+      return [];
+    }
+
+    const orFilters = [
+      ...(directIds.length ? [{ id: { in: directIds } }] : []),
+      // Sub-booths follow their parent booth's assignment
+      ...(directIds.length ? [{ parentId: { in: directIds } }] : []),
+      ...(eventIds.length ? [{ eventId: { in: eventIds } }] : []),
+      ...(includeOwnedEvents
+        ? [{ event: { organizerId: user.id, deletedAt: null } }]
+        : []),
+    ];
+
+    if (orFilters.length === 0) {
       return [];
     }
 
@@ -116,12 +145,7 @@ export class CheckpointsService {
       where: {
         isActive: true,
         deletedAt: null,
-        OR: [
-          ...(directIds.length ? [{ id: { in: directIds } }] : []),
-          // Sub-booths follow their parent booth's assignment
-          ...(directIds.length ? [{ parentId: { in: directIds } }] : []),
-          ...(eventIds.length ? [{ eventId: { in: eventIds } }] : []),
-        ],
+        OR: orFilters,
       },
       include: { event: { select: { title: true } } },
       orderBy: { name: 'asc' },
@@ -129,7 +153,12 @@ export class CheckpointsService {
 
     return checkpoints.map((c) => this.toStaffDto(c));
   }
-  async createSubBooth(parentId: string, dto: CreateSubBoothDto): Promise<StaffCheckpointDto> {
+
+  async createSubBooth(
+    user: UserSummaryDto,
+    parentId: string,
+    dto: CreateSubBoothDto,
+  ): Promise<StaffCheckpointDto> {
     const name = dto.name?.trim();
     if (!name) {
       throw new BadRequestException('Sub-booth name is required.');
@@ -137,9 +166,13 @@ export class CheckpointsService {
 
     const parent = await this.prisma.checkpoint.findFirst({
       where: { id: parentId, type: 'BOOTH', isActive: true, deletedAt: null },
+      include: { event: { select: { organizerId: true } } },
     });
     if (!parent) {
       throw new NotFoundException(`Booth '${parentId}' not found.`);
+    }
+    if (user.role !== 'ADMIN' && parent.event?.organizerId !== user.id) {
+      throw new ForbiddenException('Only organizers can add sub-booths.');
     }
     if (parent.parentId) {
       throw new BadRequestException('A sub-booth cannot have its own sub-booths.');

@@ -69,6 +69,7 @@ export interface RecentScanItem {
 
 export interface EventLiveOverview {
   id: string;
+  organizerId?: string;
   name: string;
   slug: string;
   category: string;
@@ -92,6 +93,7 @@ export interface EventCheckpoint {
   requireMainEntry: boolean;
   eventId: string;
   eventName: string;
+  parentId?: string | null;
 }
 
 export interface EventStaff {

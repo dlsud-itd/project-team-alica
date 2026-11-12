@@ -1,4 +1,4 @@
-﻿import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -16,12 +16,22 @@ export class SubBoothApi {
   private readonly auth = inject(AuthService);
   private readonly apiUrl = environment.apiUrl;
 
-  /** All checkpoints (booths, gates, sub-booths). The page filters them by event. */
+  /** All checkpoints (booths, gates, sub-booths) accessible to the current user. */
   listAll(): Observable<StaffCheckpoint[]> {
     return this.http
       .get<{ success: boolean; data: StaffCheckpoint[] }>(`${this.apiUrl}/checkpoints`, {
         headers: this.buildHeaders(),
       })
+      .pipe(map((res) => res.data));
+  }
+
+  /** All active checkpoints (booths, gates, sub-booths) for a single event. */
+  listByEvent(eventId: string): Observable<StaffCheckpoint[]> {
+    return this.http
+      .get<{ success: boolean; data: StaffCheckpoint[] }>(
+        `${this.apiUrl}/events/${eventId}/checkpoints`,
+        { headers: this.buildHeaders() },
+      )
       .pipe(map((res) => res.data));
   }
 

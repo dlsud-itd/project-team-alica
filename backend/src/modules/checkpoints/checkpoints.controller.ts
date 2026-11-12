@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -40,7 +39,7 @@ export class CheckpointsController {
   async getCheckpoints(
     @CurrentUser() user: UserSummaryDto,
   ): Promise<{ success: boolean; data: StaffCheckpointDto[] }> {
-    const data = await this.checkpointsService.findMyCheckpoints(user);
+    const data = await this.checkpointsService.findAccessibleCheckpoints(user);
     return {
       success: true,
       data,
@@ -69,10 +68,7 @@ export class CheckpointsController {
     @Param('id') parentId: string,
     @Body() dto: CreateSubBoothDto,
   ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
-    if (user.role !== 'ADMIN' && user.role !== 'ORGANIZER') {
-      throw new ForbiddenException('Only organizers can add sub-booths.');
-    }
-    const data = await this.checkpointsService.createSubBooth(parentId, dto);
+    const data = await this.checkpointsService.createSubBooth(user, parentId, dto);
     return {
       success: true,
       data,

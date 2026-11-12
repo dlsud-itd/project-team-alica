@@ -63,6 +63,8 @@ describe('EventsService', () => {
     event: Record<string, ReturnType<typeof vi.fn>>;
     ticket: Record<string, ReturnType<typeof vi.fn>>;
     user: Record<string, ReturnType<typeof vi.fn>>;
+    checkpoint: Record<string, ReturnType<typeof vi.fn>>;
+    attendanceLog: Record<string, ReturnType<typeof vi.fn>>;
   };
   let invitationMailer: {
     assertConfigured: ReturnType<typeof vi.fn>;
@@ -87,6 +89,13 @@ describe('EventsService', () => {
       user: {
         findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn(),
+      },
+      checkpoint: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      attendanceLog: {
+        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue([]),
       },
     };
     invitationMailer = {
@@ -547,6 +556,78 @@ describe('EventsService', () => {
       await expect(
         service.restoreRegistrant(ORGANIZER, 'evt-1', 'tkt-1'),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('findAccessibleEvent, getLiveOverview, and getEventCheckpoints', () => {
+    const dynamicOrganizer: UserSummaryDto = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'USER',
+    };
+
+    const assignedStaff: UserSummaryDto = {
+      id: 'usr-staff',
+      email: 'staff@checkpoint.ph',
+      fullName: 'Station Staff',
+      role: 'USER',
+    };
+
+    const unrelatedUser: UserSummaryDto = {
+      id: 'usr-other',
+      email: 'other@alica.ph',
+      fullName: 'Other User',
+      role: 'USER',
+    };
+
+    it('allows a USER-role event organizer to access live overview and checkpoints with parentId', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent({ staff: [] }));
+      prisma.checkpoint.findMany.mockResolvedValue([
+        {
+          id: 'chk-booth-1',
+          name: 'AWS Booth',
+          location: 'Hall A',
+          type: 'BOOTH',
+          allowMultipleScans: true,
+          requireMainEntry: false,
+          parentId: null,
+          _count: { attendanceLogs: 4 },
+        },
+        {
+          id: 'chk-sub-1',
+          name: 'AWS Demo 1',
+          location: 'Hall A',
+          type: 'BOOTH',
+          allowMultipleScans: true,
+          requireMainEntry: false,
+          parentId: 'chk-booth-1',
+          _count: { attendanceLogs: 2 },
+        },
+      ]);
+
+      const overview = await service.getLiveOverview(dynamicOrganizer, 'evt-1');
+      expect(overview.organizerId).toBe('usr-org');
+      expect(overview.stationTraffic).toHaveLength(2);
+
+      const checkpoints = await service.getEventCheckpoints(dynamicOrganizer, 'evt-1');
+      expect(checkpoints).toHaveLength(2);
+      expect(checkpoints[1].parentId).toBe('chk-booth-1');
+    });
+
+    it('allows assigned USER-role staff and rejects unrelated USERs', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ staff: [{ userId: 'usr-staff', isActive: true }] }),
+      );
+      prisma.checkpoint.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.getEventCheckpoints(assignedStaff, 'evt-1'),
+      ).resolves.toEqual([]);
+
+      await expect(
+        service.getLiveOverview(unrelatedUser, 'evt-1'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

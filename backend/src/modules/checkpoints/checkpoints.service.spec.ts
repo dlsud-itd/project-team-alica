@@ -1,6 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CheckpointsService } from './checkpoints.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { TicketStatus } from '@prisma/client';
@@ -16,6 +21,13 @@ describe('CheckpointsService', () => {
     role: 'STAFF' as const,
   };
 
+  const mockOrganizer = {
+    id: 'usr-org',
+    email: 'organizer@alica.ph',
+    fullName: 'Campus Organizer',
+    role: 'USER' as const,
+  };
+
   const mockBooth = {
     id: 'chk-booth-1',
     name: 'Partner Booth: AWS Cloud Station',
@@ -27,7 +39,7 @@ describe('CheckpointsService', () => {
     deletedAt: null,
     eventId: 'evt-devcon-1',
     parentId: null,
-    event: { title: 'DevCon Manila 2026' },
+    event: { title: 'DevCon Manila 2026', organizerId: 'usr-org' },
   };
 
   const mockSubBooth = {
@@ -160,6 +172,26 @@ describe('CheckpointsService', () => {
     expect(mockPrisma.checkpoint.findMany).not.toHaveBeenCalled();
   });
 
+  it('should include owned event checkpoints in findAccessibleCheckpoints for USER organizer', async () => {
+    mockPrisma.checkpointStaff.findMany = vi.fn().mockResolvedValue([]);
+    mockPrisma.eventStaff.findMany = vi.fn().mockResolvedValue([]);
+    mockPrisma.checkpoint.findMany = vi.fn().mockResolvedValue([mockBooth, mockSubBooth]);
+
+    const list = await service.findAccessibleCheckpoints(mockOrganizer);
+
+    expect(list.length).toBe(2);
+    expect(list[1].parentId).toBe('chk-booth-1');
+    expect(mockPrisma.checkpoint.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { event: { organizerId: 'usr-org', deletedAt: null } },
+          ]),
+        }),
+      }),
+    );
+  });
+
   it('should return all active checkpoints for admin user', async () => {
     mockPrisma.checkpoint.findMany = vi.fn().mockResolvedValue([mockBooth, mockMainGate]);
 
@@ -228,8 +260,10 @@ describe('CheckpointsService', () => {
   });
 
   describe('createSubBooth', () => {
-    it('should create a sub-booth under a booth', async () => {
-      const result = await service.createSubBooth('chk-booth-1', { name: 'Demo Station 1' });
+    it('should create a sub-booth under a booth for a dynamic USER event organizer', async () => {
+      const result = await service.createSubBooth(mockOrganizer, 'chk-booth-1', {
+        name: 'Demo Station 1',
+      });
 
       expect(result.parentId).toBe('chk-booth-1');
       expect(result.type).toBe('BOOTH');
@@ -247,25 +281,37 @@ describe('CheckpointsService', () => {
     });
 
     it('should inherit the parent location when none is given', async () => {
-      const result = await service.createSubBooth('chk-booth-1', { name: 'Demo Station 1' });
+      const result = await service.createSubBooth(mockOrganizer, 'chk-booth-1', {
+        name: 'Demo Station 1',
+      });
       expect(result.location).toBe('Exhibition Hall Booth A-12');
+    });
+
+    it('should reject non-organizer users who do not own the event', async () => {
+      await expect(
+        service.createSubBooth(
+          { id: 'usr-other', email: 'other@alica.ph', fullName: 'Other', role: 'USER' },
+          'chk-booth-1',
+          { name: 'Demo Station 1' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw 404 when the parent booth is not found', async () => {
       await expect(
-        service.createSubBooth('nope', { name: 'Demo Station 1' }),
+        service.createSubBooth(mockOrganizer, 'nope', { name: 'Demo Station 1' }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw 400 when the parent is already a sub-booth', async () => {
       await expect(
-        service.createSubBooth('chk-sub-existing', { name: 'Nested' }),
+        service.createSubBooth(mockOrganizer, 'chk-sub-existing', { name: 'Nested' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw 400 when the name is empty', async () => {
       await expect(
-        service.createSubBooth('chk-booth-1', { name: '   ' }),
+        service.createSubBooth(mockOrganizer, 'chk-booth-1', { name: '   ' }),
       ).rejects.toThrow(BadRequestException);
     });
   });

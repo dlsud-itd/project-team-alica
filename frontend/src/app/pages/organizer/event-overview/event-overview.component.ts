@@ -2,6 +2,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, interval } from 'rxjs';
+import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { EventLiveOverview, EventStaff, HourlyFlowPoint } from '../../../core/organizer/organizer.models';
 import { StaffCheckpoint } from '../../../core/staff/scanner.models';
@@ -15,6 +16,7 @@ import { SubBoothApi } from '../../../core/staff/sub-booth-api';
 })
 export class EventOverviewComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
   private readonly organizerEvents = inject(OrganizerEventsService);
   private readonly subBoothApi = inject(SubBoothApi);
 
@@ -66,6 +68,15 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
           .map((c) => c.id),
       ),
   );
+
+  readonly canManageSubBooths = computed(() => {
+    const user = this.auth.user();
+    const organizerId = this.overview()?.organizerId;
+    if (!user) return true;
+    if (user.role === 'ADMIN') return true;
+    if (organizerId) return organizerId === user.id;
+    return user.role === 'ORGANIZER';
+  });
 
   // Map of sub-booth id -> parent booth id
   readonly parentOf = computed(
@@ -206,6 +217,7 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     this.pollSub = interval(15000).subscribe(() => {
       if (document.visibilityState === 'visible' && this.eventId() && !this.loading()) {
         this.fetchOverview(true);
+        this.loadCheckpoints();
       }
     });
   }
@@ -243,13 +255,16 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     const id = this.eventId();
     if (!id) return;
 
-    this.subBoothApi.listAll().subscribe((all) => {
-      this.checkpoints.set(all.filter((c) => c.eventId === id));
+    this.subBoothApi.listByEvent(id).subscribe({
+      next: (list) => {
+        this.checkpoints.set(list);
+      },
+      error: () => undefined,
     });
   }
 
   canAddSubBooth(stationId: string): boolean {
-    return this.boothIds().has(stationId);
+    return this.canManageSubBooths() && this.boothIds().has(stationId);
   }
 
   isSubBooth(stationId: string): boolean {

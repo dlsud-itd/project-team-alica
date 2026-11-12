@@ -43,8 +43,18 @@ export class EventShellComponent {
     return this.events().find((e) => e.id === id);
   });
 
-  readonly isStaff = computed(() => this.auth.user()?.role === 'STAFF');
-  readonly isOrganizer = computed(() => this.auth.user()?.role === 'ORGANIZER' || this.auth.user()?.role === 'ADMIN');
+  readonly isOrganizer = computed(() => {
+    const user = this.auth.user();
+    if (!user) return false;
+    if (user.role === 'ADMIN' || user.role === 'ORGANIZER') return true;
+    const ev = this.event();
+    return !!ev && ev.organizer_id === user.id;
+  });
+  readonly isStaff = computed(
+    () =>
+      this.auth.user()?.role === 'STAFF' ||
+      (!this.isOrganizer() && this.router.url.startsWith('/staff/')),
+  );
 
   readonly shortId = computed(() => {
     const id = this.eventId();

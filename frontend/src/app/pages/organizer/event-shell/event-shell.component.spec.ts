@@ -1,9 +1,11 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { EventShellComponent } from './event-shell.component';
+import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { OrganizerEvent } from '../../../core/organizer/organizer.models';
 
@@ -29,8 +31,16 @@ describe('EventShellComponent', () => {
   let component: EventShellComponent;
   let fixture: ComponentFixture<EventShellComponent>;
   let organizerEventsMock: any;
+  let userSignal: ReturnType<typeof signal<any>>;
 
   beforeEach(async () => {
+    userSignal = signal({
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'USER',
+    });
+
     organizerEventsMock = {
       events: () => [MOCK_EVENT],
       eventsLoaded: () => true,
@@ -46,6 +56,11 @@ describe('EventShellComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ eventId: 'evt-devcon-manila-2026' })) },
+        },
+        { provide: AuthService, useValue: { user: userSignal } },
         { provide: OrganizerEventsService, useValue: organizerEventsMock },
       ],
     }).compileComponents();
@@ -59,9 +74,11 @@ describe('EventShellComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should compute event category and short id', () => {
+  it('should compute event category, short id, and dynamic organizer access', () => {
     expect(component.category()).toBe('CONFERENCE');
     expect(component.guestCount()).toBe(1);
+    expect(component.isOrganizer()).toBe(true);
+    expect(component.isStaff()).toBe(false);
   });
 });
 

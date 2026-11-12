@@ -163,6 +163,7 @@ export interface RecentScanItemDto {
 
 export interface EventLiveOverviewDto {
   id: string;
+  organizerId: string;
   name: string;
   slug: string;
   category: string;
@@ -186,6 +187,7 @@ export interface EventCheckpointDto {
   requireMainEntry: boolean;
   eventId: string;
   eventName: string;
+  parentId: string | null;
 }
 
 export interface ScanResultDto {
@@ -1383,11 +1385,11 @@ export class EventsService {
       throw new NotFoundException(`Event with ID '${eventId}' not found`);
     }
     if (user.role === 'ADMIN') return event;
-    if (user.role === 'ORGANIZER' && event.organizerId === user.id) return event;
+    if (event.organizerId === user.id) return event;
     const isAssignedStaff = event.staff?.some(
       (s) => s.userId === user.id && s.isActive,
     );
-    if (user.role === 'STAFF' && isAssignedStaff) return event;
+    if (isAssignedStaff) return event;
 
     throw new ForbiddenException('You do not have access to this event');
   }
@@ -1531,6 +1533,7 @@ export class EventsService {
 
     return {
       id: event.id,
+      organizerId: event.organizerId,
       name: event.title,
       slug: event.slug,
       category,
@@ -1574,6 +1577,7 @@ export class EventsService {
       requireMainEntry: c.requireMainEntry,
       eventId: event.id,
       eventName: event.title,
+      parentId: c.parentId ?? null,
     }));
   }
 

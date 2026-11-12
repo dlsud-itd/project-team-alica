@@ -5,8 +5,8 @@
       <div class="identity-left">
         <a
           class="btn-back"
-          [routerLink]="isStaff() ? '/events' : '/organizer/dashboard'"
-          aria-label="Back to dashboard"
+          [routerLink]="isStaff() ? '/events' : '/hub'"
+          [attr.aria-label]="isStaff() ? 'Back to events' : 'Back to My Hub'"
         >
           <svg class="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="19" y1="12" x2="5" y2="12"></line>

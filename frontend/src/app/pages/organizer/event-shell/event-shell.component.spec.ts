@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { EventShellComponent } from './event-shell.component';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -79,6 +79,16 @@ describe('EventShellComponent', () => {
     expect(component.guestCount()).toBe(1);
     expect(component.isOrganizer()).toBe(true);
     expect(component.isStaff()).toBe(false);
+  });
+
+  it('should link the back button and post-delete redirect to /hub for organizers', () => {
+    const backLink = (fixture.nativeElement as HTMLElement).querySelector('a.btn-back');
+    expect(backLink?.getAttribute('href')).toBe('/hub');
+
+    const router = TestBed.inject(Router);
+    const navSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.confirmDelete();
+    expect(navSpy).toHaveBeenCalledWith(['/hub']);
   });
 });
 

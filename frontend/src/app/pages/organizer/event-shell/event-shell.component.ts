@@ -201,7 +201,7 @@ export class EventShellComponent {
     if (!ev) return;
     this.organizerEvents.deleteEvent(ev.id);
     this.closeDelete();
-    this.router.navigate(['/organizer/dashboard']);
+    this.router.navigate(['/hub']);
   }
 }
 

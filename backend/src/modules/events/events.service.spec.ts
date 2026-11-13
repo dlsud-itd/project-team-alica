@@ -65,6 +65,8 @@ describe('EventsService', () => {
     user: Record<string, ReturnType<typeof vi.fn>>;
     checkpoint: Record<string, ReturnType<typeof vi.fn>>;
     attendanceLog: Record<string, ReturnType<typeof vi.fn>>;
+    checkpointStaff: Record<string, ReturnType<typeof vi.fn>>;
+    eventStaff: Record<string, ReturnType<typeof vi.fn>>;
   };
   let invitationMailer: {
     assertConfigured: ReturnType<typeof vi.fn>;
@@ -96,6 +98,15 @@ describe('EventsService', () => {
       attendanceLog: {
         count: vi.fn().mockResolvedValue(0),
         findMany: vi.fn().mockResolvedValue([]),
+      },
+      checkpointStaff: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      eventStaff: {
+        findMany: vi.fn().mockResolvedValue([]),
+        upsert: vi.fn(),
+        updateMany: vi.fn(),
       },
     };
     invitationMailer = {
@@ -628,6 +639,91 @@ describe('EventsService', () => {
       await expect(
         service.getLiveOverview(unrelatedUser, 'evt-1'),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows assigned staff to view registrants, toggle check-ins, and view staff', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ staff: [{ userId: 'usr-staff', isActive: true }] }),
+      );
+      prisma.ticket.findMany.mockResolvedValue([
+        {
+          id: 'tkt-1',
+          eventId: 'evt-1',
+          userId: 'usr-attendee',
+          firstName: 'Alice',
+          lastName: 'Smith',
+          email: 'alice@example.com',
+          ticketCode: 'TKT-1001',
+          status: TicketStatus.REGISTERED,
+          createdAt: new Date(),
+        },
+      ]);
+      prisma.ticket.findFirst.mockResolvedValue({
+        id: 'tkt-1',
+        eventId: 'evt-1',
+        status: TicketStatus.REGISTERED,
+        firstScannedAt: null,
+      });
+      prisma.ticket.update.mockResolvedValue({
+        id: 'tkt-1',
+        eventId: 'evt-1',
+        userId: 'usr-attendee',
+        firstName: 'Alice',
+        lastName: 'Smith',
+        email: 'alice@example.com',
+        ticketCode: 'TKT-1001',
+        status: TicketStatus.CHECKED_IN,
+        createdAt: new Date(),
+      });
+      prisma.eventStaff.findMany.mockResolvedValue([
+        {
+          id: 'es-1',
+          assignedAt: new Date(),
+          user: {
+            id: 'usr-staff',
+            email: 'staff@checkpoint.ph',
+            fullName: 'Station Staff',
+            affiliation: 'Staff Dept',
+          },
+        },
+      ]);
+
+      const registrants = await service.findRegistrants(assignedStaff, 'evt-1');
+      expect(registrants).toHaveLength(1);
+      expect(registrants[0].full_name).toBe('Alice Smith');
+
+      const toggled = await service.toggleCheckIn(assignedStaff, 'evt-1', 'tkt-1');
+      expect(toggled.status).toBe('Checked In');
+
+      const staff = await service.getStaff(assignedStaff, 'evt-1');
+      expect(staff).toHaveLength(1);
+      expect(staff[0].fullName).toBe('Station Staff');
+    });
+
+    it('returns assigned events for staff in findForOrganizer', async () => {
+      prisma.event.findMany.mockResolvedValue([
+        {
+          ...dbEvent({ id: 'evt-assigned' }),
+          _count: { tickets: 5, checkpoints: 2 },
+          tickets: [{ id: 'tkt-checked' }],
+        },
+      ]);
+
+      const events = await service.findForOrganizer(assignedStaff);
+      expect(events).toHaveLength(1);
+      expect(events[0].id).toBe('evt-assigned');
+      expect(prisma.event.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({ organizerId: 'usr-staff' }),
+              expect.objectContaining({
+                staff: { some: { userId: 'usr-staff', isActive: true } },
+              }),
+            ]),
+          }),
+        }),
+      );
     });
   });
 });

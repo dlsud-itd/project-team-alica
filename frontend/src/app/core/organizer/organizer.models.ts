@@ -91,6 +91,7 @@ export interface EventCheckpoint {
   type: string;
   allowMultipleScans: boolean;
   requireMainEntry: boolean;
+  cooldownSeconds?: number;
   eventId: string;
   eventName: string;
   parentId?: string | null;
@@ -112,7 +113,11 @@ export interface RecordScanResponse {
   affiliation?: string;
   stationName?: string;
   scannedAt: string;
+  firstScannedAt?: string | null;
   message: string;
+  cooldownActive?: boolean;
+  cooldownSeconds?: number;
+  cooldownRemainingSeconds?: number;
 }
 
 type EditableEventFields =

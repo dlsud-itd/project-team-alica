@@ -4,7 +4,6 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpScannerApi } from './http-scanner-api';
 import { AuthService } from '../auth/auth.service';
 import { ScanOutcome, StaffCheckpoint } from './scanner.models';
-import { of } from 'rxjs';
 
 describe('HttpScannerApi', () => {
   let service: HttpScannerApi;
@@ -118,7 +117,75 @@ describe('HttpScannerApi', () => {
     });
 
     const req = httpTesting.expectOne((r) => r.url.endsWith('/checkpoints/chk-booth-1/scan'));
-    req.flush({ success: false, error: 'INVALID_TICKET' }, { status: 404, statusText: 'Not Found' });
+    req.flush(
+      { success: false, error: 'INVALID_TICKET' },
+      { status: 404, statusText: 'Not Found' },
+    );
+  });
+
+  it('should fetch station details by boothId', () => {
+    service.getStation('chk-booth-1').subscribe((station) => {
+      expect(station.id).toBe('chk-booth-1');
+      expect(station.cooldownSeconds).toBe(30);
+      expect(station.totalScans).toBe(7);
+    });
+
+    const req = httpTesting.expectOne((r) => r.url.endsWith('/checkpoints/chk-booth-1'));
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      success: true,
+      data: {
+        id: 'chk-booth-1',
+        name: 'Showcase Booth',
+        location: 'Hall A',
+        type: 'BOOTH',
+        allowMultipleScans: true,
+        requireMainEntry: false,
+        cooldownSeconds: 30,
+        eventId: 'evt-1',
+        eventName: 'Tech Summit',
+        subBooths: [],
+        totalScans: 7,
+      },
+    });
+  });
+
+  it('should preserve cooldown metadata on 409 COOLDOWN_ACTIVE', () => {
+    service.scan('chk-booth-1', { ticketCode: 'CHK-2026-9812A' }).subscribe((res) => {
+      expect(res.scanResult).toBe('DUPLICATE');
+      expect(res.cooldownActive).toBe(true);
+      expect(res.cooldownRemainingSeconds).toBe(24);
+    });
+
+    const req = httpTesting.expectOne((r) => r.url.endsWith('/checkpoints/chk-booth-1/scan'));
+    req.flush(
+      {
+        success: false,
+        data: {
+          scanResult: 'DUPLICATE',
+          message: 'Cooldown active. Please wait 24s before rescanning at this station.',
+          scannedAt: '2026-11-15T08:20:00.000Z',
+          firstScannedAt: '2026-11-15T08:19:54.000Z',
+          checkpoint: { id: 'chk-booth-1', name: 'Booth', type: 'BOOTH' },
+          attendee: null,
+          cooldownActive: true,
+          cooldownRemainingSeconds: 24,
+        },
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+  });
+
+  it('should propagate 500 server error instead of silently returning mock data', () => {
+    let errored = false;
+    service.scan('chk-booth-1', { ticketCode: 'CHK-2026-9812A' }).subscribe({
+      error: () => {
+        errored = true;
+      },
+    });
+
+    const req = httpTesting.expectOne((r) => r.url.endsWith('/checkpoints/chk-booth-1/scan'));
+    req.flush({ message: 'Server down' }, { status: 500, statusText: 'Internal Server Error' });
+    expect(errored).toBe(true);
   });
 });
-

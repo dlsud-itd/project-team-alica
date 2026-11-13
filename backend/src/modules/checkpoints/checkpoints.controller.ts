@@ -14,6 +14,7 @@ import {
   ScanOutcomeDto,
   ScanRequestBodyDto,
   StaffCheckpointDto,
+  StationDetailsDto,
 } from './checkpoints.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -46,14 +47,40 @@ export class CheckpointsController {
     };
   }
 
-  @Post(':id/scan')
+  @Get('attendees/:ticketCode/history')
+  async getAttendeeHistory(@Param('ticketCode') ticketCode: string) {
+    const data = await this.checkpointsService.getAttendeeHistory(ticketCode);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':boothId')
+  async getStation(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('boothId') boothId: string,
+  ): Promise<{ success: boolean; data: StationDetailsDto }> {
+    const data = await this.checkpointsService.findStationById(user, boothId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post(':boothId/scan')
   @HttpCode(HttpStatus.OK)
   async scanTicket(
     @CurrentUser() user: UserSummaryDto,
-    @Param('id') checkpointId: string,
+    @Param('boothId') boothId: string,
     @Body() dto: ScanRequestBodyDto,
-  ): Promise<{ success: boolean; statusCode: number; message: string; data: ScanOutcomeDto }> {
-    const data = await this.checkpointsService.scan(user, checkpointId, dto);
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: ScanOutcomeDto;
+  }> {
+    const data = await this.checkpointsService.scan(user, boothId, dto);
     return {
       success: true,
       statusCode: 200,
@@ -62,22 +89,17 @@ export class CheckpointsController {
     };
   }
 
-  @Post(':id/sub-booths')
+  @Post(':boothId/sub-booths')
   async createSubBooth(
     @CurrentUser() user: UserSummaryDto,
-    @Param('id') parentId: string,
+    @Param('boothId') boothId: string,
     @Body() dto: CreateSubBoothDto,
   ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
-    const data = await this.checkpointsService.createSubBooth(user, parentId, dto);
-    return {
-      success: true,
-      data,
-    };
-  }
-
-  @Get('attendees/:ticketCode/history')
-  async getAttendeeHistory(@Param('ticketCode') ticketCode: string) {
-    const data = await this.checkpointsService.getAttendeeHistory(ticketCode);
+    const data = await this.checkpointsService.createSubBooth(
+      user,
+      boothId,
+      dto,
+    );
     return {
       success: true,
       data,

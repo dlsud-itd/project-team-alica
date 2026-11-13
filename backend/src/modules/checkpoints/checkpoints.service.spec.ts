@@ -105,7 +105,8 @@ describe('CheckpointsService', () => {
         ),
         findFirst: vi.fn().mockImplementation(({ where }) => {
           if (where.id === 'chk-booth-1') return Promise.resolve(mockBooth);
-          if (where.id === 'chk-sub-existing') return Promise.resolve(mockSubBooth);
+          if (where.id === 'chk-sub-existing')
+            return Promise.resolve(mockSubBooth);
           if (where.id === 'chk-gate-1') return Promise.resolve(mockMainGate);
           if (where.id === 'chk-session-1') return Promise.resolve(mockSession);
           return Promise.resolve(null);
@@ -119,10 +120,24 @@ describe('CheckpointsService', () => {
       },
       ticket: {
         findFirst: vi.fn().mockImplementation(({ where }) => {
-          const codes = where.OR.map((o: any) => o.ticketCode.equals?.toUpperCase());
-          if (codes.includes('CHK-2026-9812A')) return Promise.resolve(mockTicket);
+          const codes = (where.OR || [])
+            .map((o: any) => {
+              const val =
+                o.ticketCode?.equals ??
+                o.qrPayload?.equals ??
+                o.id?.equals ??
+                o.id;
+              return typeof val === 'string' ? val.toUpperCase() : undefined;
+            })
+            .filter(Boolean);
+          if (codes.includes('CHK-2026-9812A'))
+            return Promise.resolve(mockTicket);
           if (codes.includes('CANCELLED-01')) {
-            return Promise.resolve({ ...mockTicket, ticketCode: 'CANCELLED-01', status: TicketStatus.CANCELLED });
+            return Promise.resolve({
+              ...mockTicket,
+              ticketCode: 'CANCELLED-01',
+              status: TicketStatus.CANCELLED,
+            });
           }
           return Promise.resolve(null);
         }),
@@ -132,6 +147,7 @@ describe('CheckpointsService', () => {
         create: vi.fn().mockResolvedValue({ id: 'log-1' }),
         findFirst: vi.fn().mockResolvedValue(null),
         findMany: vi.fn().mockResolvedValue([]),
+        count: vi.fn().mockResolvedValue(4),
       },
     };
 
@@ -175,7 +191,9 @@ describe('CheckpointsService', () => {
   it('should include owned event checkpoints in findAccessibleCheckpoints for USER organizer', async () => {
     mockPrisma.checkpointStaff.findMany = vi.fn().mockResolvedValue([]);
     mockPrisma.eventStaff.findMany = vi.fn().mockResolvedValue([]);
-    mockPrisma.checkpoint.findMany = vi.fn().mockResolvedValue([mockBooth, mockSubBooth]);
+    mockPrisma.checkpoint.findMany = vi
+      .fn()
+      .mockResolvedValue([mockBooth, mockSubBooth]);
 
     const list = await service.findAccessibleCheckpoints(mockOrganizer);
 
@@ -193,7 +211,9 @@ describe('CheckpointsService', () => {
   });
 
   it('should return all active checkpoints for admin user', async () => {
-    mockPrisma.checkpoint.findMany = vi.fn().mockResolvedValue([mockBooth, mockMainGate]);
+    mockPrisma.checkpoint.findMany = vi
+      .fn()
+      .mockResolvedValue([mockBooth, mockMainGate]);
 
     const list = await service.findMyCheckpoints({
       id: 'usr-admin-1',
@@ -261,9 +281,13 @@ describe('CheckpointsService', () => {
 
   describe('createSubBooth', () => {
     it('should create a sub-booth under a booth for a dynamic USER event organizer', async () => {
-      const result = await service.createSubBooth(mockOrganizer, 'chk-booth-1', {
-        name: 'Demo Station 1',
-      });
+      const result = await service.createSubBooth(
+        mockOrganizer,
+        'chk-booth-1',
+        {
+          name: 'Demo Station 1',
+        },
+      );
 
       expect(result.parentId).toBe('chk-booth-1');
       expect(result.type).toBe('BOOTH');
@@ -281,16 +305,25 @@ describe('CheckpointsService', () => {
     });
 
     it('should inherit the parent location when none is given', async () => {
-      const result = await service.createSubBooth(mockOrganizer, 'chk-booth-1', {
-        name: 'Demo Station 1',
-      });
+      const result = await service.createSubBooth(
+        mockOrganizer,
+        'chk-booth-1',
+        {
+          name: 'Demo Station 1',
+        },
+      );
       expect(result.location).toBe('Exhibition Hall Booth A-12');
     });
 
     it('should reject non-organizer users who do not own the event', async () => {
       await expect(
         service.createSubBooth(
-          { id: 'usr-other', email: 'other@alica.ph', fullName: 'Other', role: 'USER' },
+          {
+            id: 'usr-other',
+            email: 'other@alica.ph',
+            fullName: 'Other',
+            role: 'USER',
+          },
           'chk-booth-1',
           { name: 'Demo Station 1' },
         ),
@@ -299,13 +332,17 @@ describe('CheckpointsService', () => {
 
     it('should throw 404 when the parent booth is not found', async () => {
       await expect(
-        service.createSubBooth(mockOrganizer, 'nope', { name: 'Demo Station 1' }),
+        service.createSubBooth(mockOrganizer, 'nope', {
+          name: 'Demo Station 1',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw 400 when the parent is already a sub-booth', async () => {
       await expect(
-        service.createSubBooth(mockOrganizer, 'chk-sub-existing', { name: 'Nested' }),
+        service.createSubBooth(mockOrganizer, 'chk-sub-existing', {
+          name: 'Nested',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -313,6 +350,69 @@ describe('CheckpointsService', () => {
       await expect(
         service.createSubBooth(mockOrganizer, 'chk-booth-1', { name: '   ' }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('boothId routing and cooldown rules', () => {
+    it('returns station details with sub-booths and cooldownSeconds for findStationById', async () => {
+      mockPrisma.checkpoint.findMany = vi
+        .fn()
+        .mockResolvedValue([mockSubBooth]);
+
+      const details = await service.findStationById(mockUser, 'chk-booth-1');
+      expect(details.id).toBe('chk-booth-1');
+      expect(details.cooldownSeconds).toBe(30);
+      expect(details.totalScans).toBe(4);
+      expect(details.subBooths).toHaveLength(1);
+      expect(details.subBooths[0].id).toBe('chk-sub-existing');
+    });
+
+    it('blocks unassigned users from accessing or scanning a station', async () => {
+      mockPrisma.checkpointStaff.findMany = vi.fn().mockResolvedValue([]);
+      mockPrisma.eventStaff.findMany = vi.fn().mockResolvedValue([]);
+
+      const outsider = {
+        id: 'usr-outsider',
+        email: 'outsider@alica.ph',
+        fullName: 'Outsider',
+        role: 'USER' as const,
+      };
+
+      await expect(
+        service.findStationById(outsider, 'chk-booth-1'),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.scan(outsider, 'chk-booth-1', { ticketCode: 'CHK-2026-9812A' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('enforces cooldown window on multi-scan booths', async () => {
+      const fiveSecondsAgo = new Date(Date.now() - 5000);
+      mockPrisma.attendanceLog.findFirst = vi.fn().mockResolvedValueOnce({
+        id: 'recent-booth-scan',
+        scannedAt: fiveSecondsAgo,
+      });
+
+      await expect(
+        service.scan(mockUser, 'chk-booth-1', {
+          ticketCode: 'CHK-2026-9812A',
+          cooldownSeconds: 30,
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('allows multi-scan booth entry once cooldown has elapsed', async () => {
+      const fortySecondsAgo = new Date(Date.now() - 40_000);
+      mockPrisma.attendanceLog.findFirst = vi.fn().mockResolvedValueOnce({
+        id: 'older-booth-scan',
+        scannedAt: fortySecondsAgo,
+      });
+
+      const outcome = await service.scan(mockUser, 'chk-booth-1', {
+        ticketCode: 'CHK-2026-9812A',
+        cooldownSeconds: 30,
+      });
+      expect(outcome.scanResult).toBe('SUCCESS');
     });
   });
 });

@@ -54,11 +54,26 @@ describe('CheckpointsController', () => {
           type: 'BOOTH',
           allowMultipleScans: true,
           requireMainEntry: false,
+          cooldownSeconds: 30,
           eventId: 'evt-devcon-1',
           eventName: 'DevCon Manila 2026',
           parentId: null,
         },
       ]),
+      findStationById: vi.fn().mockResolvedValue({
+        id: 'chk-booth-1',
+        name: 'Partner Booth: AWS Cloud Station',
+        location: 'Exhibition Hall Booth A-12',
+        type: 'BOOTH',
+        allowMultipleScans: true,
+        requireMainEntry: false,
+        cooldownSeconds: 30,
+        eventId: 'evt-devcon-1',
+        eventName: 'DevCon Manila 2026',
+        parentId: null,
+        subBooths: [],
+        totalScans: 12,
+      }),
       createSubBooth: vi.fn().mockResolvedValue({
         id: 'chk-sub-1',
         name: 'Demo Station 1',
@@ -120,9 +135,13 @@ describe('CheckpointsController', () => {
       fullName: 'Campus Organizer',
       role: 'USER' as const,
     };
-    const result = await controller.createSubBooth(organizerUser, 'chk-booth-1', {
-      name: 'Demo Station 1',
-    });
+    const result = await controller.createSubBooth(
+      organizerUser,
+      'chk-booth-1',
+      {
+        name: 'Demo Station 1',
+      },
+    );
     expect(result.success).toBe(true);
     expect(result.data.parentId).toBe('chk-booth-1');
     expect(mockService.createSubBooth).toHaveBeenCalledWith(
@@ -132,10 +151,17 @@ describe('CheckpointsController', () => {
     );
   });
 
+  it('should get station details by boothId', async () => {
+    const result = await controller.getStation(mockUser, 'chk-booth-1');
+    expect(result.success).toBe(true);
+    expect(result.data.id).toBe('chk-booth-1');
+    expect(result.data.cooldownSeconds).toBe(30);
+    expect(result.data.totalScans).toBe(12);
+  });
+
   it('should get attendee history', async () => {
     const result = await controller.getAttendeeHistory('CHK-2026-9812A');
     expect(result.success).toBe(true);
     expect(result.data.ticketCode).toBe('CHK-2026-9812A');
   });
 });
-

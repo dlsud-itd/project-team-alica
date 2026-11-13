@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import {
   Component,
+  DestroyRef,
   ElementRef,
   Injector,
   OnDestroy,
@@ -11,9 +12,14 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import type { IScannerControls } from '@zxing/browser';
+import { ActivatedRoute, Router } from '@angular/router';
+import { combineLatest } from 'rxjs';
+import { safeGetStorageItem, safeSetStorageItem } from '../../../core/staff/safe-storage';
 import { ScannerApi } from '../../../core/staff/scanner-api';
+import { ScannerCameraController } from '../../../core/staff/scanner-camera.service';
+import { ScannerDiagnosticsService } from '../../../core/staff/scanner-diagnostics.service';
 import {
   CheckpointType,
   ScanOutcome,
@@ -24,13 +30,18 @@ import {
 /** A scan in the station feed, with the code as scanned (invalid tickets have no attendee). */
 export type RecentScan = ScanOutcome & { ticketCode: string };
 
-export type CameraState =
-  'idle' | 'starting' | 'active' | 'denied' | 'unavailable' | 'insecure' | 'error';
+export type { CameraState } from '../../../core/staff/scanner-camera.service';
+
+export interface StationOption {
+  checkpoint: StaffCheckpoint;
+  label: string;
+  isSubBooth: boolean;
+}
 
 const STATION_STORAGE_KEY = 'checkpoint.scanner.station';
 const RECENT_LIMIT = 20;
 /** Ignore the same code re-read by the camera within this window. */
-const SAME_CODE_COOLDOWN_MS = 3000;
+export const SAME_CODE_COOLDOWN_MS = 3000;
 const RESULT_DISMISS_MS: Record<ScanResult, number> = {
   SUCCESS: 2500,
   DUPLICATE: 5000,
@@ -61,6 +72,7 @@ const CHECKPOINT_TYPE_LABELS: Record<CheckpointType, string> = {
 
 @Component({
   imports: [DatePipe, ReactiveFormsModule],
+  providers: [ScannerCameraController],
   selector: 'app-scanner',
   styleUrl: './scanner.component.scss',
   templateUrl: './scanner.component.html',
@@ -68,34 +80,75 @@ const CHECKPOINT_TYPE_LABELS: Record<CheckpointType, string> = {
 export class Scanner implements OnInit, OnDestroy {
   private readonly api = inject(ScannerApi);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly router = inject(Router, { optional: true });
+  readonly camera = inject(ScannerCameraController);
+  readonly diagnostics = inject(ScannerDiagnosticsService);
+
   private readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
 
-  // Station
+  // Station & Routing
   readonly checkpoints = signal<StaffCheckpoint[]>([]);
   readonly loadingCheckpoints = signal(true);
   readonly loadError = signal('');
+  readonly routeBoothId = signal<string | null>(null);
   readonly selectedId = signal<string | null>(null);
   readonly station = computed(
     () => this.checkpoints().find((c) => c.id === this.selectedId()) ?? null,
   );
+  readonly parentStationName = computed(() => {
+    const current = this.station();
+    if (!current?.parentId) return null;
+    return this.checkpoints().find((c) => c.id === current.parentId)?.name ?? null;
+  });
+  readonly stationOptions = computed<StationOption[]>(() => {
+    const list = this.checkpoints();
+    const byId = new Set(list.map((c) => c.id));
+    const roots = list.filter((c) => !c.parentId || !byId.has(c.parentId));
+    const options: StationOption[] = [];
 
-  // Camera
-  readonly cameraState = signal<CameraState>('idle');
-  private controls: IScannerControls | null = null;
-  private destroyed = false;
+    for (const root of roots) {
+      options.push({
+        checkpoint: root,
+        label: `${root.name} (${this.typeLabel(root.type)})`,
+        isSubBooth: false,
+      });
+      const children = list.filter((c) => c.parentId === root.id);
+      for (const child of children) {
+        options.push({
+          checkpoint: child,
+          label: `↳ ${child.name}`,
+          isSubBooth: true,
+        });
+      }
+    }
+    return options;
+  });
 
-  // Scanning
+  // Camera aliases for reactive bindings & backwards-compatible inspection
+  readonly cameraState = this.camera.cameraState;
+  readonly torchSupported = this.camera.torchSupported;
+  readonly torchEnabled = this.camera.torchEnabled;
+  readonly cameraDevices = this.camera.devices;
+  readonly selectedCameraId = this.camera.selectedDeviceId;
+
+  // Scanning & Debounce
   readonly processing = signal(false);
   readonly result = signal<ScanOutcome | null>(null);
   readonly scanError = signal('');
+  readonly debounceNotice = signal('');
   readonly recentScans = signal<RecentScan[]>([]);
+  readonly showDiagnostics = signal(false);
   readonly manualCode = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required],
   });
+
   private lastCode = '';
   private lastCodeAt = 0;
   private resultTimer: ReturnType<typeof setTimeout> | undefined;
+  private debounceNoticeTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Relative timestamps in the recent feed
   readonly now = signal(Date.now());
@@ -113,98 +166,128 @@ export class Scanner implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.clock = setInterval(() => this.now.set(Date.now()), 15000);
+    this.bindRouteParams();
     this.loadCheckpoints();
   }
 
   ngOnDestroy(): void {
-    this.destroyed = true;
-    this.stopCamera();
+    this.camera.stop();
     clearTimeout(this.resultTimer);
+    clearTimeout(this.debounceNoticeTimer);
     clearInterval(this.clock);
+  }
+
+  private bindRouteParams(): void {
+    if (!this.route) return;
+    combineLatest([this.route.paramMap, this.route.queryParamMap])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(([params, query]) => {
+        const boothId = params.get('boothId') ?? query.get('boothId');
+        this.routeBoothId.set(boothId);
+        if (boothId && this.checkpoints().some((c) => c.id === boothId)) {
+          this.applyStationSelection(boothId, false);
+        }
+      });
   }
 
   loadCheckpoints(): void {
     this.loadingCheckpoints.set(true);
     this.loadError.set('');
 
-    this.api.getMyCheckpoints().subscribe({
-      next: (checkpoints) => {
-        this.checkpoints.set(checkpoints);
-        const saved = localStorage.getItem(STATION_STORAGE_KEY);
-        const initial = checkpoints.find((c) => c.id === saved) ?? checkpoints[0] ?? null;
-        this.selectedId.set(initial?.id ?? null);
-        this.loadingCheckpoints.set(false);
+    this.api
+      .getMyCheckpoints()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (checkpoints) => {
+          this.checkpoints.set(checkpoints);
+          const requestedId = this.routeBoothId();
+          const saved = safeGetStorageItem(STATION_STORAGE_KEY);
+          const initial =
+            checkpoints.find((c) => c.id === requestedId) ??
+            checkpoints.find((c) => c.id === saved) ??
+            checkpoints[0] ??
+            null;
 
-        if (initial) {
-          // The <video> element only exists once the station view renders.
-          afterNextRender(() => this.startCamera(), { injector: this.injector });
-        }
-      },
-      error: () => {
-        this.loadingCheckpoints.set(false);
-        this.loadError.set(
-          'Unable to load your assigned stations. Check your connection and retry.',
-        );
-      },
-    });
+          if (requestedId && initial && initial.id !== requestedId) {
+            this.diagnostics.warn(
+              'routing',
+              'Requested boothId not assigned; fell back to default.',
+              {
+                requestedBoothId: requestedId,
+                selectedBoothId: initial.id,
+              },
+            );
+          }
+
+          this.selectedId.set(initial?.id ?? null);
+          if (initial) {
+            safeSetStorageItem(STATION_STORAGE_KEY, initial.id);
+            this.diagnostics.info('station', 'Active station resolved', {
+              boothId: initial.id,
+              name: initial.name,
+              type: initial.type,
+              cooldownSeconds: initial.cooldownSeconds ?? 0,
+            });
+          }
+
+          this.loadingCheckpoints.set(false);
+
+          if (initial) {
+            // The <video> element only exists once the station view renders.
+            afterNextRender(() => this.startCamera(), { injector: this.injector });
+          }
+        },
+        error: (err: unknown) => {
+          this.loadingCheckpoints.set(false);
+          this.loadError.set(
+            'Unable to load your assigned stations. Check your connection and retry.',
+          );
+          this.diagnostics.error('station', 'Failed to load assigned checkpoints', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        },
+      });
   }
 
   selectStation(id: string): void {
     if (id === this.selectedId()) return;
+    this.applyStationSelection(id, true);
+  }
+
+  private applyStationSelection(id: string, syncUrl: boolean): void {
+    if (!this.checkpoints().some((c) => c.id === id)) return;
     this.selectedId.set(id);
-    localStorage.setItem(STATION_STORAGE_KEY, id);
+    safeSetStorageItem(STATION_STORAGE_KEY, id);
     this.dismissResult();
     this.scanError.set('');
+    this.debounceNotice.set('');
+    // Reset local debounce lock when switching booths so the same attendee can be scanned immediately.
+    this.lastCode = '';
+    this.lastCodeAt = 0;
+
+    this.diagnostics.info('routing', 'Switched active station', { boothId: id });
+
+    if (syncUrl && this.router && this.router.url.startsWith('/staff/scanner')) {
+      void this.router.navigate(['/staff/scanner', id], { replaceUrl: true });
+    }
   }
 
   async startCamera(): Promise<void> {
-    if (this.controls || this.cameraState() === 'starting') return;
-    const videoEl = this.video()?.nativeElement;
-    if (!videoEl) return;
-
-    if (!window.isSecureContext) {
-      this.cameraState.set('insecure');
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      this.cameraState.set('unavailable');
-      return;
-    }
-
-    this.cameraState.set('starting');
-    try {
-      const { BrowserQRCodeReader } = await import('@zxing/browser');
-      const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 200 });
-      const controls = await reader.decodeFromConstraints(
-        { audio: false, video: { facingMode: { ideal: 'environment' } } },
-        videoEl,
-        (decoded) => {
-          if (decoded) this.onDecoded(decoded.getText());
-        },
-      );
-
-      if (this.destroyed) {
-        controls.stop();
-        return;
-      }
-      this.controls = controls;
-      this.cameraState.set('active');
-    } catch (err) {
-      const name = (err as { name?: string } | null)?.name;
-      if (name === 'NotAllowedError' || name === 'SecurityError') {
-        this.cameraState.set('denied');
-      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-        this.cameraState.set('unavailable');
-      } else {
-        this.cameraState.set('error');
-      }
-    }
+    await this.camera.start(this.video()?.nativeElement, (code) => this.onDecoded(code));
   }
 
   stopCamera(): void {
-    this.controls?.stop();
-    this.controls = null;
-    if (!this.destroyed) this.cameraState.set('idle');
+    this.camera.stop();
+  }
+
+  async switchCamera(deviceId: string): Promise<void> {
+    await this.camera.switchDevice(this.video()?.nativeElement, deviceId, (code) =>
+      this.onDecoded(code),
+    );
+  }
+
+  async toggleTorch(): Promise<void> {
+    await this.camera.toggleTorch();
   }
 
   submitManual(): void {
@@ -217,23 +300,44 @@ export class Scanner implements OnInit, OnDestroy {
     this.result.set(null);
   }
 
+  toggleDiagnostics(): void {
+    this.showDiagnostics.update((v) => !v);
+  }
+
   private onDecoded(text: string): void {
     // Pause decoding while a scan is in flight or its result is on screen.
     if (this.processing() || this.result()) return;
 
     const code = text.trim();
+    if (!code) return;
+
     const now = Date.now();
-    if (code === this.lastCode && now - this.lastCodeAt < SAME_CODE_COOLDOWN_MS) return;
+    if (code === this.lastCode && now - this.lastCodeAt < SAME_CODE_COOLDOWN_MS) {
+      const waitSec = Math.ceil((SAME_CODE_COOLDOWN_MS - (now - this.lastCodeAt)) / 1000);
+      this.debounceNotice.set(`Same QR pass held in ${waitSec}s scan lock.`);
+      clearTimeout(this.debounceNoticeTimer);
+      this.debounceNoticeTimer = setTimeout(() => this.debounceNotice.set(''), 1500);
+      this.diagnostics.debug('debounce', 'Ignored duplicate camera frame within debounce window', {
+        ticketCode: code,
+        remainingMs: SAME_CODE_COOLDOWN_MS - (now - this.lastCodeAt),
+      });
+      return;
+    }
+
     this.lastCode = code;
     this.lastCodeAt = now;
-
+    this.debounceNotice.set('');
     this.submit(code);
   }
 
   private submit(rawCode: string): void {
     const station = this.station();
     const ticketCode = rawCode.trim().toUpperCase();
-    if (!station || !ticketCode || this.processing()) return;
+    if (!station) {
+      this.scanError.set('No station assigned or selected.');
+      return;
+    }
+    if (!ticketCode || this.processing()) return;
 
     this.dismissResult();
     this.scanError.set('');
@@ -241,15 +345,27 @@ export class Scanner implements OnInit, OnDestroy {
 
     this.api
       .scan(station.id, { ticketCode, deviceInfo: navigator.userAgent.slice(0, 120) })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (outcome) => {
           this.processing.set(false);
           this.manualCode.reset();
+          this.diagnostics.info('api', 'Scan evaluated', {
+            boothId: station.id,
+            ticketCode,
+            scanResult: outcome.scanResult,
+            cooldownActive: outcome.cooldownActive ?? false,
+          });
           this.showResult({ ...outcome, ticketCode });
         },
-        error: () => {
+        error: (err: unknown) => {
           this.processing.set(false);
           this.scanError.set('Scan could not be recorded. Check your connection and try again.');
+          this.diagnostics.error('api', 'Scan request errored', {
+            boothId: station.id,
+            ticketCode,
+            error: err instanceof Error ? err.message : String(err),
+          });
         },
       });
   }
@@ -265,8 +381,11 @@ export class Scanner implements OnInit, OnDestroy {
     );
   }
 
-  resultTitle(result: ScanResult): string {
-    return RESULT_TITLES[result];
+  resultTitle(outcome: ScanOutcome): string {
+    if (outcome.scanResult === 'DUPLICATE' && outcome.cooldownActive) {
+      return 'Cooldown active';
+    }
+    return RESULT_TITLES[outcome.scanResult];
   }
 
   resultTone(result: ScanResult): 'success' | 'danger' | 'warning' {

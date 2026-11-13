@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { safeClearStorage, safeGetStorageItem } from '../../../core/staff/safe-storage';
 import { ScannerApi } from '../../../core/staff/scanner-api';
 import { ScanOutcome, StaffCheckpoint } from '../../../core/staff/scanner.models';
 import { Scanner } from './scanner.component';
@@ -12,6 +14,7 @@ const GATE: StaffCheckpoint = {
   type: 'MAIN_ENTRY',
   allowMultipleScans: false,
   requireMainEntry: false,
+  cooldownSeconds: 0,
   eventId: 'evt-1',
   eventName: 'DLSU-D Tech Summit 2026',
 };
@@ -22,6 +25,14 @@ const BOOTH: StaffCheckpoint = {
   name: 'Showcase Booth',
   type: 'BOOTH',
   allowMultipleScans: true,
+  cooldownSeconds: 30,
+};
+
+const SUB_BOOTH: StaffCheckpoint = {
+  ...BOOTH,
+  id: 'chk-sub-booth',
+  name: 'Showcase Sub-Booth 1',
+  parentId: 'chk-booth',
 };
 
 function outcome(overrides: Partial<ScanOutcome> = {}): ScanOutcome {
@@ -44,7 +55,13 @@ function outcome(overrides: Partial<ScanOutcome> = {}): ScanOutcome {
 describe('Scanner', () => {
   let fixture: ComponentFixture<Scanner>;
   let component: Scanner;
-  let api: { getMyCheckpoints: ReturnType<typeof vi.fn>; scan: ReturnType<typeof vi.fn> };
+  let api: {
+    getMyCheckpoints: ReturnType<typeof vi.fn>;
+    getStation: ReturnType<typeof vi.fn>;
+    scan: ReturnType<typeof vi.fn>;
+  };
+  let paramMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let queryParamMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
   async function create(checkpoints: StaffCheckpoint[] = [GATE]) {
     api.getMyCheckpoints.mockReturnValue(of(checkpoints));
@@ -56,11 +73,22 @@ describe('Scanner', () => {
   const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
 
   beforeEach(() => {
-    localStorage.clear();
-    api = { getMyCheckpoints: vi.fn(), scan: vi.fn() };
+    safeClearStorage();
+    paramMap$ = new BehaviorSubject(convertToParamMap({}));
+    queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
+    api = { getMyCheckpoints: vi.fn(), getStation: vi.fn(), scan: vi.fn() };
     TestBed.configureTestingModule({
       imports: [Scanner],
-      providers: [{ provide: ScannerApi, useValue: api }],
+      providers: [
+        { provide: ScannerApi, useValue: api },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: paramMap$.asObservable(),
+            queryParamMap: queryParamMap$.asObservable(),
+          },
+        },
+      ],
     });
   });
 
@@ -78,11 +106,24 @@ describe('Scanner', () => {
     expect(fixture.nativeElement.querySelector('.station-switch')).not.toBeNull();
 
     component.selectStation(BOOTH.id);
-    expect(localStorage.getItem('checkpoint.scanner.station')).toBe(BOOTH.id);
+    expect(safeGetStorageItem('checkpoint.scanner.station')).toBe(BOOTH.id);
 
     fixture.destroy();
     await create([GATE, BOOTH]);
     expect(component.station()?.id).toBe(BOOTH.id);
+  });
+
+  it('selects station from boothId route param and groups sub-booths under parent', async () => {
+    paramMap$.next(convertToParamMap({ boothId: SUB_BOOTH.id }));
+    await create([GATE, BOOTH, SUB_BOOTH]);
+
+    expect(component.station()?.id).toBe(SUB_BOOTH.id);
+    expect(component.parentStationName()).toBe('Showcase Booth');
+    expect(component.stationOptions().map((o) => o.label)).toEqual([
+      'Main Gate Turnstile A (Main entry)',
+      'Showcase Booth (Booth)',
+      '↳ Showcase Sub-Booth 1',
+    ]);
   });
 
   it('shows an empty state when no station is assigned', async () => {
@@ -139,6 +180,48 @@ describe('Scanner', () => {
       GATE.id,
       expect.objectContaining({ ticketCode: 'CHK-2026-9812A' }),
     );
+  });
+
+  it('debounces identical camera decodes within cooldown window and resets on station switch', async () => {
+    await create([GATE, BOOTH]);
+    api.scan.mockReturnValue(of(outcome()));
+
+    // First decode triggers API call
+    (component as unknown as { onDecoded: (t: string) => void }).onDecoded('CHK-2026-9812A');
+    component.dismissResult();
+    expect(api.scan).toHaveBeenCalledTimes(1);
+
+    // Immediate second decode of same code is debounced
+    (component as unknown as { onDecoded: (t: string) => void }).onDecoded('CHK-2026-9812A');
+    expect(api.scan).toHaveBeenCalledTimes(1);
+    expect(component.debounceNotice()).toContain('scan lock');
+
+    // Switching stations clears debounce lock
+    component.selectStation(BOOTH.id);
+    (component as unknown as { onDecoded: (t: string) => void }).onDecoded('CHK-2026-9812A');
+    expect(api.scan).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows Cooldown active title when backend enforces station cooldown', async () => {
+    await create([BOOTH]);
+    api.scan.mockReturnValue(
+      of(
+        outcome({
+          scanResult: 'DUPLICATE',
+          message: 'Cooldown active. Please wait 20s before rescanning at this station.',
+          firstScannedAt: '2026-11-15T08:14:22.000Z',
+          cooldownActive: true,
+          cooldownRemainingSeconds: 20,
+        }),
+      ),
+    );
+
+    component.manualCode.setValue('CHK-2026-9812A');
+    component.submitManual();
+    await fixture.whenStable();
+
+    expect(text()).toContain('Cooldown active');
+    expect(text()).toContain('Last check-in');
   });
 
   it('shows the first check-in time for a duplicate scan', async () => {

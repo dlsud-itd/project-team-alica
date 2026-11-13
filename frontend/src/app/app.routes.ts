@@ -115,6 +115,13 @@ export const routes: Routes = [
               ),
           },
           {
+            path: 'scanner/:boothId',
+            loadComponent: () =>
+              import('./pages/organizer/event-scanner/event-scanner.component').then(
+                (m) => m.EventScannerComponent,
+              ),
+          },
+          {
             path: 'guests',
             loadComponent: () =>
               import('./pages/organizer/registrants/registrants.component').then(
@@ -147,6 +154,11 @@ export const routes: Routes = [
               import('./pages/staff/scanner/scanner.component').then((m) => m.Scanner),
           },
           {
+            path: 'scanner/:boothId',
+            loadComponent: () =>
+              import('./pages/staff/scanner/scanner.component').then((m) => m.Scanner),
+          },
+          {
             path: 'events/:eventId',
             loadComponent: () =>
               import('./pages/organizer/event-shell/event-shell.component').then(
@@ -163,6 +175,13 @@ export const routes: Routes = [
               },
               {
                 path: 'scanner',
+                loadComponent: () =>
+                  import('./pages/organizer/event-scanner/event-scanner.component').then(
+                    (m) => m.EventScannerComponent,
+                  ),
+              },
+              {
+                path: 'scanner/:boothId',
                 loadComponent: () =>
                   import('./pages/organizer/event-scanner/event-scanner.component').then(
                     (m) => m.EventScannerComponent,

@@ -129,6 +129,13 @@ export class CheckpointsService {
     if (user.role === 'ADMIN') return;
     if (checkpoint.event?.organizerId === user.id) return;
 
+    if (this.prisma.eventOrganizer?.findFirst) {
+      const coOrg = await this.prisma.eventOrganizer.findFirst({
+        where: { eventId: checkpoint.eventId, userId: user.id },
+      });
+      if (coOrg) return;
+    }
+
     const [directAssignments, eventAssignments] = await Promise.all([
       this.prisma.checkpointStaff.findMany({
         where: { userId: user.id, isActive: true },
@@ -239,13 +246,27 @@ export class CheckpointsService {
       return [];
     }
 
+    let coOrganizedEventIds: string[] = [];
+    if (includeOwnedEvents && this.prisma.eventOrganizer?.findMany) {
+      const coOrganizedEvents = await this.prisma.eventOrganizer.findMany({
+        where: { userId: user.id },
+        select: { eventId: true },
+      });
+      coOrganizedEventIds = coOrganizedEvents.map((e) => e.eventId);
+    }
+
     const orFilters = [
       ...(directIds.length ? [{ id: { in: directIds } }] : []),
       // Sub-booths follow their parent booth's assignment
       ...(directIds.length ? [{ parentId: { in: directIds } }] : []),
       ...(eventIds.length ? [{ eventId: { in: eventIds } }] : []),
       ...(includeOwnedEvents
-        ? [{ event: { organizerId: user.id, deletedAt: null } }]
+        ? [
+            { event: { organizerId: user.id, deletedAt: null } },
+            ...(coOrganizedEventIds.length
+              ? [{ eventId: { in: coOrganizedEventIds }, event: { deletedAt: null } }]
+              : []),
+          ]
         : []),
     ];
 
@@ -284,7 +305,16 @@ export class CheckpointsService {
       throw new NotFoundException(`Booth '${parentId}' not found.`);
     }
     if (user.role !== 'ADMIN' && parent.event?.organizerId !== user.id) {
-      throw new ForbiddenException('Only organizers can add sub-booths.');
+      let isCoOrganizer = false;
+      if (this.prisma.eventOrganizer?.findFirst) {
+        const coOrg = await this.prisma.eventOrganizer.findFirst({
+          where: { eventId: parent.eventId, userId: user.id },
+        });
+        if (coOrg) isCoOrganizer = true;
+      }
+      if (!isCoOrganizer) {
+        throw new ForbiddenException('Only organizers can add sub-booths.');
+      }
     }
     if (parent.parentId) {
       throw new BadRequestException(

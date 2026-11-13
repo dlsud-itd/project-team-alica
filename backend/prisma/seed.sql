@@ -110,4 +110,10 @@ INSERT INTO "public"."saved_profiles" (
   ('prf-alen-work', 'usr-attendee-alen', 'Professional Profile', 'Alen Mikel Umandal', NULL, '+63 917 987 6543', 'Project Alica Team', false, NOW(), NOW())
 ON CONFLICT ("id") DO NOTHING;
 
+-- 8. Insert Event Co-Organizers
+INSERT INTO "public"."event_organizers" ("id", "eventId", "userId", "assignedAt")
+VALUES
+  ('eo-org-tech-summit', 'evt-tech-summit-2026', 'usr-organizer-example', NOW())
+ON CONFLICT ("eventId", "userId") DO NOTHING;
+
 COMMIT;

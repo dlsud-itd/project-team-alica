@@ -67,6 +67,7 @@ describe('EventsService', () => {
     attendanceLog: Record<string, ReturnType<typeof vi.fn>>;
     checkpointStaff: Record<string, ReturnType<typeof vi.fn>>;
     eventStaff: Record<string, ReturnType<typeof vi.fn>>;
+    eventOrganizer: Record<string, ReturnType<typeof vi.fn>>;
   };
   let invitationMailer: {
     assertConfigured: ReturnType<typeof vi.fn>;
@@ -90,6 +91,7 @@ describe('EventsService', () => {
       },
       user: {
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
         create: vi.fn(),
       },
       checkpoint: {
@@ -107,6 +109,12 @@ describe('EventsService', () => {
         findMany: vi.fn().mockResolvedValue([]),
         upsert: vi.fn(),
         updateMany: vi.fn(),
+      },
+      eventOrganizer: {
+        findMany: vi.fn().mockResolvedValue([]),
+        createMany: vi.fn().mockResolvedValue({ count: 0 }),
+        upsert: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
     };
     invitationMailer = {
@@ -724,6 +732,147 @@ describe('EventsService', () => {
           }),
         }),
       );
+    });
+
+    it('creates an event with multiple co-organizers', async () => {
+      const createdEvent = dbEvent({ id: 'evt-multi-org' });
+      prisma.event.create.mockResolvedValue(createdEvent);
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'usr-co-1', email: 'co1@example.com', fullName: 'Co One', affiliation: 'CS' },
+      ]);
+      prisma.event.findUnique.mockImplementation(({ where }) => {
+        if (where?.slug) return Promise.resolve(null);
+        return Promise.resolve({
+          ...createdEvent,
+          organizer: { id: 'usr-org', email: 'org@alica.ph', fullName: 'Campus Organizer', affiliation: 'USC' },
+          organizers: [
+            {
+              id: 'eo-1',
+              userId: 'usr-co-1',
+              assignedAt: new Date(),
+              user: { id: 'usr-co-1', email: 'co1@example.com', fullName: 'Co One', affiliation: 'CS' },
+            },
+          ],
+        });
+      });
+
+      const res = await service.create(dynamicOrganizer, {
+        name: 'Hackathon 2026',
+        venue: 'Gym',
+        starts_at: '2026-12-01T08:00:00Z',
+        ends_at: '2026-12-01T17:00:00Z',
+        capacity: 100,
+        organizerEmails: ['co1@example.com'],
+      });
+
+      expect(prisma.eventOrganizer.createMany).toHaveBeenCalledWith({
+        data: [{ eventId: 'evt-multi-org', userId: 'usr-co-1' }],
+        skipDuplicates: true,
+      });
+      expect(res.organizers).toBeDefined();
+      expect(res.organizers).toHaveLength(2);
+      expect(res.organizers?.[0].isPrimary).toBe(true);
+      expect(res.organizers?.[1].email).toBe('co1@example.com');
+      expect(res.organizers?.[1].isPrimary).toBe(false);
+    });
+
+    it('allows a co-organizer to manage event in findManageableEvent and update organizers', async () => {
+      prisma.event.findFirst.mockResolvedValue({
+        ...dbEvent({ id: 'evt-co-managed', organizerId: 'usr-primary' }),
+        organizers: [{ userId: 'usr-org', id: 'eo-co' }],
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'usr-co-2', email: 'co2@example.com' },
+      ]);
+      prisma.event.update.mockResolvedValue({
+        ...dbEvent({ id: 'evt-co-managed', organizerId: 'usr-primary' }),
+        title: 'Renamed Event',
+        organizer: { id: 'usr-primary', email: 'primary@example.com', fullName: 'Primary Org', affiliation: null },
+        organizers: [
+          {
+            id: 'eo-co-2',
+            userId: 'usr-co-2',
+            assignedAt: new Date(),
+            user: { id: 'usr-co-2', email: 'co2@example.com', fullName: 'Co Two', affiliation: null },
+          },
+        ],
+      });
+
+      const updated = await service.update(dynamicOrganizer, 'evt-co-managed', {
+        name: 'Renamed Event',
+        organizerEmails: ['co2@example.com'],
+      });
+
+      expect(updated.name).toBe('Renamed Event');
+      expect(prisma.eventOrganizer.deleteMany).toHaveBeenCalled();
+      expect(prisma.eventOrganizer.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId_userId: { eventId: 'evt-co-managed', userId: 'usr-co-2' } },
+        }),
+      );
+    });
+
+    it('gets, adds, and removes co-organizers', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ id: 'evt-1', organizerId: 'usr-org' }),
+      );
+      prisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'usr-org',
+          email: 'org@alica.ph',
+          fullName: 'Campus Organizer',
+          affiliation: 'USC',
+        })
+        .mockResolvedValueOnce({
+          id: 'usr-new-co',
+          email: 'newco@example.com',
+          fullName: 'New Co',
+          affiliation: 'CS',
+        });
+      prisma.eventOrganizer.findMany.mockResolvedValue([
+        {
+          id: 'eo-existing',
+          userId: 'usr-existing-co',
+          assignedAt: new Date(),
+          user: {
+            id: 'usr-existing-co',
+            email: 'existing@example.com',
+            fullName: 'Existing Co',
+            affiliation: null,
+          },
+        },
+      ]);
+
+      const orgs = await service.getOrganizers(dynamicOrganizer, 'evt-1');
+      expect(orgs).toHaveLength(2);
+      expect(orgs[0].isPrimary).toBe(true);
+      expect(orgs[1].email).toBe('existing@example.com');
+      expect(orgs[1].isPrimary).toBe(false);
+
+      prisma.eventOrganizer.upsert.mockResolvedValue({
+        id: 'eo-added',
+        userId: 'usr-new-co',
+        assignedAt: new Date(),
+        user: {
+          id: 'usr-new-co',
+          email: 'newco@example.com',
+          fullName: 'New Co',
+          affiliation: 'CS',
+        },
+      });
+
+      const added = await service.addOrganizer(dynamicOrganizer, 'evt-1', 'newco@example.com');
+      expect(added.email).toBe('newco@example.com');
+
+      // Attempting to remove primary organizer throws BadRequestException
+      await expect(
+        service.removeOrganizer(dynamicOrganizer, 'evt-1', 'usr-org'),
+      ).rejects.toThrow(BadRequestException);
+
+      await service.removeOrganizer(dynamicOrganizer, 'evt-1', 'usr-new-co');
+      expect(prisma.eventOrganizer.deleteMany).toHaveBeenCalledWith({
+        where: { eventId: 'evt-1', userId: 'usr-new-co' },
+      });
     });
   });
 });

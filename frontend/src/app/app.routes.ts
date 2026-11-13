@@ -128,6 +128,13 @@ export const routes: Routes = [
                 (m) => m.OrganizerRegistrants,
               ),
           },
+          {
+            path: 'settings',
+            loadComponent: () =>
+              import('./pages/organizer/event_settings/event_settings.component').then(
+                (m) => m.EventSettingsComponent,
+              ),
+          },
         ],
       },
       {
@@ -192,6 +199,13 @@ export const routes: Routes = [
                 loadComponent: () =>
                   import('./pages/organizer/registrants/registrants.component').then(
                     (m) => m.OrganizerRegistrants,
+                  ),
+              },
+              {
+                path: 'settings',
+                loadComponent: () =>
+                  import('./pages/organizer/event_settings/event_settings.component').then(
+                    (m) => m.EventSettingsComponent,
                   ),
               },
             ],

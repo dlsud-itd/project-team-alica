@@ -340,6 +340,13 @@
                         </svg>
                         <span>Scan</span>
                       </a>
+                      <a
+                        class="btn-row-action"
+                        [routerLink]="['/organizer/events', event.id, 'settings']"
+                        title="Event Settings for {{ event.name }}"
+                      >
+                        Settings
+                      </a>
                       <button
                         type="button"
                         class="btn-row-action"
@@ -516,6 +523,55 @@
             formControlName="description"
             placeholder="Keynote themes, target audience, session tracks..."
           ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="event-co-organizer-input">Co-Organizers (Optional)</label>
+          <div class="co-organizer-input-group">
+            <input
+              #coOrgInput
+              id="event-co-organizer-input"
+              type="email"
+              placeholder="Enter co-organizer email (e.g. partner@alica.ph)"
+              (keydown.enter)="$event.preventDefault(); addCoOrganizerEmail(coOrgInput)"
+            />
+            <button
+              type="button"
+              class="btn-add-co-organizer"
+              (click)="addCoOrganizerEmail(coOrgInput)"
+            >
+              Add
+            </button>
+          </div>
+          @if (coOrganizerEmails().length > 0) {
+            <div class="co-organizer-chip-list">
+              @for (email of coOrganizerEmails(); track email; let i = $index) {
+                <span class="co-organizer-chip">
+                  <span class="chip-label">{{ email }}</span>
+                  <button
+                    type="button"
+                    class="btn-chip-remove"
+                    (click)="removeCoOrganizerEmail(i)"
+                    [attr.aria-label]="'Remove ' + email"
+                  >
+                    ×
+                  </button>
+                </span>
+              }
+            </div>
+          }
+          @if (editingEvent(); as curEvent) {
+            <p class="settings-page-hint">
+              Need comprehensive event management?
+              <a
+                class="settings-hint-link"
+                [routerLink]="['/organizer/events', curEvent.id, 'settings']"
+                (click)="closeEdit()"
+              >
+                Go to Event Settings Page
+              </a>
+            </p>
+          }
         </div>
 
         <footer class="dialog-footer">

@@ -121,6 +121,7 @@ export class OrganizerDashboard {
   readonly dialogOpen = computed(() => this.creating() || this.editingEvent() !== null);
   readonly editErrorMessage = signal('');
   readonly isSaving = signal(false);
+  readonly coOrganizerEmails = signal<string[]>([]);
 
   // Delete Event State
   readonly deletingEvent = signal<OrganizerEvent | null>(null);
@@ -208,6 +209,7 @@ export class OrganizerDashboard {
     this.editingEvent.set(null);
     this.editErrorMessage.set('');
     this.editForm.reset();
+    this.coOrganizerEmails.set([]);
     this.creating.set(true);
   }
 
@@ -215,10 +217,34 @@ export class OrganizerDashboard {
     this.organizerEvents.loadEvents().subscribe({ error: () => undefined });
   }
 
+  addCoOrganizerEmail(input: HTMLInputElement): void {
+    const email = input.value.trim().toLowerCase();
+    if (!email) return;
+    if (!email.includes('@') || !email.includes('.')) {
+      this.editErrorMessage.set('Please enter a valid email address.');
+      return;
+    }
+    if (this.coOrganizerEmails().includes(email)) {
+      this.editErrorMessage.set('This organizer email has already been added.');
+      return;
+    }
+    this.coOrganizerEmails.update((list) => [...list, email]);
+    input.value = '';
+    this.editErrorMessage.set('');
+  }
+
+  removeCoOrganizerEmail(index: number): void {
+    this.coOrganizerEmails.update((list) => list.filter((_, i) => i !== index));
+  }
+
   openEdit(event: OrganizerEvent): void {
     this.creating.set(false);
     this.editingEvent.set(event);
     this.editErrorMessage.set('');
+    const existingEmails = event.organizers
+      ? event.organizers.filter((o) => !o.isPrimary).map((o) => o.email)
+      : [];
+    this.coOrganizerEmails.set(existingEmails);
     this.editForm.patchValue({
       name: event.name,
       description: event.description,
@@ -228,6 +254,15 @@ export class OrganizerDashboard {
       capacity: event.capacity,
       allow_walk_ins: event.allow_walk_ins,
     });
+
+    if (!event.organizers) {
+      this.organizerEvents.loadOrganizers(event.id).subscribe({
+        next: (list) => {
+          this.coOrganizerEmails.set(list.filter((o) => !o.isPrimary).map((o) => o.email));
+        },
+        error: () => undefined,
+      });
+    }
   }
 
   closeEdit(): void {
@@ -235,6 +270,7 @@ export class OrganizerDashboard {
     this.editingEvent.set(null);
     this.editErrorMessage.set('');
     this.editForm.reset();
+    this.coOrganizerEmails.set([]);
   }
 
   saveEdit(): void {
@@ -283,6 +319,7 @@ export class OrganizerDashboard {
       ends_at: endDate.toISOString(),
       capacity,
       allow_walk_ins: raw.allow_walk_ins,
+      organizerEmails: this.coOrganizerEmails(),
     };
 
     this.isSaving.set(true);

@@ -1,0 +1,302 @@
+<div class="settings-page">
+  <div class="settings-container">
+    <!-- Topline Info Banner / Notice -->
+    @if (generalSuccess()) {
+      <div class="alert-success" role="status">
+        <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        <span>{{ generalSuccess() }}</span>
+        <button type="button" class="btn-dismiss" (click)="generalSuccess.set('')" aria-label="Dismiss notice">×</button>
+      </div>
+    }
+
+    <!-- 1. General Event Configuration -->
+    <section class="settings-card" aria-labelledby="general-settings-heading">
+      <header class="card-header">
+        <div>
+          <h2 id="general-settings-heading" class="card-title">General Event Parameters</h2>
+          <p class="card-subtitle">Update venue details, schedules, and admission limits for this event.</p>
+        </div>
+      </header>
+
+      <form [formGroup]="generalForm" (ngSubmit)="saveGeneralSettings()" class="settings-form">
+        @if (generalError()) {
+          <div class="alert-error" role="alert">
+            <span>{{ generalError() }}</span>
+          </div>
+        }
+
+        <div class="form-grid">
+          <div class="form-group span-full">
+            <label for="settings-name">Event Title *</label>
+            <input
+              id="settings-name"
+              type="text"
+              class="form-control"
+              formControlName="name"
+              placeholder="e.g. DLSU-D Tech Summit 2026"
+            />
+          </div>
+
+          <div class="form-group span-full">
+            <label for="settings-venue">Venue / Location *</label>
+            <input
+              id="settings-venue"
+              type="text"
+              class="form-control"
+              formControlName="venue"
+              placeholder="e.g. Ugnayang La Salle Gymnasium"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="settings-starts-at">Starts At *</label>
+            <input
+              id="settings-starts-at"
+              type="datetime-local"
+              class="form-control"
+              formControlName="starts_at"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="settings-ends-at">Ends At *</label>
+            <input
+              id="settings-ends-at"
+              type="datetime-local"
+              class="form-control"
+              formControlName="ends_at"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="settings-capacity">Max Capacity *</label>
+            <input
+              id="settings-capacity"
+              type="number"
+              min="1"
+              class="form-control"
+              formControlName="capacity"
+              placeholder="e.g. 500"
+            />
+          </div>
+
+          <div class="form-group">
+            <span class="field-label">Walk-in Policy</span>
+            <label class="checkbox-label">
+              <input type="checkbox" formControlName="allow_walk_ins" class="custom-checkbox" />
+              <span>Allow Walk-in Registrations</span>
+            </label>
+          </div>
+
+          <div class="form-group span-full">
+            <label for="settings-description">Description</label>
+            <textarea
+              id="settings-description"
+              rows="3"
+              class="form-control textarea-control"
+              formControlName="description"
+              placeholder="Brief summary, keynote tracks, and event agenda..."
+            ></textarea>
+          </div>
+
+          <div class="form-group span-full">
+            <span class="field-label">Visibility</span>
+            <label class="checkbox-label">
+              <input type="checkbox" formControlName="is_private" class="custom-checkbox" />
+              <span>Private Event (Direct Link &amp; Passcode Only)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="btn-primary"
+            [disabled]="isSavingGeneral() || generalForm.invalid"
+          >
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span>{{ isSavingGeneral() ? 'Saving Changes...' : 'Save Parameters' }}</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 2. Event Organizers (Multiple Organizers Management) -->
+    <section class="settings-card" aria-labelledby="organizers-heading">
+      <header class="card-header">
+        <div>
+          <h2 id="organizers-heading" class="card-title">Event Organizers</h2>
+          <p class="card-subtitle">
+            Organizers have full administrative access to edit parameters, configure checkpoints, and admit attendees.
+          </p>
+        </div>
+      </header>
+
+      <div class="card-body">
+        <!-- Add Co-Organizer Bar -->
+        <div class="add-organizer-bar">
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="8.5" cy="7" r="4"></circle>
+              <line x1="20" y1="8" x2="20" y2="14"></line>
+              <line x1="23" y1="11" x2="17" y2="11"></line>
+            </svg>
+            <input
+              #orgEmailInput
+              type="email"
+              class="form-control"
+              placeholder="Enter co-organizer email (e.g. organizer@alica.ph)"
+              (keydown.enter)="addOrganizerMember(orgEmailInput)"
+            />
+          </div>
+          <button
+            type="button"
+            class="btn-primary"
+            [disabled]="addingOrganizer()"
+            (click)="addOrganizerMember(orgEmailInput)"
+          >
+            <span>{{ addingOrganizer() ? 'Adding...' : 'Add Co-Organizer' }}</span>
+          </button>
+        </div>
+
+        @if (organizerError()) {
+          <div class="alert-error" role="alert">
+            <span>{{ organizerError() }}</span>
+          </div>
+        }
+
+        @if (organizerSuccess()) {
+          <div class="alert-success" role="status">
+            <span>{{ organizerSuccess() }}</span>
+          </div>
+        }
+
+        <!-- Organizers Roster Table -->
+        <div class="table-container">
+          @if (organizersLoading()) {
+            <div class="loading-state">
+              <div class="spinner" aria-hidden="true"></div>
+              <span>Loading organizer roster...</span>
+            </div>
+          } @else {
+            <table class="roster-table">
+              <thead>
+                <tr>
+                  <th scope="col">Organizer</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Affiliation</th>
+                  <th scope="col">Assigned</th>
+                  <th scope="col" class="th-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (member of organizers(); track member.id) {
+                  <tr class="roster-row">
+                    <td>
+                      <div class="organizer-identity">
+                        <div class="user-avatar" aria-hidden="true">
+                          {{ member.fullName.charAt(0).toUpperCase() }}
+                        </div>
+                        <div class="identity-text">
+                          <strong class="user-name">{{ member.fullName }}</strong>
+                          <span class="user-email">{{ member.email }}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      @if (member.isPrimary) {
+                        <span class="tag-primary-organizer">Primary Creator</span>
+                      } @else {
+                        <span class="tag-co-organizer">Co-Organizer</span>
+                      }
+                    </td>
+                    <td>
+                      <span class="affiliation-text">{{ member.affiliation || 'University Council' }}</span>
+                    </td>
+                    <td>
+                      <span class="date-text">{{ member.assignedAt | date: 'MMM d, y' }}</span>
+                    </td>
+                    <td class="td-actions">
+                      @if (member.isPrimary) {
+                        <span class="text-muted">Protected</span>
+                      } @else {
+                        <button
+                          type="button"
+                          class="btn-action-danger"
+                          (click)="removeOrganizerMember(member.userId)"
+                          [attr.aria-label]="'Remove ' + member.fullName + ' from event organizers'"
+                        >
+                          Remove
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Danger Zone -->
+    @if (isOwner()) {
+      <section class="settings-card card-danger" aria-labelledby="danger-heading">
+        <header class="card-header danger-header">
+          <div>
+            <h2 id="danger-heading" class="card-title text-danger">Delete Event</h2>
+            <p class="card-subtitle">
+              Permanently remove this event and archive all associated checkpoint logs and ticket records.
+            </p>
+          </div>
+          <button type="button" class="btn-danger-confirm" (click)="openDelete()">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Delete Event</span>
+          </button>
+        </header>
+      </section>
+    }
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+@if (deleting()) {
+  <div class="dialog-backdrop" (click)="closeDelete()" tabindex="-1">
+    <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-del-title" (click)="$event.stopPropagation()">
+      <header class="dialog-header">
+        <div>
+          <h2 id="dialog-del-title">Delete Event</h2>
+          <p class="dialog-subtitle">Are you sure you want to delete "{{ event()?.name }}"?</p>
+        </div>
+        <button type="button" class="dialog-close" (click)="closeDelete()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <div class="dialog-body">
+        <p class="delete-warning">
+          This action will remove the event from active operations and archive attendee tickets.
+        </p>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="btn-cancel" (click)="closeDelete()">Cancel</button>
+        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()">Delete Event</button>
+      </footer>
+    </section>
+  </div>
+}

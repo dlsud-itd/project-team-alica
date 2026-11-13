@@ -237,4 +237,27 @@ describe('OrganizerEventsService', () => {
       .expectOne(`${API}/evt-1/scans/export`)
       .flush({ success: true, data: 'Ticket Code,Attendee Name\nTKT-1,John' });
   });
+
+  it('should load, add, and remove event organizers', () => {
+    service.loadOrganizers('evt-1').subscribe((orgs) => {
+      expect(orgs.length).toBe(1);
+      expect(orgs[0].email).toBe('org@example.com');
+    });
+    httpMock
+      .expectOne(`${API}/evt-1/organizers`)
+      .flush({ success: true, data: [{ id: '1', email: 'org@example.com', fullName: 'Org', isPrimary: true }] });
+
+    service.addOrganizer('evt-1', 'co@example.com').subscribe((added) => {
+      expect(added.email).toBe('co@example.com');
+    });
+    const addReq = httpMock.expectOne(`${API}/evt-1/organizers`);
+    expect(addReq.request.method).toBe('POST');
+    expect(addReq.request.body).toEqual({ email: 'co@example.com' });
+    addReq.flush({ success: true, data: { id: '2', email: 'co@example.com', fullName: 'Co', isPrimary: false } });
+
+    service.removeOrganizer('evt-1', 'usr-co').subscribe();
+    const delReq = httpMock.expectOne(`${API}/evt-1/organizers/usr-co`);
+    expect(delReq.request.method).toBe('DELETE');
+    delReq.flush({ success: true });
+  });
 });

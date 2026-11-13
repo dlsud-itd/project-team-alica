@@ -22,7 +22,9 @@ import {
   EventRegistrantDto,
   EventLiveOverviewDto,
   EventCheckpointDto,
+  EventOrganizerDto,
   EventStaffDto,
+  OrganizerCandidateDto,
   ScanResultDto,
   OrganizerEventDto,
   ReviewEventDto,
@@ -307,5 +309,47 @@ export class EventsController {
   ): Promise<{ success: boolean; message: string }> {
     await this.eventsService.removeStaff(user, eventId, targetUserId);
     return { success: true, message: 'Staff member removed successfully' };
+  }
+
+  @Get('organizers/candidates')
+  @UseGuards(JwtAuthGuard)
+  async searchOrganizerCandidates(
+    @CurrentUser() user: UserSummaryDto,
+    @Query('query') query = '',
+  ): Promise<{ success: boolean; data: OrganizerCandidateDto[] }> {
+    const data = await this.eventsService.searchOrganizerCandidates(user, query);
+    return { success: true, data };
+  }
+
+  @Get(':eventId/organizers')
+  @UseGuards(JwtAuthGuard)
+  async getOrganizers(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventOrganizerDto[] }> {
+    const data = await this.eventsService.getOrganizers(user, eventId);
+    return { success: true, data };
+  }
+
+  @Post(':eventId/organizers')
+  @UseGuards(JwtAuthGuard)
+  async addOrganizer(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Body('email') email: string,
+  ): Promise<{ success: boolean; data: EventOrganizerDto }> {
+    const data = await this.eventsService.addOrganizer(user, eventId, email);
+    return { success: true, data };
+  }
+
+  @Delete(':eventId/organizers/:userId')
+  @UseGuards(JwtAuthGuard)
+  async removeOrganizer(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('userId') targetUserId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.eventsService.removeOrganizer(user, eventId, targetUserId);
+    return { success: true, message: 'Organizer removed successfully' };
   }
 }

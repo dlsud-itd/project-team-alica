@@ -129,6 +129,7 @@ export interface OrganizerEventDto {
   category_label?: string;
   checkpoints_count?: number;
   admitted_count?: number;
+  organizers?: EventOrganizerDto[];
 }
 
 export interface EventLiveKpisDto {
@@ -180,6 +181,7 @@ export interface EventLiveOverviewDto {
   hourlyFlow: HourlyFlowPointDto[];
   stationTraffic: StationTrafficDto[];
   recentScans: RecentScanItemDto[];
+  organizers?: EventOrganizerDto[];
 }
 
 export interface EventCheckpointDto {
@@ -225,6 +227,23 @@ export interface EventRegistrantDto {
   status: RegistrantStatus;
 }
 
+export interface EventOrganizerDto {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+  isPrimary: boolean;
+}
+
+export interface OrganizerCandidateDto {
+  id: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+}
+
 export class UpdateEventDto {
   name?: string;
   description?: string;
@@ -233,6 +252,8 @@ export class UpdateEventDto {
   ends_at?: string;
   capacity?: number;
   allow_walk_ins?: boolean;
+  is_private?: boolean;
+  organizerEmails?: string[];
 }
 
 export interface EventStaffDto {
@@ -253,6 +274,7 @@ export class CreateEventDto {
   capacity!: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
+  organizerEmails?: string[];
 }
 
 export class ReviewEventDto {
@@ -277,7 +299,7 @@ const APPROVAL_STATUS_LABELS: Record<EventApprovalStatus, ApprovalStatusLabel> =
 const ACTIVE_TICKET_FILTER = { status: { not: TicketStatus.CANCELLED } };
 
 const ADMIN_EVENT_INCLUDE = {
-  organizer: { select: { fullName: true, email: true } },
+  organizer: { select: { id: true, fullName: true, email: true } },
   _count: { select: { tickets: { where: ACTIVE_TICKET_FILTER } } },
 } satisfies Prisma.EventInclude;
 
@@ -926,6 +948,7 @@ export class EventsService {
           : {
               OR: [
                 { organizerId: user.id },
+                { organizers: { some: { userId: user.id } } },
                 { staff: { some: { userId: user.id, isActive: true } } },
                 {
                   checkpoints: {
@@ -949,6 +972,12 @@ export class EventsService {
         tickets: {
           where: { status: TicketStatus.CHECKED_IN },
           select: { id: true },
+        },
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        organizers: {
+          include: {
+            user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+          },
         },
       },
       orderBy: { startDate: 'asc' },
@@ -1017,10 +1046,54 @@ export class EventsService {
         approvalStatus,
         organizerId: user.id,
       },
+      include: {
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+    });
+
+    if (dto.organizerEmails && Array.isArray(dto.organizerEmails) && dto.organizerEmails.length > 0) {
+      const cleanEmails = Array.from(
+        new Set(
+          dto.organizerEmails
+            .map((e) => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+            .filter((e) => e && e !== user.email.toLowerCase()),
+        ),
+      );
+      if (cleanEmails.length > 0) {
+        const foundUsers = await this.prisma.user.findMany({
+          where: { email: { in: cleanEmails } },
+          select: { id: true, email: true },
+        });
+        const foundEmailSet = new Set(foundUsers.map((u) => u.email.toLowerCase()));
+        for (const em of cleanEmails) {
+          if (!foundEmailSet.has(em)) {
+            throw new NotFoundException(`User with email '${em}' not found`);
+          }
+        }
+        await this.prisma.eventOrganizer.createMany({
+          data: foundUsers.map((u) => ({
+            eventId: event.id,
+            userId: u.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    const fullEvent = await this.prisma.event.findUnique({
+      where: { id: event.id },
+      include: {
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        organizers: {
+          include: {
+            user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+          },
+        },
+      },
     });
 
     this.logger.log(`Event '${event.id}' created by ${user.id} (private: ${isPrivate}, approval: ${approvalStatus})`);
-    return this.toOrganizerEvent(event, 0);
+    return this.toOrganizerEvent(fullEvent ?? event, 0);
   }
 
   async update(
@@ -1045,6 +1118,10 @@ export class EventsService {
 
     if (dto.allow_walk_ins !== undefined) {
       data.allowWalkIns = Boolean(dto.allow_walk_ins);
+    }
+
+    if (dto.is_private !== undefined) {
+      data.isPrivate = Boolean(dto.is_private);
     }
 
     const [startDate, endDate] = this.parseDateRange(
@@ -1079,9 +1156,57 @@ export class EventsService {
       data.capacity = capacity;
     }
 
+    if (dto.organizerEmails !== undefined && Array.isArray(dto.organizerEmails)) {
+      const cleanEmails = Array.from(
+        new Set(
+          dto.organizerEmails
+            .map((e) => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+            .filter((e) => e && e !== user.email.toLowerCase()),
+        ),
+      );
+      const targetUsers =
+        cleanEmails.length > 0
+          ? await this.prisma.user.findMany({
+              where: { email: { in: cleanEmails } },
+              select: { id: true, email: true },
+            })
+          : [];
+      const foundEmailSet = new Set(targetUsers.map((u) => u.email.toLowerCase()));
+      for (const em of cleanEmails) {
+        if (!foundEmailSet.has(em)) {
+          throw new NotFoundException(`User with email '${em}' not found`);
+        }
+      }
+      const targetUserIds = targetUsers
+        .map((u) => u.id)
+        .filter((id) => id !== event.organizerId);
+
+      await this.prisma.eventOrganizer.deleteMany({
+        where: {
+          eventId,
+          userId: { notIn: targetUserIds },
+        },
+      });
+      for (const uid of targetUserIds) {
+        await this.prisma.eventOrganizer.upsert({
+          where: { eventId_userId: { eventId, userId: uid } },
+          create: { eventId, userId: uid },
+          update: {},
+        });
+      }
+    }
+
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data,
+      include: {
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        organizers: {
+          include: {
+            user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+          },
+        },
+      },
     });
 
     return this.toOrganizerEvent(updated, registrationsCount);
@@ -1323,18 +1448,32 @@ export class EventsService {
 
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, deletedAt: null },
+      include: {
+        organizers: true,
+      },
     });
     if (!event) {
       throw new NotFoundException(`Event with ID '${eventId}' not found`);
     }
-    if (user.role !== 'ADMIN' && event.organizerId !== user.id) {
+    const isOrganizer =
+      event.organizerId === user.id ||
+      event.organizers.some((o) => o.userId === user.id);
+    if (user.role !== 'ADMIN' && !isOrganizer) {
       throw new ForbiddenException('You do not manage this event');
     }
     return event;
   }
 
   private toOrganizerEvent(
-    ev: Event,
+    ev: Event & {
+      organizer?: { id?: string; fullName: string; email: string; affiliation?: string | null };
+      organizers?: Array<{
+        id: string;
+        userId: string;
+        assignedAt: Date;
+        user?: { id: string; email: string; fullName: string; affiliation?: string | null };
+      }>;
+    },
     registrationsCount: number,
   ): OrganizerEventDto {
     const now = new Date();
@@ -1344,6 +1483,35 @@ export class EventsService {
         : now <= ev.endDate
           ? 'In progress'
           : 'Completed';
+
+    const organizersList: EventOrganizerDto[] = [];
+    if (ev.organizer) {
+      const orgId = ev.organizer.id ?? ev.organizerId;
+      organizersList.push({
+        id: `primary-${orgId}`,
+        userId: orgId,
+        email: ev.organizer.email,
+        fullName: ev.organizer.fullName,
+        affiliation: ev.organizer.affiliation ?? null,
+        assignedAt: ev.createdAt.toISOString(),
+        isPrimary: true,
+      });
+    }
+    if (ev.organizers && Array.isArray(ev.organizers)) {
+      for (const org of ev.organizers) {
+        if (org.userId !== ev.organizerId && org.user) {
+          organizersList.push({
+            id: org.id,
+            userId: org.user.id,
+            email: org.user.email,
+            fullName: org.user.fullName,
+            affiliation: org.user.affiliation ?? null,
+            assignedAt: org.assignedAt ? org.assignedAt.toISOString() : new Date().toISOString(),
+            isPrimary: false,
+          });
+        }
+      }
+    }
 
     return {
       id: ev.id,
@@ -1362,11 +1530,12 @@ export class EventsService {
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
       is_private: ev.isPrivate,
+      ...(organizersList.length > 0 ? { organizers: organizersList } : {}),
     };
   }
 
   private toAdminEvent(
-    ev: Event & { organizer: { fullName: string; email: string } },
+    ev: Event & { organizer: { fullName: string; email: string; id?: string } },
     registrationsCount: number,
   ): AdminEventDto {
     return {
@@ -1404,6 +1573,7 @@ export class EventsService {
       where: { id: eventId, deletedAt: null },
       include: {
         staff: true,
+        organizers: true,
       },
     });
     if (!event) {
@@ -1411,6 +1581,7 @@ export class EventsService {
     }
     if (user.role === 'ADMIN') return event;
     if (event.organizerId === user.id) return event;
+    if (event.organizers?.some((o) => o.userId === user.id)) return event;
     const isAssignedStaff = event.staff?.some(
       (s) => s.userId === user.id && s.isActive,
     );
@@ -1590,6 +1761,7 @@ export class EventsService {
       hourlyFlow,
       stationTraffic,
       recentScans,
+      organizers: await this.getOrganizers(user, eventId),
     };
   }
 
@@ -1793,4 +1965,137 @@ export class EventsService {
     });
   }
 
+  async getOrganizers(
+    user: UserSummaryDto,
+    eventId: string,
+  ): Promise<EventOrganizerDto[]> {
+    const event = await this.findAccessibleEvent(user, eventId);
+    const [primaryUser, coOrganizers] = await Promise.all([
+      this.prisma.user?.findUnique
+        ? this.prisma.user.findUnique({
+            where: { id: event.organizerId },
+            select: { id: true, email: true, fullName: true, affiliation: true },
+          })
+        : Promise.resolve(null),
+      this.prisma.eventOrganizer?.findMany
+        ? this.prisma.eventOrganizer.findMany({
+            where: { eventId },
+            include: {
+              user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+            },
+            orderBy: { assignedAt: 'asc' },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const result: EventOrganizerDto[] = [];
+    if (primaryUser) {
+      result.push({
+        id: `primary-${primaryUser.id}`,
+        userId: primaryUser.id,
+        email: primaryUser.email,
+        fullName: primaryUser.fullName,
+        affiliation: primaryUser.affiliation ?? null,
+        assignedAt: event.createdAt.toISOString(),
+        isPrimary: true,
+      });
+    }
+
+    for (const co of coOrganizers) {
+      if (co.userId !== event.organizerId && co.user) {
+        result.push({
+          id: co.id,
+          userId: co.user.id,
+          email: co.user.email,
+          fullName: co.user.fullName,
+          affiliation: co.user.affiliation ?? null,
+          assignedAt: co.assignedAt.toISOString(),
+          isPrimary: false,
+        });
+      }
+    }
+    return result;
+  }
+
+  async addOrganizer(
+    user: UserSummaryDto,
+    eventId: string,
+    email: string,
+  ): Promise<EventOrganizerDto> {
+    const event = await this.findManageableEvent(user, eventId);
+    const cleanEmail = email?.trim()?.toLowerCase();
+    if (!cleanEmail) {
+      throw new BadRequestException('Organizer email is required');
+    }
+    const targetUser = await this.prisma.user.findUnique({
+      where: { email: cleanEmail },
+      select: { id: true, email: true, fullName: true, affiliation: true },
+    });
+    if (!targetUser) {
+      throw new NotFoundException(
+        `User with email '${cleanEmail}' not found. They must register an account first.`,
+      );
+    }
+    if (targetUser.id === event.organizerId) {
+      throw new BadRequestException('This user is already the primary organizer');
+    }
+    const assignment = await this.prisma.eventOrganizer.upsert({
+      where: { eventId_userId: { eventId, userId: targetUser.id } },
+      update: {},
+      create: { eventId, userId: targetUser.id },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+    });
+
+    return {
+      id: assignment.id,
+      userId: assignment.user.id,
+      email: assignment.user.email,
+      fullName: assignment.user.fullName,
+      affiliation: assignment.user.affiliation ?? null,
+      assignedAt: assignment.assignedAt.toISOString(),
+      isPrimary: false,
+    };
+  }
+
+  async removeOrganizer(
+    user: UserSummaryDto,
+    eventId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    const event = await this.findManageableEvent(user, eventId);
+    if (event.organizerId === targetUserId) {
+      throw new BadRequestException('Cannot remove the primary organizer');
+    }
+    await this.prisma.eventOrganizer.deleteMany({
+      where: { eventId, userId: targetUserId },
+    });
+  }
+
+  async searchOrganizerCandidates(
+    user: UserSummaryDto,
+    query: string,
+  ): Promise<OrganizerCandidateDto[]> {
+    this.assertOrganizerRole(user);
+    const trimmed = (query || '').trim();
+    if (trimmed.length < 2) return [];
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { email: { contains: trimmed, mode: 'insensitive' } },
+          { fullName: { contains: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, email: true, fullName: true, affiliation: true },
+      take: 8,
+    });
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      affiliation: u.affiliation ?? null,
+    }));
+  }
 }

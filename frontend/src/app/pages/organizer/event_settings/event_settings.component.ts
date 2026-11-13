@@ -263,3 +263,4 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
     this.router.navigate(['/hub']);
   }
 }
+

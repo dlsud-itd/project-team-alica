@@ -206,3 +206,4 @@ describe('EventSettingsComponent', () => {
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/hub']);
   });
 });
+

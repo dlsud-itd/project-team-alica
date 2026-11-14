@@ -21,6 +21,13 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/public/events/events.component').then((m) => m.Events),
       },
       {
+        path: 'events/:idOrSlug',
+        loadComponent: () =>
+          import('./pages/public/event-details/event-details.component').then(
+            (m) => m.EventDetailsComponent,
+          ),
+      },
+      {
         path: 'hub',
         canActivate: [authGuard],
         loadComponent: () => import('./pages/hub/hub.component').then((m) => m.HubComponent),

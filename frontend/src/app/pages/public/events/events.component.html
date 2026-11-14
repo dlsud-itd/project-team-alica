@@ -143,7 +143,9 @@
 
             <!-- Card Body -->
             <div class="card-body">
-              <h2 class="event-title">{{ event.title }}</h2>
+              <h2 class="event-title">
+                <a [routerLink]="['/events', event.slug || event.id]" class="event-title-link">{{ event.title }}</a>
+              </h2>
               <p class="organizer-text">By {{ event.organizerName }}</p>
               <p class="event-description">{{ event.description }}</p>
 

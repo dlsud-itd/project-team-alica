@@ -1,0 +1,528 @@
+<div class="event-details-page">
+  <!-- Loading State -->
+  @if (isLoading()) {
+    <div class="state-container loading-state" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading event schedule and details...</p>
+    </div>
+  }
+
+  <!-- Error State -->
+  @if (!isLoading() && loadError()) {
+    <div class="state-container error-state" role="alert">
+      <div class="error-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <h2>{{ loadError() }}</h2>
+      <p>The event you are looking for may have been removed or is temporarily unavailable.</p>
+      <button type="button" class="btn-back-events" (click)="goBack()">
+        Back to all events
+      </button>
+    </div>
+  }
+
+  <!-- Main Content View (Responsive Website + Mobile Layout) -->
+  @if (!isLoading() && event(); as ev) {
+    <div class="event-details-container">
+      <!-- Breadcrumb / Header Row -->
+      <nav class="event-breadcrumb-bar" aria-label="Breadcrumb">
+        <button type="button" class="btn-breadcrumb-back" (click)="goBack()" aria-label="Back to all events">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="back-arrow-icon" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span>All Events</span>
+        </button>
+
+        <span class="breadcrumb-separator" aria-hidden="true">/</span>
+        <span class="breadcrumb-current">{{ ev.categoryLabel }}</span>
+
+        <span class="nav-event-title visually-hidden">{{ ev.title }}</span>
+      </nav>
+
+      <!-- Wide Hero Banner Section -->
+      <section class="hero-banner-section" aria-label="Event Cover">
+        <div class="hero-image-wrapper">
+          <img
+            [src]="ev.bannerImageUrl"
+            [alt]="ev.title + ' Cover Banner'"
+            class="hero-cover-img"
+            loading="eager"
+          />
+          <div class="hero-gradient-overlay" aria-hidden="true"></div>
+
+          <!-- Hero Content Overlay -->
+          <div class="hero-content-overlay">
+            <div class="hero-tags-row">
+              <span class="hero-category-tag">{{ ev.categoryLabel }}</span>
+              <span class="hero-status-tag" [class.is-live]="ev.status === 'LIVE_TODAY'">
+                {{ ev.statusLabel }}
+              </span>
+            </div>
+
+            <h1 class="hero-event-title">{{ ev.title }}</h1>
+            <p class="hero-organizer-line">Organized by <strong>{{ ev.organizerName }}</strong></p>
+
+            <!-- Floating Badges / Metadata Chips -->
+            <div class="hero-chips-bar" aria-label="Event Highlights">
+              <span class="hero-chip">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chip-icon" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <span>{{ ev.durationLabel }}</span>
+              </span>
+
+              <span class="hero-chip">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chip-icon checkmark" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>{{ ev.checkpointMode }}</span>
+              </span>
+
+              <span class="hero-chip">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chip-icon" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <span>{{ ev.spotsTotal }} Seats</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Desktop 2-Column Responsive Grid -->
+      <div class="event-layout-grid">
+        <!-- Main Column (Left): About, Schedule, Speakers -->
+        <main class="main-column">
+          <!-- About Event Section -->
+          <section class="details-section about-section">
+            <h2 class="section-title">About Event</h2>
+            <p class="section-description">{{ ev.description }}</p>
+
+            <div class="meta-pill-group">
+              <div class="meta-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-pill-icon" aria-hidden="true">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>{{ ev.venue }}</span>
+              </div>
+
+              <div class="meta-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-pill-icon" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>{{ ev.dateLabel }} · {{ ev.timeLabel }}</span>
+              </div>
+
+              <div class="meta-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-pill-icon" aria-hidden="true">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>By {{ ev.organizerName }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Schedule Timeline Section -->
+          <section class="details-section schedule-section">
+            <div class="schedule-header-row">
+              <h2 class="section-title">Schedule Timeline</h2>
+              <span class="schedule-date-badge">{{ ev.scheduleDateLabel }}</span>
+            </div>
+
+            <div class="timeline-container">
+              @for (item of ev.schedule; track item.id; let last = $last) {
+                <div class="timeline-item" [class.is-last]="last">
+                  <!-- Time Badge -->
+                  <div class="timeline-time-col">
+                    <span class="time-badge">{{ item.time }}</span>
+                  </div>
+
+                  <!-- Event Details Card -->
+                  <div class="timeline-card">
+                    <h3 class="timeline-card-title">{{ item.title }}</h3>
+                    <p class="timeline-card-desc">{{ item.description }}</p>
+                    @if (item.location) {
+                      <span class="timeline-card-loc">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="loc-pin" aria-hidden="true">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                          <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        {{ item.location }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </section>
+
+          <!-- Featured Speakers Section -->
+          <section class="details-section speakers-section">
+            <h2 class="section-title">Featured Speakers</h2>
+
+            <div class="speakers-grid">
+              @for (speaker of ev.speakers; track speaker.id) {
+                <article class="speaker-card">
+                  <div class="speaker-avatar-wrap">
+                    @if (speaker.avatarUrl) {
+                      <img
+                        [src]="speaker.avatarUrl"
+                        [alt]="speaker.name"
+                        class="speaker-avatar-img"
+                        loading="lazy"
+                      />
+                    } @else {
+                      <div class="speaker-avatar-fallback">
+                        {{ speaker.name.charAt(0) }}
+                      </div>
+                    }
+                  </div>
+
+                  <div class="speaker-info">
+                    <h3 class="speaker-name">{{ speaker.name }}</h3>
+                    <p class="speaker-role">{{ speaker.role }} · {{ speaker.company }}</p>
+                    @if (speaker.topic) {
+                      <p class="speaker-topic">Keynote: "{{ speaker.topic }}"</p>
+                    }
+                  </div>
+                </article>
+              }
+            </div>
+          </section>
+        </main>
+
+        <!-- Sidebar Column (Right on Desktop): Sticky RSVP & Info Card -->
+        <aside class="sidebar-column" aria-label="Event RSVP & Registration">
+          <div class="sticky-sidebar-card">
+            <div class="sidebar-card-header">
+              <span class="sidebar-card-eyebrow">Event Registration</span>
+              <h3 class="sidebar-card-title">{{ ev.title }}</h3>
+            </div>
+
+            <div class="sidebar-meta-list">
+              <div class="sidebar-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sidebar-icon" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <div class="sidebar-meta-text">
+                  <strong>{{ ev.dateLabel }}</strong>
+                  <span>{{ ev.timeLabel }}</span>
+                </div>
+              </div>
+
+              <div class="sidebar-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sidebar-icon" aria-hidden="true">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <div class="sidebar-meta-text">
+                  <strong>{{ ev.venue }}</strong>
+                  <span>On-site Checkpoint Entry</span>
+                </div>
+              </div>
+
+              <div class="sidebar-capacity-block">
+                <div class="capacity-header-row">
+                  <span>{{ ev.spotsTotal - ev.spotsTaken }} spots remaining</span>
+                  <span>{{ ev.spotsTaken }} / {{ ev.spotsTotal }}</span>
+                </div>
+                <div class="capacity-bar-track">
+                  <div
+                    class="capacity-bar-fill"
+                    [style.width.%]="(ev.spotsTaken / ev.spotsTotal) * 100"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Primary Action Button in Sidebar -->
+            <div class="sidebar-cta-wrap">
+              @if (isRegistered()) {
+                <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span>Already Registered (Go to Pass)</span>
+                </a>
+              } @else {
+                <button
+                  type="button"
+                  class="btn-primary-cta btn-claim-pass"
+                  (click)="openRsvpModal()"
+                >
+                  <span>RSVP for Event / Claim Pass</span>
+                </button>
+              }
+            </div>
+
+            <p class="sidebar-guarantee-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="note-check-icon" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>Instant digital ticket pass with offline QR support.</span>
+            </p>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Mobile Fixed Bottom Action Bar (visible on mobile screens only) -->
+      <footer class="mobile-fixed-bottom-bar" aria-label="Mobile Action Bar">
+        @if (isRegistered()) {
+          <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Already Registered (Go to Pass)</span>
+          </a>
+        } @else {
+          <button
+            type="button"
+            class="btn-primary-cta btn-claim-pass"
+            (click)="openRsvpModal()"
+          >
+            <span>RSVP for Event / Claim Pass</span>
+          </button>
+        }
+      </footer>
+    </div>
+  }
+
+  <!-- RSVP MODAL -->
+  @if (isRsvpOpen() && event(); as ev) {
+    <div
+      class="modal-backdrop"
+      (click)="closeRsvpModal()"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <!-- Modal Header -->
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <span class="modal-eyebrow">Claim Your Ticket</span>
+            <h2 id="modal-title" class="modal-event-name">{{ ev.title }}</h2>
+          </div>
+          <button
+            type="button"
+            class="btn-close-modal"
+            (click)="closeRsvpModal()"
+            aria-label="Close dialog"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- RSVP Form View -->
+        @if (!rsvpSuccess()) {
+          <form [formGroup]="rsvpForm" (ngSubmit)="submitRsvp()" class="rsvp-modal-form" novalidate>
+            <!-- Saved Profile Selector for Authenticated Users -->
+            @if (auth.isAuthenticated() && savedProfiles().length > 0) {
+              <div class="form-group profile-select-group">
+                <label for="profileSelect" class="form-label">
+                  <span>Fast Auto-Fill</span>
+                  <span class="badge-optional">Saved Profiles</span>
+                </label>
+                <select
+                  id="profileSelect"
+                  class="form-select"
+                  (change)="onSelectProfile($event)"
+                  [value]="selectedProfileId()"
+                >
+                  <option value="">Select a saved profile...</option>
+                  @for (profile of savedProfiles(); track profile.id) {
+                    <option [value]="profile.id">
+                      {{ profile.profileName }} ({{ profile.fullName }})
+                    </option>
+                  }
+                </select>
+              </div>
+            }
+
+            <!-- Full Name -->
+            <div class="form-group">
+              <label for="fullName" class="form-label">Full Name *</label>
+              <input
+                id="fullName"
+                type="text"
+                formControlName="fullName"
+                class="form-control"
+                placeholder="e.g. Alex Martin"
+                [class.is-invalid]="rsvpForm.controls.fullName.touched && rsvpForm.controls.fullName.invalid"
+              />
+              @if (rsvpForm.controls.fullName.touched && rsvpForm.controls.fullName.errors?.['required']) {
+                <span class="field-error">Full name is required.</span>
+              }
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+              <label for="email" class="form-label">Email Address *</label>
+              <input
+                id="email"
+                type="email"
+                formControlName="email"
+                class="form-control"
+                placeholder="e.g. alex.martin@dlsud.edu.ph"
+                [class.is-invalid]="rsvpForm.controls.email.touched && rsvpForm.controls.email.invalid"
+              />
+              @if (rsvpForm.controls.email.touched && rsvpForm.controls.email.errors?.['required']) {
+                <span class="field-error">Email address is required.</span>
+              }
+              @if (rsvpForm.controls.email.touched && rsvpForm.controls.email.errors?.['email']) {
+                <span class="field-error">Please enter a valid email address.</span>
+              }
+            </div>
+
+            <!-- Student / Employee ID -->
+            <div class="form-group">
+              <label for="studentId" class="form-label">Student or Employee ID *</label>
+              <input
+                id="studentId"
+                type="text"
+                formControlName="studentId"
+                class="form-control"
+                placeholder="e.g. 2026-948172"
+                [class.is-invalid]="rsvpForm.controls.studentId.touched && rsvpForm.controls.studentId.invalid"
+              />
+              @if (rsvpForm.controls.studentId.touched && rsvpForm.controls.studentId.errors?.['required']) {
+                <span class="field-error">Student or Employee ID is required.</span>
+              }
+            </div>
+
+            <!-- Save Profile Checkbox (Authenticated only) -->
+            @if (auth.isAuthenticated()) {
+              <div class="save-profile-box">
+                <label class="checkbox-label">
+                  <input type="checkbox" formControlName="saveProfile" class="checkbox-input" />
+                  <span>Save this information for future 1-click event RSVPs</span>
+                </label>
+
+                @if (rsvpForm.controls.saveProfile.value) {
+                  <div class="profile-name-input-wrap">
+                    <input
+                      type="text"
+                      formControlName="profileName"
+                      class="form-control form-control-sm"
+                      placeholder="Profile tag (e.g. DLSU-D Student, Personal)"
+                    />
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Server Error Banner -->
+            @if (rsvpError()) {
+              <div class="alert alert-error" role="alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="alert-icon" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>{{ rsvpError() }}</span>
+              </div>
+            }
+
+            <!-- Actions -->
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="closeRsvpModal()"
+                [disabled]="isSubmitting()"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="btn btn-primary"
+                [disabled]="isSubmitting() || rsvpForm.invalid"
+              >
+                @if (isSubmitting()) {
+                  <span class="spinner-inline" aria-hidden="true"></span>
+                  <span>Confirming...</span>
+                } @else {
+                  <span>Confirm RSVP</span>
+                }
+              </button>
+            </div>
+          </form>
+        }
+
+        <!-- Success Confirmation View -->
+        @if (rsvpSuccess(); as success) {
+          <div class="rsvp-success-view">
+            <div class="success-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+
+            <h3 class="success-title">RSVP Confirmed!</h3>
+            <p class="success-subtitle">
+              Welcome, <strong>{{ success.attendeeName }}</strong>. Your digital ticket pass is ready.
+            </p>
+
+            <div class="ticket-code-card">
+              <span class="code-label">Issued Ticket Pass Code</span>
+              <div class="code-row">
+                <code class="code-display">{{ success.ticketCode }}</code>
+                <button
+                  type="button"
+                  class="btn-copy-code"
+                  (click)="copyTicketCode(success.ticketCode)"
+                  aria-label="Copy ticket code"
+                >
+                  @if (copyFeedback()) {
+                    <span class="copied-badge">Copied!</span>
+                  } @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  }
+                </button>
+              </div>
+            </div>
+
+            <div class="success-actions">
+              <a
+                routerLink="/profile"
+                (click)="closeRsvpModal()"
+                class="btn btn-primary btn-block"
+              >
+                View in My Tickets
+              </a>
+              <button
+                type="button"
+                class="btn btn-secondary btn-block"
+                (click)="closeRsvpModal()"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

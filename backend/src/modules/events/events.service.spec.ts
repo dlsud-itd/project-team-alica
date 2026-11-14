@@ -725,5 +725,50 @@ describe('EventsService', () => {
         }),
       );
     });
+
+    it('returns event details with schedule, speakers, and metadata in findOne', async () => {
+      prisma.event.findFirst.mockResolvedValue({
+        ...dbEvent({
+          id: 'evt-devcon-manila-2026',
+          slug: 'devcon-manila-2026',
+          title: 'DevCon Manila 2026',
+          description: 'Premier developer conference',
+          capacity: 1240,
+        }),
+        organizer: { id: 'usr-org', fullName: 'Campus Organizer', affiliation: 'Council' },
+        staff: [],
+        tickets: [{ id: 'tkt-1', userId: 'usr-attendee' }],
+        checkpoints: [
+          {
+            id: 'chk-gate-1',
+            name: 'Gate 1',
+            location: 'Main Hall',
+            type: 'MAIN_ENTRY',
+            allowMultipleScans: false,
+            requireMainEntry: false,
+          },
+          {
+            id: 'chk-booth-1',
+            name: 'AWS Booth',
+            location: 'Booth A',
+            type: 'BOOTH',
+            allowMultipleScans: true,
+            requireMainEntry: false,
+          },
+        ],
+      });
+
+      const res = await service.findOne('devcon-manila-2026');
+      expect(res.slug).toBe('devcon-manila-2026');
+      expect(res.durationLabel).toBe('3 Days');
+      expect(res.checkpointMode).toBe('Multi-stop Checks');
+      expect(res.spotsTotal).toBe(500);
+      expect(res.schedule).toHaveLength(4);
+      expect(res.schedule[0].title).toBe('Opening Plenary');
+      expect(res.speakers).toHaveLength(3);
+      expect(res.speakers[0].name).toBe('John Doe');
+      expect(res.speakers[1].name).toBe('Jane Smith');
+      expect(res.speakers[2].name).toBe('Alex Mercer');
+    });
   });
 });

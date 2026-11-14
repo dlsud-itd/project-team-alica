@@ -196,6 +196,26 @@
                 <span>{{ event.venue }}</span>
               </div>
 
+              @if (event.approval_status === 'Pending' && !event.is_private) {
+                <div class="review-note" data-status="Pending" role="status">
+                  <strong>Waiting for admin review</strong>
+                  <p>This event will appear on the Events page once an admin approves it.</p>
+                </div>
+              } @else if (event.review_notes) {
+                <div class="review-note" [attr.data-status]="event.approval_status">
+                  <strong>{{ event.approval_status === 'Rejected' ? 'Rejected by admin' : 'Admin note' }}</strong>
+                  <p>{{ event.review_notes }}</p>
+                  @if (event.reviewed_at) {
+                    <small>Reviewed {{ event.reviewed_at | date:'MMM d, y • h:mm a' }}</small>
+                  }
+                </div>
+              } @else if (event.approval_status === 'Rejected') {
+                <div class="review-note" data-status="Rejected">
+                  <strong>Rejected by admin</strong>
+                  <p>No reason was given. Edit the event details or contact an admin.</p>
+                </div>
+              }
+
               <div class="stats-row">
                 <div class="stat-item">
                   <span class="stat-number">{{ event.registrations_count }}</span>

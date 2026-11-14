@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 import { HubComponent } from './hub.component';
 import { AttendeeRsvpService } from '../../core/attendee/attendee-rsvp.service';
 import { OrganizerEventsService } from '../../core/organizer/organizer-events.service';
+import { OrganizerEvent } from '../../core/organizer/organizer.models';
 import { ScannerApi } from '../../core/staff/scanner-api';
 import { AuthService } from '../../core/auth/auth.service';
 
@@ -103,5 +104,55 @@ describe('HubComponent', () => {
     const tabButtons = compiled.querySelectorAll('.tab-btn');
     const tabTexts = Array.from(tabButtons).map((btn) => btn.textContent);
     expect(tabTexts.some((text) => text?.includes('Staffing'))).toBe(true);
+  });
+
+  describe('organized event review notes', () => {
+    const baseEvent: OrganizerEvent = {
+      id: 'evt-1',
+      organizer_id: 'u-1',
+      name: 'Org Fair',
+      starts_at: '2026-12-01T09:00:00Z',
+      ends_at: '2026-12-01T17:00:00Z',
+      venue: 'Gym',
+      registrations_count: 0,
+      capacity: 100,
+      status: 'Upcoming',
+      description: '',
+      allow_walk_ins: false,
+      approval_status: 'Pending',
+      review_notes: null,
+      reviewed_at: null,
+      submitted_at: '2026-11-14T00:00:00Z',
+      is_private: false,
+    };
+
+    const renderOrganizing = (event: OrganizerEvent): HTMLElement | null => {
+      (organizerService as unknown as { eventState: { set(v: OrganizerEvent[]): void } }).eventState.set([event]);
+      component.setTab('organizing');
+      fixture.detectChanges();
+      return (fixture.nativeElement as HTMLElement).querySelector('.review-note');
+    };
+
+    it('tells the organizer a public event is waiting for review', () => {
+      const note = renderOrganizing(baseEvent);
+      expect(note?.textContent).toContain('Waiting for admin review');
+    });
+
+    it('shows the admin rejection reason', () => {
+      const note = renderOrganizing({
+        ...baseEvent,
+        approval_status: 'Rejected',
+        review_notes: 'Venue is unavailable on that date.',
+        reviewed_at: '2026-11-14T08:00:00Z',
+      });
+      expect(note?.getAttribute('data-status')).toBe('Rejected');
+      expect(note?.textContent).toContain('Rejected by admin');
+      expect(note?.textContent).toContain('Venue is unavailable on that date.');
+    });
+
+    it('shows nothing for an approved event without notes', () => {
+      const note = renderOrganizing({ ...baseEvent, approval_status: 'Approved' });
+      expect(note).toBeNull();
+    });
   });
 });

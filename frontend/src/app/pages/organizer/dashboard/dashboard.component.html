@@ -200,12 +200,15 @@
 
                 <!-- 6. STATUS -->
                 <td class="td-status">
-                  <div class="status-cell">
+                  <div class="status-cell" [attr.data-status]="event.approval_status">
                     <span class="status-dot"></span>
                     <span class="status-label">
                       {{ event.approval_status === 'Approved' ? 'PUBLISHED' : event.approval_status.toUpperCase() }}
                     </span>
                   </div>
+                  @if (event.review_notes) {
+                    <p class="status-note" [title]="event.review_notes">{{ event.review_notes }}</p>
+                  }
                 </td>
 
                 <!-- 7. ACTIONS -->

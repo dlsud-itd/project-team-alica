@@ -10,11 +10,12 @@ import {
   RsvpStatus,
 } from '../../../core/attendee/attendee-rsvp.models';
 import { AttendeeRsvpService } from '../../../core/attendee/attendee-rsvp.service';
+import { SubmitEvent } from './submit-event/submit-event.component';
 
 export type HistoryStatusFilter = 'ALL' | 'UPCOMING' | 'CHECKED_IN' | 'CANCELLED';
 
 @Component({
-  imports: [DatePipe, ReactiveFormsModule, RouterLink],
+  imports: [DatePipe, ReactiveFormsModule, RouterLink, SubmitEvent],
   selector: 'app-history',
   styleUrl: './history.component.scss',
   templateUrl: './history.component.html',

@@ -997,7 +997,7 @@ export class EventsService {
       throw new BadRequestException('Start date & time must be in the future');
     }
     const capacity = this.parseCapacity(dto.capacity);
-    const isPrivate = dto.is_private === true;
+    const isPrivate = user.role === 'ATTENDEE' ? false : dto.is_private === true;
     const approvalStatus =
       isPrivate || user.role === 'ADMIN'
         ? EventApprovalStatus.APPROVED

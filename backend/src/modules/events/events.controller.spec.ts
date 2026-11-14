@@ -207,4 +207,26 @@ describe('EventsController', () => {
     expect(csv.success).toBe(true);
     expect(csv.data).toContain('Ticket Code');
   });
+
+  it('returns single event details with schedule and speakers', async () => {
+    mockEventsService.findOne = vi.fn().mockResolvedValue({
+      id: 'evt-devcon-manila-2026',
+      slug: 'devcon-manila-2026',
+      title: 'DevCon Manila 2026',
+      durationLabel: '3 Days',
+      checkpointMode: 'Multi-stop Checks',
+      spotsTotal: 500,
+      spotsTaken: 2,
+      schedule: [{ id: 'sch-1', time: '09:00 AM', title: 'Opening Plenary' }],
+      speakers: [{ id: 'spk-1', name: 'John Doe', role: 'Head of Product' }],
+    });
+
+    const res = await controller.getEventDetails('devcon-manila-2026');
+    expect(res.success).toBe(true);
+    expect(res.data.slug).toBe('devcon-manila-2026');
+    expect(res.data.durationLabel).toBe('3 Days');
+    expect(res.data.schedule).toHaveLength(1);
+    expect(res.data.speakers).toHaveLength(1);
+    expect(mockEventsService.findOne).toHaveBeenCalledWith('devcon-manila-2026');
+  });
 });

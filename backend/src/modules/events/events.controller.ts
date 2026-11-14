@@ -19,6 +19,7 @@ import {
   CreateEventDto,
   EventsService,
   EventResponseDto,
+  EventDetailResponseDto,
   EventRegistrantDto,
   EventLiveOverviewDto,
   EventCheckpointDto,
@@ -81,6 +82,17 @@ export class EventsController {
     @Query('status') status?: string,
   ): Promise<{ success: boolean; data: AdminEventDto[] }> {
     const data = await this.eventsService.findAllForAdmin(user, status);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':idOrSlug')
+  async getEventDetails(
+    @Param('idOrSlug') idOrSlug: string,
+  ): Promise<{ success: boolean; data: EventDetailResponseDto }> {
+    const data = await this.eventsService.findOne(idOrSlug);
     return {
       success: true,
       data,

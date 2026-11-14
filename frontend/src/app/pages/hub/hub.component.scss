@@ -181,6 +181,54 @@
   }
 }
 
+.review-note {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.45;
+
+  strong {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  p {
+    margin: 0;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
+  small {
+    display: block;
+    margin-top: 6px;
+    font-size: 11px;
+    opacity: 0.8;
+  }
+
+  &[data-status='Pending'] {
+    background: #fefce8;
+    color: #854d0e;
+    border-color: #fef08a;
+  }
+
+  &[data-status='Approved'] {
+    background: #e6f4ea;
+    color: #0d5c46;
+    border-color: #bbf7d0;
+  }
+
+  &[data-status='Rejected'] {
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
+  }
+}
+
 .card-title {
   font-size: 18px;
   font-weight: 700;

@@ -66,6 +66,17 @@ describe('EventsController', () => {
       getEventCheckpoints: vi.fn().mockResolvedValue([{ id: 'chk-1', name: 'Main Gate' }]),
       recordScan: vi.fn().mockResolvedValue({ scanResult: 'SUCCESS', ticketCode: 'TKT-1' }),
       exportScansCsv: vi.fn().mockResolvedValue('Ticket Code,Attendee Name\nTKT-1,John Doe'),
+      getOrganizers: vi.fn().mockResolvedValue([
+        { id: 'primary-1', email: 'org@alica.ph', fullName: 'Org', isPrimary: true },
+      ]),
+      addOrganizer: vi.fn().mockResolvedValue({
+        id: 'eo-1',
+        email: 'co@alica.ph',
+        fullName: 'Co Org',
+        isPrimary: false,
+      }),
+      removeOrganizer: vi.fn().mockResolvedValue(undefined),
+      searchOrganizerCandidates: vi.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -206,5 +217,16 @@ describe('EventsController', () => {
     const csv = await controller.exportScans(user, 'evt-1');
     expect(csv.success).toBe(true);
     expect(csv.data).toContain('Ticket Code');
+
+    const orgs = await controller.getOrganizers(user, 'evt-1');
+    expect(orgs.success).toBe(true);
+    expect(orgs.data).toHaveLength(1);
+
+    const added = await controller.addOrganizer(user, 'evt-1', 'co@alica.ph');
+    expect(added.success).toBe(true);
+    expect(added.data.email).toBe('co@alica.ph');
+
+    const removed = await controller.removeOrganizer(user, 'evt-1', 'usr-co');
+    expect(removed.success).toBe(true);
   });
 });

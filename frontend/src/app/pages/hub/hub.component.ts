@@ -57,6 +57,7 @@ export class HubComponent implements OnInit {
   readonly isCreateModalOpen = signal(false);
   readonly isSubmittingEvent = signal(false);
   readonly createEventError = signal('');
+  readonly coOrganizerEmails = signal<string[]>([]);
   readonly minStart = toDateTimeLocalInput(new Date().toISOString());
 
   // Staffing state
@@ -164,6 +165,7 @@ export class HubComponent implements OnInit {
   // Event Creation
   openCreateModal(): void {
     this.createEventError.set('');
+    this.coOrganizerEmails.set([]);
     const now = new Date();
     const start = new Date(now.getTime() + 60 * 60 * 1000);
     const end = new Date(now.getTime() + 4 * 60 * 60 * 1000);
@@ -179,6 +181,28 @@ export class HubComponent implements OnInit {
       is_private: false,
     });
     this.isCreateModalOpen.set(true);
+  }
+
+  addCoOrganizerEmail(input: HTMLInputElement): void {
+    const email = (input.value || '').trim().toLowerCase();
+    if (!email) return;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      this.createEventError.set('Please enter a valid email address for the co-organizer.');
+      return;
+    }
+    const current = this.coOrganizerEmails();
+    if (!current.includes(email)) {
+      this.coOrganizerEmails.set([...current, email]);
+    }
+    input.value = '';
+    this.createEventError.set('');
+  }
+
+  removeCoOrganizerEmail(index: number): void {
+    const list = [...this.coOrganizerEmails()];
+    list.splice(index, 1);
+    this.coOrganizerEmails.set(list);
   }
 
   closeCreateModal(): void {
@@ -213,6 +237,7 @@ export class HubComponent implements OnInit {
         capacity: Number(val.capacity) || 100,
         allow_walk_ins: val.allow_walk_ins,
         is_private: val.is_private,
+        organizerEmails: this.coOrganizerEmails(),
       })
       .subscribe({
         next: (created) => {

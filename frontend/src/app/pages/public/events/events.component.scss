@@ -307,17 +307,6 @@
   letter-spacing: -0.02em;
   color: var(--color-charcoal-dark, #1a1a1a);
   line-height: 1.25;
-
-  .event-title-link {
-    color: inherit;
-    text-decoration: none;
-    transition: color 0.15s ease;
-
-    &:hover {
-      color: var(--color-forest-green, #0f6e56);
-      text-decoration: underline;
-    }
-  }
 }
 
 .organizer-text {
@@ -473,6 +462,8 @@
 .btn-rsvp {
   width: 100%;
   height: 42px;
+  box-sizing: border-box;
+  text-decoration: none;
   border: 1px solid var(--color-forest-green, #0f6e56);
   border-radius: 8px;
   background: var(--color-forest-green, #0f6e56);
@@ -662,6 +653,12 @@
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-slate-dark, #5f5e5a);
+
+  .required-asterisk {
+    color: #e02424;
+    font-weight: 700;
+    margin-left: 2px;
+  }
 }
 
 .input-wrapper {

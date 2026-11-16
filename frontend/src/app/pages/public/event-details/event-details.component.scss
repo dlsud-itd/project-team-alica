@@ -813,27 +813,41 @@
 }
 
 .modal-header {
-  padding: 1.25rem 1.25rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 1.5rem 1.5rem 0.5rem;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
 }
 
+.modal-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
 .modal-eyebrow {
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #0f6e56;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
   display: block;
 }
 
 .modal-event-name {
-  margin: 2px 0 0;
-  font-size: 1.125rem;
-  font-weight: 700;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
   color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.modal-meta {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .btn-close-modal {
@@ -880,6 +894,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  .required-asterisk {
+    color: #e02424;
+    font-weight: 700;
+    margin-left: 2px;
+  }
 }
 
 .badge-optional {
@@ -898,7 +918,7 @@
   box-sizing: border-box;
   padding: 0 12px;
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 0.875rem;
   color: #0f172a;
   outline: none;
@@ -918,6 +938,13 @@
   font-size: 0.75rem;
   color: #ef4444;
   font-weight: 500;
+}
+
+.modal-divider {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 1.25rem 0 0.5rem;
+  width: 100%;
 }
 
 .save-profile-box {
@@ -973,8 +1000,8 @@
 
 .btn {
   height: 42px;
-  padding: 0 18px;
-  border-radius: 10px;
+  padding: 0 1.25rem;
+  border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -982,25 +1009,29 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: none;
+  border: 1px solid transparent;
   transition: all 0.15s ease;
 
   &.btn-secondary {
-    background: #f1f5f9;
+    background: #ffffff;
     color: #475569;
+    border-color: #cbd5e1;
 
     &:hover {
-      background: #e2e8f0;
+      background: #f8fafc;
       color: #0f172a;
+      border-color: #94a3b8;
     }
   }
 
   &.btn-primary {
     background: #0f6e56;
+    border-color: #0f6e56;
     color: #ffffff;
 
     &:hover:not(:disabled) {
       background: #0b5442;
+      border-color: #0b5442;
     }
 
     &:disabled {

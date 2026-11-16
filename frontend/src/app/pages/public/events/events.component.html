@@ -143,9 +143,7 @@
 
             <!-- Card Body -->
             <div class="card-body">
-              <h2 class="event-title">
-                <a [routerLink]="['/events', event.slug || event.id]" class="event-title-link">{{ event.title }}</a>
-              </h2>
+              <h2 class="event-title">{{ event.title }}</h2>
               <p class="organizer-text">By {{ event.organizerName }}</p>
               <p class="event-description">{{ event.description }}</p>
 
@@ -237,18 +235,17 @@
                   </a>
                 }
                 @default {
-                  <button
-                    type="button"
+                  <a
+                    [routerLink]="['/events', event.slug || event.id]"
                     class="btn-rsvp"
-                    (click)="openRsvp(event)"
-                    aria-label="RSVP for {{ event.title }}"
+                    aria-label="View Event Details for {{ event.title }}"
                   >
-                    <span>RSVP Now</span>
+                    <span>View Event Details</span>
                     <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <line x1="5" y1="12" x2="19" y2="12"></line>
                       <polyline points="12 5 19 12 12 19"></polyline>
                     </svg>
-                  </button>
+                  </a>
                 }
               }
             </footer>
@@ -334,7 +331,9 @@
 
             <!-- Full Name -->
             <div class="form-group">
-              <label for="rsvp-name" class="form-label">Full Name</label>
+              <label for="rsvp-name" class="form-label">
+                Full Name <span class="required-asterisk" aria-hidden="true">*</span>
+              </label>
               <div class="input-wrapper" [class.has-error]="rsvpForm.controls.fullName.invalid && rsvpForm.controls.fullName.touched">
                 <input
                   id="rsvp-name"
@@ -351,7 +350,9 @@
 
             <!-- Email -->
             <div class="form-group">
-              <label for="rsvp-email" class="form-label">Email Address</label>
+              <label for="rsvp-email" class="form-label">
+                Email Address <span class="required-asterisk" aria-hidden="true">*</span>
+              </label>
               <div class="input-wrapper" [class.has-error]="rsvpForm.controls.email.invalid && rsvpForm.controls.email.touched">
                 <input
                   id="rsvp-email"
@@ -368,7 +369,9 @@
 
             <!-- Student ID -->
             <div class="form-group">
-              <label for="rsvp-id" class="form-label">Student ID Number</label>
+              <label for="rsvp-id" class="form-label">
+                Student ID Number <span class="required-asterisk" aria-hidden="true">*</span>
+              </label>
               <div class="input-wrapper" [class.has-error]="rsvpForm.controls.studentId.invalid && rsvpForm.controls.studentId.touched">
                 <input
                   id="rsvp-id"

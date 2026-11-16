@@ -316,8 +316,11 @@
         <!-- Modal Header -->
         <div class="modal-header">
           <div class="modal-title-group">
-            <span class="modal-eyebrow">Claim Your Ticket</span>
+            <span class="modal-eyebrow">{{ ev.categoryLabel }}</span>
             <h2 id="modal-title" class="modal-event-name">{{ ev.title }}</h2>
+            <p class="modal-meta">
+              {{ ev.dateLabel }} • {{ ev.venue }}
+            </p>
           </div>
           <button
             type="button"
@@ -360,7 +363,9 @@
 
             <!-- Full Name -->
             <div class="form-group">
-              <label for="fullName" class="form-label">Full Name *</label>
+              <label for="fullName" class="form-label">
+                <span>Full Name <span class="required-asterisk" aria-hidden="true">*</span></span>
+              </label>
               <input
                 id="fullName"
                 type="text"
@@ -376,7 +381,9 @@
 
             <!-- Email -->
             <div class="form-group">
-              <label for="email" class="form-label">Email Address *</label>
+              <label for="email" class="form-label">
+                <span>Email Address <span class="required-asterisk" aria-hidden="true">*</span></span>
+              </label>
               <input
                 id="email"
                 type="email"
@@ -393,19 +400,21 @@
               }
             </div>
 
-            <!-- Student / Employee ID -->
+            <!-- Student ID -->
             <div class="form-group">
-              <label for="studentId" class="form-label">Student or Employee ID *</label>
+              <label for="studentId" class="form-label">
+                <span>Student ID Number <span class="required-asterisk" aria-hidden="true">*</span></span>
+              </label>
               <input
                 id="studentId"
                 type="text"
                 formControlName="studentId"
                 class="form-control"
-                placeholder="e.g. 2026-948172"
+                placeholder="e.g. 2023-01982-MN-0"
                 [class.is-invalid]="rsvpForm.controls.studentId.touched && rsvpForm.controls.studentId.invalid"
               />
               @if (rsvpForm.controls.studentId.touched && rsvpForm.controls.studentId.errors?.['required']) {
-                <span class="field-error">Student or Employee ID is required.</span>
+                <span class="field-error">Student ID is required.</span>
               }
             </div>
 
@@ -441,6 +450,8 @@
                 <span>{{ rsvpError() }}</span>
               </div>
             }
+
+            <div class="modal-divider"></div>
 
             <!-- Actions -->
             <div class="modal-actions">

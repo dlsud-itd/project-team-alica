@@ -179,5 +179,4 @@ describe('HubComponent', () => {
     component.removeCoOrganizerEmail(0);
     expect(component.coOrganizerEmails().length).toBe(0);
   });
-  });
 });

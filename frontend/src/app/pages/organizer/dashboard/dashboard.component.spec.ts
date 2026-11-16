@@ -25,6 +25,7 @@ const EVENT: OrganizerEvent = {
   review_notes: null,
   reviewed_at: null,
   submitted_at: '2026-10-01T00:00:00.000Z',
+  organizers: [],
 };
 
 describe('OrganizerDashboard', () => {
@@ -251,5 +252,128 @@ describe('OrganizerDashboard', () => {
     expect(text).toContain('Upcoming Events');
     expect(text).toContain('Open Seats');
     expect(text).toContain('Public');
+  });
+
+  describe('co-organizers support in dashboard', () => {
+    it('allows adding and removing co-organizer emails', () => {
+      component.openCreate();
+      const mockInput = { value: 'coorg1@dlsud.edu.ph' } as HTMLInputElement;
+
+      component.addCoOrganizerEmail(mockInput);
+      expect(component.coOrganizerEmails()).toEqual(['coorg1@dlsud.edu.ph']);
+      expect(mockInput.value).toBe('');
+
+      // add another
+      mockInput.value = 'coorg2@dlsud.edu.ph';
+      component.addCoOrganizerEmail(mockInput);
+      expect(component.coOrganizerEmails().length).toBe(2);
+
+      // reject duplicate
+      mockInput.value = 'coorg1@dlsud.edu.ph';
+      component.addCoOrganizerEmail(mockInput);
+      expect(component.coOrganizerEmails().length).toBe(2);
+
+      // reject invalid email
+      mockInput.value = 'not-an-email';
+      component.addCoOrganizerEmail(mockInput);
+      expect(component.editErrorMessage()).toContain('valid email');
+      expect(component.coOrganizerEmails().length).toBe(2);
+
+      // remove by index
+      component.removeCoOrganizerEmail(0);
+      expect(component.coOrganizerEmails()).toEqual(['coorg2@dlsud.edu.ph']);
+    });
+
+    it('pre-populates co-organizers on openEdit excluding primary organizer', () => {
+      const eventWithOrgs: OrganizerEvent = {
+        ...EVENT,
+        organizers: [
+          {
+            id: 'eo-1',
+            userId: 'usr-org',
+            email: 'primary@dlsud.edu.ph',
+            fullName: 'Primary Organizer',
+            affiliation: 'CICS',
+            isPrimary: true,
+            assignedAt: '2026-10-01T00:00:00.000Z',
+          },
+          {
+            id: 'eo-2',
+            userId: 'usr-co1',
+            email: 'partner@dlsud.edu.ph',
+            fullName: 'Partner Organizer',
+            affiliation: 'CICS',
+            isPrimary: false,
+            assignedAt: '2026-10-02T00:00:00.000Z',
+          },
+        ],
+      };
+
+      component.openEdit(eventWithOrgs);
+      expect(component.coOrganizerEmails()).toEqual(['partner@dlsud.edu.ph']);
+    });
+
+    it('fetches organizers from API when event.organizers is undefined on openEdit', () => {
+      const eventWithoutOrgs: OrganizerEvent = {
+        ...EVENT,
+        organizers: undefined,
+      };
+
+      component.openEdit(eventWithoutOrgs);
+      const req = httpMock.expectOne(`${API}/${eventWithoutOrgs.id}/organizers`);
+      expect(req.request.method).toBe('GET');
+      req.flush({
+        success: true,
+        data: [
+          {
+            id: 'eo-10',
+            userId: 'usr-org',
+            email: 'primary@dlsud.edu.ph',
+            fullName: 'Primary Organizer',
+            affiliation: null,
+            isPrimary: true,
+            assignedAt: '2026-10-01T00:00:00.000Z',
+          },
+          {
+            id: 'eo-11',
+            userId: 'usr-co2',
+            email: 'co2@dlsud.edu.ph',
+            fullName: 'Co-Organizer Two',
+            affiliation: null,
+            isPrimary: false,
+            assignedAt: '2026-10-02T00:00:00.000Z',
+          },
+        ],
+      });
+
+      expect(component.coOrganizerEmails()).toEqual(['co2@dlsud.edu.ph']);
+    });
+
+    it('includes organizerEmails when saving an edited event', () => {
+      const targetEvent = component.events()[0];
+      component.openEdit(targetEvent);
+
+      const mockInput = { value: 'added-coorg@dlsud.edu.ph' } as HTMLInputElement;
+      component.addCoOrganizerEmail(mockInput);
+
+      component.editForm.patchValue({
+        name: 'Tech Summit With Co-org',
+        venue: 'Gymnasium',
+        starts_at: '2026-11-20T09:00',
+        ends_at: '2026-11-20T17:00',
+        capacity: 50,
+      });
+
+      component.saveEdit();
+
+      const req = httpMock.expectOne(`${API}/${targetEvent.id}`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body.organizerEmails).toEqual(['added-coorg@dlsud.edu.ph']);
+      req.flush({
+        success: true,
+        data: { ...targetEvent, name: 'Tech Summit With Co-org' },
+      });
+      expect(component.editingEvent()).toBeNull();
+    });
   });
 });

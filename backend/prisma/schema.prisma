@@ -70,13 +70,14 @@ model User {
   updatedAt          DateTime  @updatedAt
 
   // Relations
-  organizedEvents       Event[]           @relation("OrganizedEvents")
-  tickets               Ticket[]
-  eventStaffAssignments EventStaff[]
-  checkpointAssignments CheckpointStaff[]
-  scannedLogs           AttendanceLog[]   @relation("ScannedByStaff")
-  reviewedEvents        Event[]           @relation("ReviewedEvents")
-  savedProfiles         SavedProfile[]
+  organizedEvents           Event[]           @relation("OrganizedEvents")
+  eventOrganizerAssignments EventOrganizer[]
+  tickets                   Ticket[]
+  eventStaffAssignments     EventStaff[]
+  checkpointAssignments     CheckpointStaff[]
+  scannedLogs               AttendanceLog[]   @relation("ScannedByStaff")
+  reviewedEvents            Event[]           @relation("ReviewedEvents")
+  savedProfiles             SavedProfile[]
 
   @@map("users")
 }
@@ -125,11 +126,25 @@ model Event {
   organizerId String
   organizer   User   @relation("OrganizedEvents", fields: [organizerId], references: [id], onDelete: Restrict)
 
+  organizers  EventOrganizer[]
   checkpoints Checkpoint[]
   tickets     Ticket[]
   staff       EventStaff[]
 
   @@map("events")
+}
+
+model EventOrganizer {
+  id         String   @id @default(uuid())
+  eventId    String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("event_organizers")
 }
 
 model EventStaff {

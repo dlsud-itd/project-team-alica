@@ -4,12 +4,14 @@ import { Observable, finalize, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   EventCheckpoint,
+  EventOrganizer,
   EventStaff,
   EventLiveOverview,
   EventRegistrant,
   GuestFilePreview,
   GuestImportMapping,
   NewOrganizerEvent,
+  OrganizerCandidate,
   OrganizerEvent,
   OrganizerEventChanges,
   RecordScanResponse,
@@ -265,6 +267,32 @@ export class OrganizerEventsService {
     return this.http
       .delete<ApiResponse<unknown>>(`${this.api}/${eventId}/staff/${userId}`)
       .pipe(map(() => undefined));
+  }
+
+  loadOrganizers(eventId: UUID): Observable<EventOrganizer[]> {
+    return this.http
+      .get<ApiResponse<EventOrganizer[]>>(`${this.api}/${eventId}/organizers`)
+      .pipe(map((res) => res.data));
+  }
+
+  addOrganizer(eventId: UUID, email: string): Observable<EventOrganizer> {
+    return this.http
+      .post<ApiResponse<EventOrganizer>>(`${this.api}/${eventId}/organizers`, { email })
+      .pipe(map((res) => res.data));
+  }
+
+  removeOrganizer(eventId: UUID, userId: string): Observable<void> {
+    return this.http
+      .delete<ApiResponse<unknown>>(`${this.api}/${eventId}/organizers/${userId}`)
+      .pipe(map(() => undefined));
+  }
+
+  searchOrganizerCandidates(query: string): Observable<OrganizerCandidate[]> {
+    return this.http
+      .get<ApiResponse<OrganizerCandidate[]>>(`${this.api}/organizers/candidates`, {
+        params: { query },
+      })
+      .pipe(map((res) => res.data));
   }
 
 }

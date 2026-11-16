@@ -48,7 +48,7 @@ export class EventShellComponent {
     if (!user) return false;
     if (user.role === 'ADMIN' || user.role === 'ORGANIZER') return true;
     const ev = this.event();
-    return !!ev && ev.organizer_id === user.id;
+    return !!ev && (ev.organizer_id === user.id || ev.organizers?.some((o) => o.userId === user.id));
   });
   readonly isStaff = computed(
     () =>
@@ -81,7 +81,7 @@ export class EventShellComponent {
   });
 
   // Active subtab detection
-  readonly currentSubTab = signal<'overview' | 'scanner' | 'guests'>('overview');
+  readonly currentSubTab = signal<'overview' | 'scanner' | 'guests' | 'settings'>('overview');
 
   // Edit / Delete Dialog State
   readonly editing = signal(false);
@@ -119,6 +119,8 @@ export class EventShellComponent {
       this.currentSubTab.set('scanner');
     } else if (url.includes('/guests') || url.includes('/registrants')) {
       this.currentSubTab.set('guests');
+    } else if (url.includes('/settings')) {
+      this.currentSubTab.set('settings');
     } else {
       this.currentSubTab.set('overview');
     }

@@ -1,7 +1,13 @@
 import { Injectable } from '@angular/core';
-import { Observable, delay, of } from 'rxjs';
+import { Observable, delay, of, throwError } from 'rxjs';
 import type { ScannerApi } from './scanner-api';
-import { ScanOutcome, ScanRequest, ScanResult, StaffCheckpoint } from './scanner.models';
+import {
+  ScanOutcome,
+  ScanRequest,
+  ScanResult,
+  StaffCheckpoint,
+  StationDetails,
+} from './scanner.models';
 
 interface MockTicket {
   ticketCode: string;
@@ -100,7 +106,23 @@ export class MockScannerApi implements ScannerApi {
   private readonly latencyMs = 350;
 
   getMyCheckpoints(): Observable<StaffCheckpoint[]> {
-    return of(CHECKPOINTS.map((c) => ({ ...c }))).pipe(delay(this.latencyMs));
+    return of(
+      CHECKPOINTS.map((c) => ({ ...c, cooldownSeconds: c.allowMultipleScans ? 30 : 0 })),
+    ).pipe(delay(this.latencyMs));
+  }
+
+  getStation(boothId: string): Observable<StationDetails> {
+    const found = CHECKPOINTS.find((c) => c.id === boothId);
+    if (!found) {
+      return throwError(() => new Error(`Unknown checkpoint '${boothId}'`));
+    }
+    return of({
+      ...found,
+      cooldownSeconds: found.allowMultipleScans ? 30 : 0,
+      subBooths: [],
+      totalScans: this.logs.filter((l) => l.checkpointId === boothId && l.scanResult === 'SUCCESS')
+        .length,
+    }).pipe(delay(this.latencyMs));
   }
 
   scan(checkpointId: string, request: ScanRequest): Observable<ScanOutcome> {

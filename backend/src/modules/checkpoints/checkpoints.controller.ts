@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -15,6 +14,7 @@ import {
   ScanOutcomeDto,
   ScanRequestBodyDto,
   StaffCheckpointDto,
+  StationDetailsDto,
 } from './checkpoints.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -40,39 +40,7 @@ export class CheckpointsController {
   async getCheckpoints(
     @CurrentUser() user: UserSummaryDto,
   ): Promise<{ success: boolean; data: StaffCheckpointDto[] }> {
-    const data = await this.checkpointsService.findMyCheckpoints(user);
-    return {
-      success: true,
-      data,
-    };
-  }
-
-  @Post(':id/scan')
-  @HttpCode(HttpStatus.OK)
-  async scanTicket(
-    @CurrentUser() user: UserSummaryDto,
-    @Param('id') checkpointId: string,
-    @Body() dto: ScanRequestBodyDto,
-  ): Promise<{ success: boolean; statusCode: number; message: string; data: ScanOutcomeDto }> {
-    const data = await this.checkpointsService.scan(user, checkpointId, dto);
-    return {
-      success: true,
-      statusCode: 200,
-      message: data.message,
-      data,
-    };
-  }
-
-  @Post(':id/sub-booths')
-  async createSubBooth(
-    @CurrentUser() user: UserSummaryDto,
-    @Param('id') parentId: string,
-    @Body() dto: CreateSubBoothDto,
-  ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
-    if (user.role !== 'ADMIN' && user.role !== 'ORGANIZER') {
-      throw new ForbiddenException('Only organizers can add sub-booths.');
-    }
-    const data = await this.checkpointsService.createSubBooth(parentId, dto);
+    const data = await this.checkpointsService.findAccessibleCheckpoints(user);
     return {
       success: true,
       data,
@@ -82,6 +50,56 @@ export class CheckpointsController {
   @Get('attendees/:ticketCode/history')
   async getAttendeeHistory(@Param('ticketCode') ticketCode: string) {
     const data = await this.checkpointsService.getAttendeeHistory(ticketCode);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':boothId')
+  async getStation(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('boothId') boothId: string,
+  ): Promise<{ success: boolean; data: StationDetailsDto }> {
+    const data = await this.checkpointsService.findStationById(user, boothId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post(':boothId/scan')
+  @HttpCode(HttpStatus.OK)
+  async scanTicket(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('boothId') boothId: string,
+    @Body() dto: ScanRequestBodyDto,
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: ScanOutcomeDto;
+  }> {
+    const data = await this.checkpointsService.scan(user, boothId, dto);
+    return {
+      success: true,
+      statusCode: 200,
+      message: data.message,
+      data,
+    };
+  }
+
+  @Post(':boothId/sub-booths')
+  async createSubBooth(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('boothId') boothId: string,
+    @Body() dto: CreateSubBoothDto,
+  ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
+    const data = await this.checkpointsService.createSubBooth(
+      user,
+      boothId,
+      dto,
+    );
     return {
       success: true,
       data,

@@ -3,7 +3,14 @@
   <section class="station-selector-card">
     <div class="selector-left">
       <label for="station-select" class="selector-label">
-        <svg class="icon-station" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <svg
+          class="icon-station"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
           <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
           <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
         </svg>
@@ -22,23 +29,58 @@
           } @else if (checkpoints().length === 0) {
             <option>No checkpoints configured for this event</option>
           } @else {
-            @for (cp of checkpoints(); track cp.id) {
-              <option [value]="cp.id">{{ cp.name }} ({{ cp.type }})</option>
+            @for (opt of stationOptions(); track opt.checkpoint.id) {
+              <option
+                [value]="opt.checkpoint.id"
+                [selected]="opt.checkpoint.id === selectedStationId()"
+              >
+                {{ opt.label }}
+              </option>
             }
           }
         </select>
-        <svg class="select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <svg
+          class="select-caret"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </div>
     </div>
 
-    @if (activeStation()) {
-      <div class="station-meta-badge">
-        <span>Station Mode: <strong>{{ activeStation()?.type }}</strong></span>
+    @if (activeStation(); as current) {
+      <div class="station-meta-group">
+        <div class="station-meta-badge">
+          <span
+            >Mode: <strong>{{ current.type }}</strong></span
+          >
+        </div>
+        <div class="station-meta-badge">
+          <span>{{
+            current.allowMultipleScans
+              ? 'Re-entry · ' + (current.cooldownSeconds ?? 30) + 's cooldown'
+              : 'Single scan'
+          }}</span>
+        </div>
+        @if (current.requireMainEntry) {
+          <div class="station-meta-badge">
+            <span>Requires main entry</span>
+          </div>
+        }
       </div>
     }
   </section>
+
+  @if (loadError()) {
+    <div class="camera-error-banner" role="alert">
+      <span>{{ loadError() }}</span>
+      <button type="button" class="btn-retry-inline" (click)="loadStations()">Retry</button>
+    </div>
+  }
 
   <!-- Scan Result Banner -->
   @if (lastResult(); as res) {
@@ -52,17 +94,37 @@
     >
       <div class="feedback-icon-wrap" aria-hidden="true">
         @if (res.scanResult === 'SUCCESS') {
-          <svg class="feedback-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <svg
+            class="feedback-svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         } @else if (res.scanResult === 'DUPLICATE' || res.scanResult === 'WARNING_NO_MAIN_ENTRY') {
-          <svg class="feedback-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <svg
+            class="feedback-svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path
+              d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+            ></path>
             <line x1="12" y1="9" x2="12" y2="13"></line>
             <line x1="12" y1="17" x2="12.01" y2="17"></line>
           </svg>
         } @else {
-          <svg class="feedback-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <svg
+            class="feedback-svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="15" y1="9" x2="9" y2="15"></line>
             <line x1="9" y1="9" x2="15" y2="15"></line>
@@ -74,16 +136,33 @@
         <h3 class="feedback-title">{{ res.message }}</h3>
         <div class="feedback-details">
           @if (res.attendeeName) {
-            <span class="detail-name"><strong>{{ res.attendeeName }}</strong></span>
+            <span class="detail-name"
+              ><strong>{{ res.attendeeName }}</strong></span
+            >
           }
           @if (res.affiliation) {
             <span class="detail-org">{{ res.affiliation }}</span>
           }
-          <span class="detail-code">Pass: <code>{{ res.ticketCode }}</code></span>
+          <span class="detail-code"
+            >Pass: <code>{{ res.ticketCode }}</code></span
+          >
+          @if (res.firstScannedAt) {
+            <span class="detail-org">
+              {{ res.cooldownActive ? 'Last scan:' : 'First scan:' }}
+              {{ res.firstScannedAt | date: 'MMM d, h:mm:ss a' }}
+            </span>
+          }
         </div>
       </div>
 
-      <button type="button" class="btn-dismiss-feedback" (click)="dismissResult()" aria-label="Dismiss result">×</button>
+      <button
+        type="button"
+        class="btn-dismiss-feedback"
+        (click)="dismissResult()"
+        aria-label="Dismiss result"
+      >
+        ×
+      </button>
     </div>
   }
 
@@ -94,21 +173,68 @@
       <!-- Camera Card -->
       <section class="camera-card">
         <div class="viewfinder-container">
-          <video #video class="viewfinder-video" [class.active]="isScanningCamera()" autoplay playsinline muted></video>
+          <video
+            #video
+            class="viewfinder-video"
+            [class.active]="isScanningCamera()"
+            muted
+            playsinline
+            aria-label="Camera preview"
+          ></video>
 
           @if (!isScanningCamera()) {
             <div class="camera-idle-overlay">
-              <svg class="idle-cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <svg
+                class="idle-cam-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                ></path>
                 <circle cx="12" cy="13" r="4"></circle>
               </svg>
-              <p>Camera is currently idle.</p>
-              <button type="button" class="btn-start-camera" (click)="startCamera()">
-                <svg class="btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-                <span>Start Camera Scanner</span>
-              </button>
+              @switch (cameraState()) {
+                @case ('starting') {
+                  <p>Starting camera…</p>
+                }
+                @case ('denied') {
+                  <p>
+                    Camera access was blocked. Allow permission in your browser settings and retry.
+                  </p>
+                }
+                @case ('insecure') {
+                  <p>Camera requires HTTPS or localhost. Use manual pass entry below.</p>
+                }
+                @case ('unavailable') {
+                  <p>No camera device found. Use manual pass entry below.</p>
+                }
+                @default {
+                  <p>Camera is currently idle.</p>
+                }
+              }
+              @if (
+                cameraState() !== 'insecure' &&
+                cameraState() !== 'unavailable' &&
+                cameraState() !== 'starting'
+              ) {
+                <button type="button" class="btn-start-camera" (click)="startCamera()">
+                  <svg
+                    class="btn-svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                  <span>Start Camera Scanner</span>
+                </button>
+              }
             </div>
           } @else {
             <div class="targeting-reticle" aria-hidden="true">
@@ -127,11 +253,46 @@
           </div>
         }
 
+        @if (debounceNotice()) {
+          <div class="debounce-notice-banner" role="status">
+            <span>{{ debounceNotice() }}</span>
+          </div>
+        }
+
+        @if (scanError()) {
+          <div class="camera-error-banner" role="alert">
+            <span>{{ scanError() }}</span>
+          </div>
+        }
+
         @if (isScanningCamera()) {
           <div class="camera-controls-bar">
-            <button type="button" class="btn-stop-camera" (click)="stopCamera()">
-              Stop Camera
-            </button>
+            <div class="camera-controls-left">
+              <button type="button" class="btn-stop-camera" (click)="stopCamera()">
+                Stop Camera
+              </button>
+              <button
+                type="button"
+                class="btn-torch"
+                [class.is-on]="torchEnabled()"
+                [disabled]="!torchSupported()"
+                (click)="toggleTorch()"
+              >
+                {{ !torchSupported() ? 'Torch N/A' : torchEnabled() ? 'Torch On' : 'Torch Off' }}
+              </button>
+              @if (cameraDevices().length > 1) {
+                <select
+                  class="camera-select"
+                  [value]="selectedCameraId() ?? ''"
+                  (change)="switchCamera($any($event.target).value)"
+                  aria-label="Select camera"
+                >
+                  @for (dev of cameraDevices(); track dev.deviceId) {
+                    <option [value]="dev.deviceId">{{ dev.label }}</option>
+                  }
+                </select>
+              }
+            </div>
             <span class="camera-status-text">Scanning for QR codes…</span>
           </div>
         }
@@ -141,10 +302,12 @@
       <section class="manual-code-card">
         <header class="card-header">
           <h3 class="card-title">Manual Pass Code Entry</h3>
-          <p class="card-subtitle">Type or paste the attendee ticket code (e.g. #DEV-928472 or CHK-2026-9812A).</p>
+          <p class="card-subtitle">
+            Type or paste the attendee ticket code (e.g. #DEV-928472 or CHK-2026-9812A).
+          </p>
         </header>
 
-        <form (ngSubmit)="onManualSubmit()" class="manual-form">
+        <form (submit)="$event.preventDefault(); onManualSubmit()" class="manual-form">
           <div class="input-row">
             <input
               type="text"
@@ -165,7 +328,7 @@
       </section>
     </div>
 
-    <!-- Right Column: Station Live Feed -->
+    <!-- Right Column: Station Live Feed & Diagnostics -->
     <div class="scanner-side-col">
       <section class="station-feed-card">
         <header class="feed-header">
@@ -176,7 +339,14 @@
         <div class="feed-list">
           @if (recentStationScans().length === 0) {
             <div class="feed-empty">
-              <svg class="feed-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <svg
+                class="feed-empty-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -195,7 +365,7 @@
                     [class.pill-warning]="item.scanResult === 'WARNING_NO_MAIN_ENTRY'"
                     [class.pill-invalid]="item.scanResult === 'INVALID_TICKET'"
                   >
-                    {{ item.scanResult }}
+                    {{ item.cooldownActive ? 'COOLDOWN' : item.scanResult }}
                   </span>
                 </div>
                 <div class="feed-item-bottom">
@@ -207,7 +377,46 @@
           }
         </div>
       </section>
+
+      <section class="station-feed-card diagnostics-panel">
+        <div class="diagnostics-bar">
+          <button type="button" class="btn-diag-toggle" (click)="toggleDiagnostics()">
+            {{ showDiagnostics() ? 'Hide Diagnostics' : 'Show Diagnostics' }}
+            ({{ diagnostics.entries().length }})
+          </button>
+          @if (showDiagnostics() && diagnostics.entries().length > 0) {
+            <button type="button" class="btn-diag-toggle" (click)="diagnostics.clear()">
+              Clear
+            </button>
+          }
+        </div>
+
+        @if (showDiagnostics()) {
+          <div class="diagnostics-snapshot">
+            <span
+              >Station: <code>{{ selectedStationId() || 'none' }}</code></span
+            >
+            <span
+              >Camera: <code>{{ cameraState() }}</code></span
+            >
+            <span
+              >Torch:
+              <code>{{ torchSupported() ? (torchEnabled() ? 'on' : 'off') : 'n/a' }}</code></span
+            >
+          </div>
+          @if (diagnostics.entries().length === 0) {
+            <p class="diag-empty">No diagnostic events logged yet.</p>
+          } @else {
+            <ul class="diagnostics-entries">
+              @for (entry of diagnostics.entries().slice(0, 12); track entry.id) {
+                <li class="diag-row" [class]="'diag-' + entry.level">
+                  <strong>[{{ entry.category }}]</strong> {{ entry.message }}
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
     </div>
   </div>
 </div>
-

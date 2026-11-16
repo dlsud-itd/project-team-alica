@@ -21,6 +21,13 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/public/events/events.component').then((m) => m.Events),
       },
       {
+        path: 'events/:idOrSlug',
+        loadComponent: () =>
+          import('./pages/public/event-details/event-details.component').then(
+            (m) => m.EventDetailsComponent,
+          ),
+      },
+      {
         path: 'hub',
         canActivate: [authGuard],
         loadComponent: () => import('./pages/hub/hub.component').then((m) => m.HubComponent),
@@ -115,10 +122,24 @@ export const routes: Routes = [
               ),
           },
           {
+            path: 'scanner/:boothId',
+            loadComponent: () =>
+              import('./pages/organizer/event-scanner/event-scanner.component').then(
+                (m) => m.EventScannerComponent,
+              ),
+          },
+          {
             path: 'guests',
             loadComponent: () =>
               import('./pages/organizer/registrants/registrants.component').then(
                 (m) => m.OrganizerRegistrants,
+              ),
+          },
+          {
+            path: 'settings',
+            loadComponent: () =>
+              import('./pages/organizer/event_settings/event_settings.component').then(
+                (m) => m.EventSettingsComponent,
               ),
           },
         ],
@@ -147,6 +168,11 @@ export const routes: Routes = [
               import('./pages/staff/scanner/scanner.component').then((m) => m.Scanner),
           },
           {
+            path: 'scanner/:boothId',
+            loadComponent: () =>
+              import('./pages/staff/scanner/scanner.component').then((m) => m.Scanner),
+          },
+          {
             path: 'events/:eventId',
             loadComponent: () =>
               import('./pages/organizer/event-shell/event-shell.component').then(
@@ -169,10 +195,24 @@ export const routes: Routes = [
                   ),
               },
               {
+                path: 'scanner/:boothId',
+                loadComponent: () =>
+                  import('./pages/organizer/event-scanner/event-scanner.component').then(
+                    (m) => m.EventScannerComponent,
+                  ),
+              },
+              {
                 path: 'guests',
                 loadComponent: () =>
                   import('./pages/organizer/registrants/registrants.component').then(
                     (m) => m.OrganizerRegistrants,
+                  ),
+              },
+              {
+                path: 'settings',
+                loadComponent: () =>
+                  import('./pages/organizer/event_settings/event_settings.component').then(
+                    (m) => m.EventSettingsComponent,
                   ),
               },
             ],

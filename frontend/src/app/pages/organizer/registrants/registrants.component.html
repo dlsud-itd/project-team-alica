@@ -628,22 +628,24 @@
         >
           View QR Pass
         </button>
-        @if (attendee.status !== 'Cancelled') {
-          <button
-            type="button"
-            class="btn-danger-action"
-            (click)="confirmCancel(attendee); selectedRegistrant.set(null)"
-          >
-            Cancel RSVP
-          </button>
-        } @else {
-          <button
-            type="button"
-            class="btn-submit"
-            (click)="confirmRestore(attendee); selectedRegistrant.set(null)"
-          >
-            Restore RSVP
-          </button>
+        @if (isOrganizer()) {
+          @if (attendee.status !== 'Cancelled') {
+            <button
+              type="button"
+              class="btn-danger-action"
+              (click)="confirmCancel(attendee); selectedRegistrant.set(null)"
+            >
+              Cancel RSVP
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="btn-submit"
+              (click)="confirmRestore(attendee); selectedRegistrant.set(null)"
+            >
+              Restore RSVP
+            </button>
+          }
         }
       </footer>
     </section>

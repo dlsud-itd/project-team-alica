@@ -1,0 +1,118 @@
+<section class="se-card" aria-label="Submit an event">
+  <header class="se-header">
+    <div>
+      <h2>Submit an event</h2>
+      <p>Have an event idea? Submit it and an admin will review it before it goes public.</p>
+    </div>
+    <button type="button" class="se-btn-primary" (click)="openDialog()">+ Create event</button>
+  </header>
+
+  @if (notice()) {
+    <div class="se-notice" role="status">{{ notice() }}</div>
+  }
+
+  @if (loading() && events().length === 0) {
+    <p class="se-muted">Loading your submitted events…</p>
+  } @else if (loadError()) {
+    <p class="se-error-text" role="alert">
+      {{ loadError() }}
+      <button type="button" class="se-link" (click)="reload()">Retry</button>
+    </p>
+  } @else if (events().length > 0) {
+    <h3 class="se-subheading">My submitted events</h3>
+    <ul class="se-list">
+      @for (event of events(); track event.id) {
+        <li class="se-item">
+          <div class="se-item-main">
+            <strong class="se-item-name">{{ event.name }}</strong>
+            <span class="se-item-meta">
+              {{ event.starts_at | date: 'MMM d, y • h:mm a' }} · {{ event.venue }}
+            </span>
+            @if (event.approval_status === 'Rejected' && event.review_notes) {
+              <span class="se-review-note">Admin note: {{ event.review_notes }}</span>
+            }
+          </div>
+          <span class="se-badge" [attr.data-status]="event.approval_status">
+            <span class="se-badge-dot" aria-hidden="true"></span>
+            {{ statusLabel(event) }}
+          </span>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="se-muted">You haven't submitted any events yet.</p>
+  }
+</section>
+
+@if (dialogOpen()) {
+  <div class="se-backdrop" (click)="closeDialog()">
+    <section
+      class="se-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="se-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="se-dialog-header">
+        <div>
+          <h2 id="se-dialog-title">Create event</h2>
+          <p>Your event will be reviewed by an admin before it appears publicly.</p>
+        </div>
+        <button type="button" class="se-close" aria-label="Close" (click)="closeDialog()">×</button>
+      </header>
+
+      <form [formGroup]="form" (ngSubmit)="submit()" class="se-form">
+        @if (errorMessage()) {
+          <div class="se-form-alert" role="alert">{{ errorMessage() }}</div>
+        }
+
+        <div class="se-field">
+          <label for="se-name">Event name *</label>
+          <input id="se-name" type="text" formControlName="name" placeholder="e.g. AI Builder Hackathon 2026" />
+        </div>
+
+        <div class="se-field">
+          <label for="se-venue">Venue / location *</label>
+          <input id="se-venue" type="text" formControlName="venue" placeholder="e.g. Ugnayang La Salle Gymnasium" />
+        </div>
+
+        <div class="se-row">
+          <div class="se-field">
+            <label for="se-start">Starts at *</label>
+            <input id="se-start" type="datetime-local" formControlName="starts_at" [min]="minStart" />
+          </div>
+          <div class="se-field">
+            <label for="se-end">Ends at *</label>
+            <input id="se-end" type="datetime-local" formControlName="ends_at" [min]="form.get('starts_at')?.value || minStart" />
+          </div>
+        </div>
+
+        <div class="se-row">
+          <div class="se-field">
+            <label for="se-capacity">Capacity *</label>
+            <input id="se-capacity" type="number" min="1" formControlName="capacity" placeholder="e.g. 100" />
+          </div>
+          <div class="se-field">
+            <span class="se-label">Walk-ins</span>
+            <label class="se-check">
+              <input type="checkbox" formControlName="allow_walk_ins" />
+              <span>Allow on-site walk-ins</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="se-field">
+          <label for="se-desc">Description (optional)</label>
+          <textarea id="se-desc" rows="3" formControlName="description" placeholder="Agenda, topics, and attendee instructions..."></textarea>
+        </div>
+
+        <footer class="se-footer">
+          <button type="button" class="se-btn-secondary" (click)="closeDialog()" [disabled]="isSaving()">Cancel</button>
+          <button type="submit" class="se-btn-primary" [disabled]="isSaving() || form.invalid">
+            {{ isSaving() ? 'Submitting…' : 'Submit for review' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}

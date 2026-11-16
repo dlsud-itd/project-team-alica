@@ -155,4 +155,29 @@ describe('HubComponent', () => {
       expect(note).toBeNull();
     });
   });
+
+  it('manages co-organizers during event creation', () => {
+    component.openCreateModal();
+    const mockInput = { value: 'coorg@dlsud.edu.ph' } as HTMLInputElement;
+
+    component.addCoOrganizerEmail(mockInput);
+    expect(component.coOrganizerEmails()).toEqual(['coorg@dlsud.edu.ph']);
+    expect(mockInput.value).toBe('');
+
+    // reject duplicate
+    mockInput.value = 'coorg@dlsud.edu.ph';
+    component.addCoOrganizerEmail(mockInput);
+    expect(component.coOrganizerEmails().length).toBe(1);
+
+    // reject invalid
+    mockInput.value = 'invalid-email';
+    component.addCoOrganizerEmail(mockInput);
+    expect(component.createEventError()).toContain('valid email');
+    expect(component.coOrganizerEmails().length).toBe(1);
+
+    // remove
+    component.removeCoOrganizerEmail(0);
+    expect(component.coOrganizerEmails().length).toBe(0);
+  });
+  });
 });

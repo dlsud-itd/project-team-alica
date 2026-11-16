@@ -196,6 +196,26 @@
                 <span>{{ event.venue }}</span>
               </div>
 
+              @if (event.approval_status === 'Pending' && !event.is_private) {
+                <div class="review-note" data-status="Pending" role="status">
+                  <strong>Waiting for admin review</strong>
+                  <p>This event will appear on the Events page once an admin approves it.</p>
+                </div>
+              } @else if (event.review_notes) {
+                <div class="review-note" [attr.data-status]="event.approval_status">
+                  <strong>{{ event.approval_status === 'Rejected' ? 'Rejected by admin' : 'Admin note' }}</strong>
+                  <p>{{ event.review_notes }}</p>
+                  @if (event.reviewed_at) {
+                    <small>Reviewed {{ event.reviewed_at | date:'MMM d, y • h:mm a' }}</small>
+                  }
+                </div>
+              } @else if (event.approval_status === 'Rejected') {
+                <div class="review-note" data-status="Rejected">
+                  <strong>Rejected by admin</strong>
+                  <p>No reason was given. Edit the event details or contact an admin.</p>
+                </div>
+              }
+
               <div class="stats-row">
                 <div class="stat-item">
                   <span class="stat-number">{{ event.registrations_count }}</span>
@@ -394,6 +414,47 @@
           <div class="form-group">
             <label for="event-desc" class="form-label">Event Description (Optional)</label>
             <textarea id="event-desc" formControlName="description" class="form-textarea" rows="3" placeholder="Brief outline of the agenda, topics, and attendee instructions..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="hub-co-org-input" class="form-label">Co-Organizers (Optional)</label>
+            <div class="co-organizer-input-group">
+              <input
+                #hubCoOrgInput
+                id="hub-co-org-input"
+                type="email"
+                class="form-input"
+                placeholder="Enter co-organizer email (e.g. partner@alica.ph)"
+                (keydown.enter)="$event.preventDefault(); addCoOrganizerEmail(hubCoOrgInput)"
+              />
+              <button
+                type="button"
+                class="btn-add-co-organizer"
+                (click)="addCoOrganizerEmail(hubCoOrgInput)"
+              >
+                Add
+              </button>
+            </div>
+            @if (coOrganizerEmails().length > 0) {
+              <div class="co-organizer-chip-list">
+                @for (email of coOrganizerEmails(); track email; let i = $index) {
+                  <span class="co-organizer-chip">
+                    <span class="chip-label">{{ email }}</span>
+                    <button
+                      type="button"
+                      class="btn-chip-remove"
+                      (click)="removeCoOrganizerEmail(i)"
+                      [attr.aria-label]="'Remove ' + email"
+                    >
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </span>
+                }
+              </div>
+            }
           </div>
 
           <div class="checkbox-group">

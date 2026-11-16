@@ -11,14 +11,21 @@ export interface StaffCheckpoint {
   type: CheckpointType;
   allowMultipleScans: boolean;
   requireMainEntry: boolean;
+  cooldownSeconds?: number;
   eventId: string;
   eventName: string;
+}
+
+export interface StationDetails extends StaffCheckpoint {
+  subBooths: StaffCheckpoint[];
+  totalScans: number;
 }
 
 export interface ScanRequest {
   ticketCode: string;
   deviceInfo?: string;
   notes?: string;
+  cooldownSeconds?: number;
 }
 
 export interface ScanAttendee {
@@ -29,7 +36,7 @@ export interface ScanAttendee {
 }
 
 /**
- * Normalized result of POST /checkpoints/:id/scan. The API answers DUPLICATE
+ * Normalized result of POST /checkpoints/:boothId/scan. The API answers DUPLICATE
  * with 409 and INVALID_TICKET with 404; both are mapped into this shape.
  */
 export interface ScanOutcome {
@@ -40,4 +47,7 @@ export interface ScanOutcome {
   firstScannedAt: string | null;
   checkpoint: Pick<StaffCheckpoint, 'id' | 'name' | 'type'>;
   attendee: ScanAttendee | null;
+  cooldownActive?: boolean;
+  cooldownSeconds?: number;
+  cooldownRemainingSeconds?: number;
 }

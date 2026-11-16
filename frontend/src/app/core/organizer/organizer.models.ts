@@ -31,6 +31,7 @@ export interface OrganizerEvent {
   checkpoints_count?: number;
   admitted_count?: number;
   is_private?: boolean;
+  organizers?: EventOrganizer[];
 }
 
 export interface EventLiveKpis {
@@ -69,6 +70,7 @@ export interface RecentScanItem {
 
 export interface EventLiveOverview {
   id: string;
+  organizerId?: string;
   name: string;
   slug: string;
   category: string;
@@ -81,6 +83,7 @@ export interface EventLiveOverview {
   hourlyFlow: HourlyFlowPoint[];
   stationTraffic: StationTraffic[];
   recentScans: RecentScanItem[];
+  organizers?: EventOrganizer[];
 }
 
 export interface EventCheckpoint {
@@ -90,8 +93,27 @@ export interface EventCheckpoint {
   type: string;
   allowMultipleScans: boolean;
   requireMainEntry: boolean;
+  cooldownSeconds?: number;
   eventId: string;
   eventName: string;
+  parentId?: string | null;
+}
+
+export interface EventOrganizer {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+  isPrimary: boolean;
+}
+
+export interface OrganizerCandidate {
+  id: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
 }
 
 export interface EventStaff {
@@ -110,7 +132,11 @@ export interface RecordScanResponse {
   affiliation?: string;
   stationName?: string;
   scannedAt: string;
+  firstScannedAt?: string | null;
   message: string;
+  cooldownActive?: boolean;
+  cooldownSeconds?: number;
+  cooldownRemainingSeconds?: number;
 }
 
 type EditableEventFields =
@@ -123,9 +149,14 @@ type EditableEventFields =
   | 'allow_walk_ins'
   | 'is_private';
 
-export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>>;
+export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>> & {
+  organizerEmails?: string[];
+};
 
-export type NewOrganizerEvent = Pick<OrganizerEvent, EditableEventFields> & { capacity: number };
+export type NewOrganizerEvent = Pick<OrganizerEvent, EditableEventFields> & {
+  capacity: number;
+  organizerEmails?: string[];
+};
 
 export interface EventRegistrant {
   id: UUID;

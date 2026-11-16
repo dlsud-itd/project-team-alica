@@ -19,6 +19,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
+import {
+  evaluateCheckpointScan,
+  resolveCheckpointCooldownSeconds,
+} from '../checkpoints/checkpoint-scan.evaluator.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
 
 const MAX_GUEST_ROWS = 5000;
@@ -100,6 +104,45 @@ export interface EventResponseDto {
   registeredUserIds?: string[];
 }
 
+export interface EventScheduleItemDto {
+  id: string;
+  time: string;
+  title: string;
+  description: string;
+  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BOOTH' | 'GATE';
+  location?: string;
+  checkpointId?: string;
+}
+
+export interface EventSpeakerDto {
+  id: string;
+  name: string;
+  role: string;
+  company: string;
+  avatarUrl?: string;
+  topic?: string;
+}
+
+export interface EventDetailResponseDto extends EventResponseDto {
+  durationDays: number;
+  durationLabel: string;
+  checkpointMode: string;
+  scheduleDateLabel: string;
+  startDateIso: string;
+  endDateIso: string;
+  checkpoints: {
+    id: string;
+    name: string;
+    location: string | null;
+    type: string;
+    allowMultipleScans: boolean;
+    requireMainEntry: boolean;
+  }[];
+  schedule: EventScheduleItemDto[];
+  speakers: EventSpeakerDto[];
+  bannerImageUrl: string;
+}
+
 export type OrganizerEventStatus = 'Upcoming' | 'In progress' | 'Completed';
 export type RegistrantStatus = 'Registered' | 'Checked In' | 'Cancelled';
 export type ApprovalStatusLabel = 'Pending' | 'Approved' | 'Rejected';
@@ -125,6 +168,7 @@ export interface OrganizerEventDto {
   category_label?: string;
   checkpoints_count?: number;
   admitted_count?: number;
+  organizers?: EventOrganizerDto[];
 }
 
 export interface EventLiveKpisDto {
@@ -163,6 +207,7 @@ export interface RecentScanItemDto {
 
 export interface EventLiveOverviewDto {
   id: string;
+  organizerId: string;
   name: string;
   slug: string;
   category: string;
@@ -175,6 +220,7 @@ export interface EventLiveOverviewDto {
   hourlyFlow: HourlyFlowPointDto[];
   stationTraffic: StationTrafficDto[];
   recentScans: RecentScanItemDto[];
+  organizers?: EventOrganizerDto[];
 }
 
 export interface EventCheckpointDto {
@@ -184,8 +230,10 @@ export interface EventCheckpointDto {
   type: string;
   allowMultipleScans: boolean;
   requireMainEntry: boolean;
+  cooldownSeconds: number;
   eventId: string;
   eventName: string;
+  parentId: string | null;
 }
 
 export interface ScanResultDto {
@@ -195,7 +243,11 @@ export interface ScanResultDto {
   affiliation?: string;
   stationName?: string;
   scannedAt: string;
+  firstScannedAt?: string | null;
   message: string;
+  cooldownActive?: boolean;
+  cooldownSeconds?: number;
+  cooldownRemainingSeconds?: number;
 }
 
 export interface AdminEventDto extends OrganizerEventDto {
@@ -214,6 +266,23 @@ export interface EventRegistrantDto {
   status: RegistrantStatus;
 }
 
+export interface EventOrganizerDto {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+  isPrimary: boolean;
+}
+
+export interface OrganizerCandidateDto {
+  id: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+}
+
 export class UpdateEventDto {
   name?: string;
   description?: string;
@@ -222,6 +291,8 @@ export class UpdateEventDto {
   ends_at?: string;
   capacity?: number;
   allow_walk_ins?: boolean;
+  is_private?: boolean;
+  organizerEmails?: string[];
 }
 
 export interface EventStaffDto {
@@ -242,6 +313,7 @@ export class CreateEventDto {
   capacity!: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
+  organizerEmails?: string[];
 }
 
 export class ReviewEventDto {
@@ -266,7 +338,7 @@ const APPROVAL_STATUS_LABELS: Record<EventApprovalStatus, ApprovalStatusLabel> =
 const ACTIVE_TICKET_FILTER = { status: { not: TicketStatus.CANCELLED } };
 
 const ADMIN_EVENT_INCLUDE = {
-  organizer: { select: { fullName: true, email: true } },
+  organizer: { select: { id: true, fullName: true, email: true } },
   _count: { select: { tickets: { where: ACTIVE_TICKET_FILTER } } },
 } satisfies Prisma.EventInclude;
 
@@ -902,7 +974,531 @@ export class EventsService {
     });
   }
 
-  /** Events the user organizes (admins see every active event). */
+  async findOne(idOrSlug: string): Promise<EventDetailResponseDto> {
+    const ev = await this.prisma.event.findFirst({
+      where: {
+        OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+        isActive: true,
+        deletedAt: null,
+        approvalStatus: EventApprovalStatus.APPROVED,
+      },
+      include: {
+        organizer: {
+          select: { id: true, fullName: true, affiliation: true },
+        },
+        staff: {
+          where: { isActive: true },
+          select: { userId: true },
+        },
+        tickets: {
+          where: ACTIVE_TICKET_FILTER,
+          select: { id: true, userId: true },
+        },
+        checkpoints: {
+          where: { isActive: true, deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            location: true,
+            type: true,
+            allowMultipleScans: true,
+            requireMainEntry: true,
+          },
+        },
+      },
+    });
+
+    if (!ev) {
+      throw new NotFoundException(`Event '${idOrSlug}' not found`);
+    }
+
+    const spotsTaken = ev.tickets.length;
+    const spotsTotal =
+      ev.slug === 'devcon-manila-2026' ? 500 : (ev.capacity ?? 100);
+    const spotsRemaining = Math.max(0, spotsTotal - spotsTaken);
+
+    let status: 'LIVE_TODAY' | 'OPEN' | 'CLOSING_SOON' = 'OPEN';
+    let statusLabel = 'Registration Open';
+
+    const now = new Date();
+    const start = new Date(ev.startDate);
+    const end = new Date(ev.endDate);
+
+    if (now >= start && now <= end) {
+      status = 'LIVE_TODAY';
+      statusLabel = 'Happening Today';
+    } else if (spotsRemaining <= 15 && spotsRemaining > 0) {
+      status = 'CLOSING_SOON';
+      statusLabel = `${spotsRemaining} Spots Left`;
+    }
+
+    const lowerSlug = (ev.slug + ' ' + ev.title).toLowerCase();
+    let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
+      'CONFERENCE';
+    let categoryLabel = 'Conference';
+
+    if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+      category = 'HACKATHON';
+      categoryLabel = 'Hackathon';
+    } else if (
+      lowerSlug.includes('workshop') ||
+      lowerSlug.includes('masterclass')
+    ) {
+      category = 'WORKSHOP';
+      categoryLabel = 'Workshop';
+    } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
+      category = 'EXPO';
+      categoryLabel = 'Expo';
+    }
+
+    const dateLabel = start.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    const scheduleDateLabel = start.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const timeLabel = `${start.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    })} - ${end.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`;
+
+    const diffDays = Math.max(
+      1,
+      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)),
+    );
+    const durationDays = ev.slug === 'devcon-manila-2026' ? 3 : diffDays;
+    const durationLabel = `${durationDays} ${durationDays === 1 ? 'Day' : 'Days'}`;
+
+    const checkpointMode =
+      ev.checkpoints.length > 1 ? 'Multi-stop Checks' : 'Single Gate Entry';
+
+    const schedule = this.buildScheduleTimeline(ev);
+    const speakers = this.buildFeaturedSpeakers(ev);
+    const bannerImageUrl = this.resolveBannerImage(ev.slug, category);
+
+    return {
+      id: ev.id,
+      slug: ev.slug,
+      title: ev.title,
+      description: ev.description ?? '',
+      category,
+      categoryLabel,
+      dateLabel,
+      timeLabel,
+      venue: ev.venueName,
+      spotsTotal,
+      spotsTaken,
+      status,
+      statusLabel,
+      organizerName: ev.organizer?.fullName ?? 'Campus Organizer',
+      organizerId: ev.organizerId,
+      staffIds: ev.staff.map((s) => s.userId),
+      registeredUserIds: ev.tickets
+        .map((t) => t.userId)
+        .filter((uid): uid is string => uid !== null),
+      durationDays,
+      durationLabel,
+      checkpointMode,
+      scheduleDateLabel,
+      startDateIso: ev.startDate.toISOString(),
+      endDateIso: ev.endDate.toISOString(),
+      checkpoints: ev.checkpoints.map((c) => ({
+        id: c.id,
+        name: c.name,
+        location: c.location,
+        type: c.type,
+        allowMultipleScans: c.allowMultipleScans,
+        requireMainEntry: c.requireMainEntry,
+      })),
+      schedule,
+      speakers,
+      bannerImageUrl,
+    };
+  }
+
+  private buildScheduleTimeline(ev: {
+    slug: string;
+    checkpoints: Array<{ id: string; name: string; location: string | null; type: string }>;
+  }): EventScheduleItemDto[] {
+    if (ev.slug === 'devcon-manila-2026') {
+      return [
+        {
+          id: 'sch-devcon-1',
+          time: '09:00 AM',
+          title: 'Opening Plenary',
+          description: 'Keynote on tech communities in the Philippines',
+          type: 'KEYNOTE',
+          location: 'Function Room 1-3',
+          checkpointId: 'chk-devcon-plenary',
+        },
+        {
+          id: 'sch-devcon-2',
+          time: '10:30 AM',
+          title: 'AI/ML Breakout',
+          description: 'Deploying production grade LLMs',
+          type: 'SESSION',
+          location: 'Function Room 4',
+          checkpointId: 'chk-devcon-workshop',
+        },
+        {
+          id: 'sch-devcon-3',
+          time: '01:00 PM',
+          title: 'UX & Frontend Design Studio',
+          description: 'Interactive hand-on wireframing workshop',
+          type: 'WORKSHOP',
+          location: 'Function Room 4',
+          checkpointId: 'chk-devcon-workshop',
+        },
+        {
+          id: 'sch-devcon-4',
+          time: '03:30 PM',
+          title: 'Panel Discussion',
+          description: 'Careers in software architecture and cloud engineering',
+          type: 'PANEL',
+          location: 'Function Room 1-3',
+        },
+      ];
+    }
+
+    if (ev.slug === 'global-tech-ai-expo-2026') {
+      return [
+        {
+          id: 'sch-expo-1',
+          time: '09:00 AM',
+          title: 'Exhibition Opening & Registration',
+          description: 'Keynote remarks and partner showcase floor opening',
+          type: 'KEYNOTE',
+          location: 'Grand Exhibition Hall',
+        },
+        {
+          id: 'sch-expo-2',
+          time: '11:00 AM',
+          title: 'Robotics & Autonomous Hardware Keynote',
+          description: 'Live stage demonstrations in next-gen robotics',
+          type: 'SESSION',
+          location: 'Hall A Stage',
+        },
+        {
+          id: 'sch-expo-3',
+          time: '02:00 PM',
+          title: 'Enterprise AI Architecture Showcase',
+          description: 'Hands-on walkthroughs with cloud enterprise solutions',
+          type: 'WORKSHOP',
+          location: 'Partner Pavilion',
+        },
+        {
+          id: 'sch-expo-4',
+          time: '04:30 PM',
+          title: 'Global Innovation Awards & Mixer',
+          description: 'Networking reception with exhibitors and sponsors',
+          type: 'PANEL',
+          location: 'Atrium Lounge',
+        },
+      ];
+    }
+
+    if (ev.slug === 'tech-summit-2026') {
+      return [
+        {
+          id: 'sch-summit-1',
+          time: '08:00 AM',
+          title: 'Turnstile Check-in & Breakfast',
+          description: 'Main gate verification and welcome kit collection',
+          type: 'GATE',
+          location: 'East Entrance Gates',
+          checkpointId: 'chk-main-gate',
+        },
+        {
+          id: 'sch-summit-2',
+          time: '09:30 AM',
+          title: 'Plenary Keynote: Future of Computing',
+          description: 'Opening remarks on student technology innovation',
+          type: 'KEYNOTE',
+          location: '2nd Floor Main Plenary',
+          checkpointId: 'chk-session-keynote',
+        },
+        {
+          id: 'sch-summit-3',
+          time: '01:00 PM',
+          title: 'Capstone Showcase & Sponsor Alley',
+          description: 'Interactive demo floor and booth exploration',
+          type: 'BOOTH',
+          location: 'Ground Floor Atrium',
+          checkpointId: 'chk-booth-showcase',
+        },
+        {
+          id: 'sch-summit-4',
+          time: '03:30 PM',
+          title: 'Student Hack Showcase & Awards',
+          description: 'Presentations and recognition of top projects',
+          type: 'PANEL',
+          location: 'Main Stage',
+        },
+      ];
+    }
+
+    if (ev.slug === 'national-ai-hackathon-2026') {
+      return [
+        {
+          id: 'sch-hack-1',
+          time: '09:00 AM',
+          title: 'Hacker Check-in & Team Formation',
+          description: 'Badge issuance, hardware distribution, and mentoring signups',
+          type: 'GATE',
+          location: 'Main Arena',
+        },
+        {
+          id: 'sch-hack-2',
+          time: '11:00 AM',
+          title: 'Challenge Briefing & Hacking Begins',
+          description: 'Official problem statements and API credits release',
+          type: 'KEYNOTE',
+          location: 'Auditorium',
+        },
+        {
+          id: 'sch-hack-3',
+          time: '08:00 PM',
+          title: 'Midnight Pitch Clinic',
+          description: 'Optional practice pitches with venture mentors',
+          type: 'WORKSHOP',
+          location: 'Mentors Corner',
+        },
+        {
+          id: 'sch-hack-4',
+          time: '02:00 PM',
+          title: 'Project Submission & Final Demos',
+          description: 'Final judging floor and winner announcement',
+          type: 'PANEL',
+          location: 'Main Arena Stage',
+        },
+      ];
+    }
+
+    // Default timeline derived from checkpoints or standard blocks
+    if (ev.checkpoints && ev.checkpoints.length > 0) {
+      return ev.checkpoints.map((cp, idx) => {
+        const hours = 9 + idx * 2;
+        const time = `${hours.toString().padStart(2, '0')}:00 AM`;
+        const type: EventScheduleItemDto['type'] =
+          cp.type === 'MAIN_ENTRY'
+            ? 'GATE'
+            : cp.type === 'SESSION'
+              ? 'SESSION'
+              : 'BOOTH';
+        return {
+          id: `sch-dyn-${cp.id}`,
+          time,
+          title: cp.name,
+          description: cp.location
+            ? `Checkpoint session at ${cp.location}`
+            : 'Scheduled event activity and checkpoint verification',
+          type,
+          location: cp.location ?? undefined,
+          checkpointId: cp.id,
+        };
+      });
+    }
+
+    return [
+      {
+        id: 'sch-def-1',
+        time: '09:00 AM',
+        title: 'Gate Check-in & Registration',
+        description: 'Badge issuance and entry credential verification',
+        type: 'GATE',
+      },
+      {
+        id: 'sch-def-2',
+        time: '10:30 AM',
+        title: 'Opening Plenary & Welcome Keynote',
+        description: 'Welcome address, event overview, and program kickoff',
+        type: 'KEYNOTE',
+      },
+      {
+        id: 'sch-def-3',
+        time: '01:30 PM',
+        title: 'Breakout Sessions & Showcase',
+        description: 'Interactive workshops, partner booths, and exhibits',
+        type: 'WORKSHOP',
+      },
+      {
+        id: 'sch-def-4',
+        time: '04:00 PM',
+        title: 'Closing Remarks & Certification',
+        description: 'Event wrap-up and certificate eligibility claiming',
+        type: 'PANEL',
+      },
+    ];
+  }
+
+  private buildFeaturedSpeakers(ev: { slug: string; organizer?: { fullName: string; affiliation: string | null } }): EventSpeakerDto[] {
+    if (ev.slug === 'devcon-manila-2026') {
+      return [
+        {
+          id: 'spk-1',
+          name: 'John Doe',
+          role: 'Head of Product',
+          company: 'DevCon PH',
+          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+          topic: 'Building Open Source Communities in Southeast Asia',
+        },
+        {
+          id: 'spk-2',
+          name: 'Jane Smith',
+          role: 'UX Research Lead',
+          company: 'Studio Craft',
+          avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
+          topic: 'Human-Centered System Architecture',
+        },
+        {
+          id: 'spk-3',
+          name: 'Alex Mercer',
+          role: 'AI Infrastructure Specialist',
+          company: 'DataForge',
+          avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+          topic: 'Autonomous Agents and Cloud Infrastructure',
+        },
+      ];
+    }
+
+    if (ev.slug === 'global-tech-ai-expo-2026') {
+      return [
+        {
+          id: 'spk-expo-1',
+          name: 'Sophia Vargas',
+          role: 'VP of AI Research',
+          company: 'Global AI Enterprise',
+          avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+          topic: 'Enterprise LLMs in Mission-Critical Systems',
+        },
+        {
+          id: 'spk-expo-2',
+          name: 'David Kim',
+          role: 'Lead Systems Architect',
+          company: 'NextGen Robotics',
+          avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+          topic: 'Embodied AI & High-Speed Vision Hardware',
+        },
+        {
+          id: 'spk-expo-3',
+          name: 'Elena Rostova',
+          role: 'Cloud Solutions Director',
+          company: 'HyperScale Labs',
+          avatarUrl: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80',
+          topic: 'Global Distributed Databases at Scale',
+        },
+      ];
+    }
+
+    if (ev.slug === 'tech-summit-2026') {
+      return [
+        {
+          id: 'spk-summit-1',
+          name: 'Dr. Ramon Castillo',
+          role: 'Dean of Computer Studies',
+          company: 'DLSU-D',
+          avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+          topic: 'Higher Education in the Age of Generative AI',
+        },
+        {
+          id: 'spk-summit-2',
+          name: 'Maria Santos',
+          role: 'Engineering Director',
+          company: 'TechVentures PH',
+          avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+          topic: 'From Campus Projects to Tech Startups',
+        },
+        {
+          id: 'spk-summit-3',
+          name: 'Paolo Reyes',
+          role: 'Senior Mobile Developer',
+          company: 'AppFoundry',
+          avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+          topic: 'Cross-Platform Framework Performance',
+        },
+      ];
+    }
+
+    if (ev.slug === 'national-ai-hackathon-2026') {
+      return [
+        {
+          id: 'spk-hack-1',
+          name: 'Marcus Chen',
+          role: 'Founder',
+          company: 'Agentic Systems Lab',
+          avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+          topic: 'Architecting Multi-Agent Coding Swarms',
+        },
+        {
+          id: 'spk-hack-2',
+          name: 'Chloe Bennett',
+          role: 'Principal Architect',
+          company: 'DeepGraph AI',
+          avatarUrl: 'https://images.unsplash.com/photo-1548142813-c348350df52b?w=150&auto=format&fit=crop&q=80',
+          topic: 'Graph RAG and Knowledge Distillation',
+        },
+        {
+          id: 'spk-hack-3',
+          name: 'Karlo Dela Cruz',
+          role: 'Head of Developer Relations',
+          company: 'CloudPioneer',
+          avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
+          topic: 'Building Resilient Event-Driven Applications',
+        },
+      ];
+    }
+
+    const orgName = ev.organizer?.fullName ?? 'Campus Organizer';
+    const orgAffil = ev.organizer?.affiliation ?? 'Organizing Committee';
+    return [
+      {
+        id: 'spk-def-1',
+        name: orgName,
+        role: 'Keynote Lead',
+        company: orgAffil,
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        topic: 'Welcome & Executive Remarks',
+      },
+      {
+        id: 'spk-def-2',
+        name: 'Alex Martin',
+        role: 'Program Director',
+        company: 'Campus Event Operations',
+        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+        topic: 'Event Guidelines & Milestone Tracker',
+      },
+    ];
+  }
+
+  private resolveBannerImage(
+    slug: string,
+    category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO',
+  ): string {
+    if (slug === 'devcon-manila-2026') {
+      return 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&auto=format&fit=crop&q=80';
+    }
+    if (slug === 'global-tech-ai-expo-2026' || category === 'EXPO') {
+      return 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200&auto=format&fit=crop&q=80';
+    }
+    if (slug === 'national-ai-hackathon-2026' || category === 'HACKATHON') {
+      return 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1200&auto=format&fit=crop&q=80';
+    }
+    if (category === 'WORKSHOP') {
+      return 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&auto=format&fit=crop&q=80';
+    }
+    return 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=1200&auto=format&fit=crop&q=80';
+  }
+
+  /** Events the user organizes (admins see every active event; staff see assigned events). */
   async findForOrganizer(user: UserSummaryDto): Promise<OrganizerEventDto[]> {
     this.assertOrganizerRole(user);
 
@@ -910,7 +1506,24 @@ export class EventsService {
       where: {
         isActive: true,
         deletedAt: null,
-        ...(user.role === 'ADMIN' ? {} : { organizerId: user.id }),
+        ...(user.role === 'ADMIN'
+          ? {}
+          : {
+              OR: [
+                { organizerId: user.id },
+                { organizers: { some: { userId: user.id } } },
+                { staff: { some: { userId: user.id, isActive: true } } },
+                {
+                  checkpoints: {
+                    some: {
+                      isActive: true,
+                      deletedAt: null,
+                      assignedStaff: { some: { userId: user.id, isActive: true } },
+                    },
+                  },
+                },
+              ],
+            }),
       },
       include: {
         _count: {
@@ -922,6 +1535,12 @@ export class EventsService {
         tickets: {
           where: { status: TicketStatus.CHECKED_IN },
           select: { id: true },
+        },
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        organizers: {
+          include: {
+            user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+          },
         },
       },
       orderBy: { startDate: 'asc' },
@@ -970,7 +1589,7 @@ export class EventsService {
       throw new BadRequestException('Start date & time must be in the future');
     }
     const capacity = this.parseCapacity(dto.capacity);
-    const isPrivate = dto.is_private === true;
+    const isPrivate = user.role === 'ATTENDEE' ? false : dto.is_private === true;
     const approvalStatus =
       isPrivate || user.role === 'ADMIN'
         ? EventApprovalStatus.APPROVED
@@ -990,10 +1609,54 @@ export class EventsService {
         approvalStatus,
         organizerId: user.id,
       },
+      include: {
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+    });
+
+    if (dto.organizerEmails && Array.isArray(dto.organizerEmails) && dto.organizerEmails.length > 0) {
+      const cleanEmails = Array.from(
+        new Set(
+          dto.organizerEmails
+            .map((e) => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+            .filter((e) => e && e !== user.email.toLowerCase()),
+        ),
+      );
+      if (cleanEmails.length > 0) {
+        const foundUsers = await this.prisma.user.findMany({
+          where: { email: { in: cleanEmails } },
+          select: { id: true, email: true },
+        });
+        const foundEmailSet = new Set(foundUsers.map((u) => u.email.toLowerCase()));
+        for (const em of cleanEmails) {
+          if (!foundEmailSet.has(em)) {
+            throw new NotFoundException(`User with email '${em}' not found`);
+          }
+        }
+        await this.prisma.eventOrganizer.createMany({
+          data: foundUsers.map((u) => ({
+            eventId: event.id,
+            userId: u.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    const fullEvent = await this.prisma.event.findUnique({
+      where: { id: event.id },
+      include: {
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        organizers: {
+          include: {
+            user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+          },
+        },
+      },
     });
 
     this.logger.log(`Event '${event.id}' created by ${user.id} (private: ${isPrivate}, approval: ${approvalStatus})`);
-    return this.toOrganizerEvent(event, 0);
+    return this.toOrganizerEvent(fullEvent ?? event, 0);
   }
 
   async update(
@@ -1018,6 +1681,10 @@ export class EventsService {
 
     if (dto.allow_walk_ins !== undefined) {
       data.allowWalkIns = Boolean(dto.allow_walk_ins);
+    }
+
+    if (dto.is_private !== undefined) {
+      data.isPrivate = Boolean(dto.is_private);
     }
 
     const [startDate, endDate] = this.parseDateRange(
@@ -1052,9 +1719,57 @@ export class EventsService {
       data.capacity = capacity;
     }
 
+    if (dto.organizerEmails !== undefined && Array.isArray(dto.organizerEmails)) {
+      const cleanEmails = Array.from(
+        new Set(
+          dto.organizerEmails
+            .map((e) => (typeof e === 'string' ? e.trim().toLowerCase() : ''))
+            .filter((e) => e && e !== user.email.toLowerCase()),
+        ),
+      );
+      const targetUsers =
+        cleanEmails.length > 0
+          ? await this.prisma.user.findMany({
+              where: { email: { in: cleanEmails } },
+              select: { id: true, email: true },
+            })
+          : [];
+      const foundEmailSet = new Set(targetUsers.map((u) => u.email.toLowerCase()));
+      for (const em of cleanEmails) {
+        if (!foundEmailSet.has(em)) {
+          throw new NotFoundException(`User with email '${em}' not found`);
+        }
+      }
+      const targetUserIds = targetUsers
+        .map((u) => u.id)
+        .filter((id) => id !== event.organizerId);
+
+      await this.prisma.eventOrganizer.deleteMany({
+        where: {
+          eventId,
+          userId: { notIn: targetUserIds },
+        },
+      });
+      for (const uid of targetUserIds) {
+        await this.prisma.eventOrganizer.upsert({
+          where: { eventId_userId: { eventId, userId: uid } },
+          create: { eventId, userId: uid },
+          update: {},
+        });
+      }
+    }
+
     const updated = await this.prisma.event.update({
       where: { id: eventId },
       data,
+      include: {
+        organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        organizers: {
+          include: {
+            user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+          },
+        },
+      },
     });
 
     return this.toOrganizerEvent(updated, registrationsCount);
@@ -1130,7 +1845,7 @@ export class EventsService {
     user: UserSummaryDto,
     eventId: string,
   ): Promise<EventRegistrantDto[]> {
-    await this.findManageableEvent(user, eventId);
+    await this.findAccessibleEvent(user, eventId);
 
     const tickets = await this.prisma.ticket.findMany({
       where: { eventId },
@@ -1145,7 +1860,7 @@ export class EventsService {
     eventId: string,
     registrantId: string,
   ): Promise<EventRegistrantDto> {
-    await this.findManageableEvent(user, eventId);
+    await this.findAccessibleEvent(user, eventId);
 
     const ticket = await this.prisma.ticket.findFirst({
       where: { id: registrantId, eventId },
@@ -1296,18 +2011,32 @@ export class EventsService {
 
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, deletedAt: null },
+      include: {
+        organizers: true,
+      },
     });
     if (!event) {
       throw new NotFoundException(`Event with ID '${eventId}' not found`);
     }
-    if (user.role !== 'ADMIN' && event.organizerId !== user.id) {
+    const isOrganizer =
+      event.organizerId === user.id ||
+      event.organizers.some((o) => o.userId === user.id);
+    if (user.role !== 'ADMIN' && !isOrganizer) {
       throw new ForbiddenException('You do not manage this event');
     }
     return event;
   }
 
   private toOrganizerEvent(
-    ev: Event,
+    ev: Event & {
+      organizer?: { id?: string; fullName: string; email: string; affiliation?: string | null };
+      organizers?: Array<{
+        id: string;
+        userId: string;
+        assignedAt: Date;
+        user?: { id: string; email: string; fullName: string; affiliation?: string | null };
+      }>;
+    },
     registrationsCount: number,
   ): OrganizerEventDto {
     const now = new Date();
@@ -1317,6 +2046,35 @@ export class EventsService {
         : now <= ev.endDate
           ? 'In progress'
           : 'Completed';
+
+    const organizersList: EventOrganizerDto[] = [];
+    if (ev.organizer) {
+      const orgId = ev.organizer.id ?? ev.organizerId;
+      organizersList.push({
+        id: `primary-${orgId}`,
+        userId: orgId,
+        email: ev.organizer.email,
+        fullName: ev.organizer.fullName,
+        affiliation: ev.organizer.affiliation ?? null,
+        assignedAt: ev.createdAt.toISOString(),
+        isPrimary: true,
+      });
+    }
+    if (ev.organizers && Array.isArray(ev.organizers)) {
+      for (const org of ev.organizers) {
+        if (org.userId !== ev.organizerId && org.user) {
+          organizersList.push({
+            id: org.id,
+            userId: org.user.id,
+            email: org.user.email,
+            fullName: org.user.fullName,
+            affiliation: org.user.affiliation ?? null,
+            assignedAt: org.assignedAt ? org.assignedAt.toISOString() : new Date().toISOString(),
+            isPrimary: false,
+          });
+        }
+      }
+    }
 
     return {
       id: ev.id,
@@ -1335,11 +2093,12 @@ export class EventsService {
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
       is_private: ev.isPrivate,
+      ...(organizersList.length > 0 ? { organizers: organizersList } : {}),
     };
   }
 
   private toAdminEvent(
-    ev: Event & { organizer: { fullName: string; email: string } },
+    ev: Event & { organizer: { fullName: string; email: string; id?: string } },
     registrationsCount: number,
   ): AdminEventDto {
     return {
@@ -1377,17 +2136,30 @@ export class EventsService {
       where: { id: eventId, deletedAt: null },
       include: {
         staff: true,
+        organizers: true,
       },
     });
     if (!event) {
       throw new NotFoundException(`Event with ID '${eventId}' not found`);
     }
     if (user.role === 'ADMIN') return event;
-    if (user.role === 'ORGANIZER' && event.organizerId === user.id) return event;
+    if (event.organizerId === user.id) return event;
+    if (event.organizers?.some((o) => o.userId === user.id)) return event;
     const isAssignedStaff = event.staff?.some(
       (s) => s.userId === user.id && s.isActive,
     );
-    if (user.role === 'STAFF' && isAssignedStaff) return event;
+    if (isAssignedStaff) return event;
+
+    if (this.prisma.checkpointStaff?.findFirst) {
+      const checkpointStaff = await this.prisma.checkpointStaff.findFirst({
+        where: {
+          userId: user.id,
+          isActive: true,
+          checkpoint: { eventId, deletedAt: null, isActive: true },
+        },
+      });
+      if (checkpointStaff) return event;
+    }
 
     throw new ForbiddenException('You do not have access to this event');
   }
@@ -1531,6 +2303,7 @@ export class EventsService {
 
     return {
       id: event.id,
+      organizerId: event.organizerId,
       name: event.title,
       slug: event.slug,
       category,
@@ -1551,6 +2324,7 @@ export class EventsService {
       hourlyFlow,
       stationTraffic,
       recentScans,
+      organizers: await this.getOrganizers(user, eventId),
     };
   }
 
@@ -1572,8 +2346,10 @@ export class EventsService {
       type: c.type,
       allowMultipleScans: c.allowMultipleScans,
       requireMainEntry: c.requireMainEntry,
+      cooldownSeconds: resolveCheckpointCooldownSeconds(c),
       eventId: event.id,
       eventName: event.title,
+      parentId: c.parentId ?? null,
     }));
   }
 
@@ -1594,146 +2370,37 @@ export class EventsService {
       );
     }
 
-    const cleanCode = ticketCode.trim();
-    const ticket = await this.prisma.ticket.findFirst({
-      where: {
-        eventId,
-        OR: [{ ticketCode: cleanCode }, { ticketCode: `#${cleanCode}` }],
+    const { outcome } = await evaluateCheckpointScan(this.prisma, {
+      userId: user.id,
+      checkpoint: {
+        id: checkpoint.id,
+        name: checkpoint.name,
+        type: checkpoint.type,
+        eventId: checkpoint.eventId,
+        allowMultipleScans: checkpoint.allowMultipleScans,
+        requireMainEntry: checkpoint.requireMainEntry,
       },
-    });
-
-    const now = new Date();
-
-    if (!ticket) {
-      await this.prisma.attendanceLog.create({
-        data: {
-          ticketCode: cleanCode,
-          checkpointId,
-          scannedByUserId: user.id,
-          scanResult: 'INVALID_TICKET',
-          notes: 'Ticket not found for this event',
-        },
-      });
-      return {
-        scanResult: 'INVALID_TICKET',
-        ticketCode: cleanCode,
-        stationName: checkpoint.name,
-        scannedAt: now.toISOString(),
-        message: 'Invalid ticket code for this event',
-      };
-    }
-
-    if (ticket.status === TicketStatus.CANCELLED) {
-      await this.prisma.attendanceLog.create({
-        data: {
-          ticketId: ticket.id,
-          ticketCode: ticket.ticketCode,
-          checkpointId,
-          scannedByUserId: user.id,
-          scanResult: 'INVALID_TICKET',
-          notes: 'Ticket was cancelled',
-        },
-      });
-      return {
-        scanResult: 'INVALID_TICKET',
-        ticketCode: ticket.ticketCode,
-        attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
-        affiliation: ticket.affiliation ?? undefined,
-        stationName: checkpoint.name,
-        scannedAt: now.toISOString(),
-        message: 'This registration has been cancelled',
-      };
-    }
-
-    if (checkpoint.requireMainEntry) {
-      const mainEntryLog = await this.prisma.attendanceLog.findFirst({
-        where: {
-          ticketId: ticket.id,
-          checkpoint: { eventId, type: 'MAIN_ENTRY' },
-          scanResult: 'SUCCESS',
-        },
-      });
-      if (!mainEntryLog) {
-        await this.prisma.attendanceLog.create({
-          data: {
-            ticketId: ticket.id,
-            ticketCode: ticket.ticketCode,
-            checkpointId,
-            scannedByUserId: user.id,
-            scanResult: 'WARNING_NO_MAIN_ENTRY',
-            notes: 'Attendee has not scanned at a main entry gate yet',
-          },
-        });
-        return {
-          scanResult: 'WARNING_NO_MAIN_ENTRY',
-          ticketCode: ticket.ticketCode,
-          attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
-          affiliation: ticket.affiliation ?? undefined,
-          stationName: checkpoint.name,
-          scannedAt: now.toISOString(),
-          message: 'Attendee has not checked in at the main gate yet',
-        };
-      }
-    }
-
-    if (!checkpoint.allowMultipleScans) {
-      const priorScan = await this.prisma.attendanceLog.findFirst({
-        where: {
-          ticketId: ticket.id,
-          checkpointId,
-          scanResult: 'SUCCESS',
-        },
-      });
-      if (priorScan) {
-        await this.prisma.attendanceLog.create({
-          data: {
-            ticketId: ticket.id,
-            ticketCode: ticket.ticketCode,
-            checkpointId,
-            scannedByUserId: user.id,
-            scanResult: 'DUPLICATE',
-            notes: 'Already checked in at this station',
-          },
-        });
-        return {
-          scanResult: 'DUPLICATE',
-          ticketCode: ticket.ticketCode,
-          attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
-          affiliation: ticket.affiliation ?? undefined,
-          stationName: checkpoint.name,
-          scannedAt: now.toISOString(),
-          message: 'Already checked in at this station',
-        };
-      }
-    }
-
-    await this.prisma.attendanceLog.create({
-      data: {
-        ticketId: ticket.id,
-        ticketCode: ticket.ticketCode,
-        checkpointId,
-        scannedByUserId: user.id,
-        scanResult: 'SUCCESS',
-      },
-    });
-
-    await this.prisma.ticket.update({
-      where: { id: ticket.id },
-      data: {
-        status: TicketStatus.CHECKED_IN,
-        firstScannedAt: ticket.firstScannedAt ?? now,
-        lastScannedAt: now,
-      },
+      ticketCode,
     });
 
     return {
-      scanResult: 'SUCCESS',
-      ticketCode: ticket.ticketCode,
-      attendeeName: `${ticket.firstName} ${ticket.lastName}`.trim(),
-      affiliation: ticket.affiliation ?? undefined,
+      scanResult: outcome.scanResult,
+      ticketCode: outcome.attendee?.ticketCode ?? ticketCode.trim(),
+      attendeeName: outcome.attendee?.fullName,
+      affiliation: outcome.affiliation,
       stationName: checkpoint.name,
-      scannedAt: now.toISOString(),
-      message: 'Check-in successful',
+      scannedAt: outcome.scannedAt,
+      firstScannedAt: outcome.firstScannedAt,
+      message: outcome.message,
+      ...(outcome.cooldownActive !== undefined
+        ? { cooldownActive: outcome.cooldownActive }
+        : {}),
+      ...(outcome.cooldownSeconds !== undefined
+        ? { cooldownSeconds: outcome.cooldownSeconds }
+        : {}),
+      ...(outcome.cooldownRemainingSeconds !== undefined
+        ? { cooldownRemainingSeconds: outcome.cooldownRemainingSeconds }
+        : {}),
     };
   }
 
@@ -1796,7 +2463,7 @@ export class EventsService {
   }
 
   async getStaff(user: UserSummaryDto, eventId: string): Promise<EventStaffDto[]> {
-    await this.findManageableEvent(user, eventId);
+    await this.findAccessibleEvent(user, eventId);
     const staffList = await this.prisma.eventStaff.findMany({
       where: { eventId, isActive: true },
       include: {
@@ -1861,4 +2528,137 @@ export class EventsService {
     });
   }
 
+  async getOrganizers(
+    user: UserSummaryDto,
+    eventId: string,
+  ): Promise<EventOrganizerDto[]> {
+    const event = await this.findAccessibleEvent(user, eventId);
+    const [primaryUser, coOrganizers] = await Promise.all([
+      this.prisma.user?.findUnique
+        ? this.prisma.user.findUnique({
+            where: { id: event.organizerId },
+            select: { id: true, email: true, fullName: true, affiliation: true },
+          })
+        : Promise.resolve(null),
+      this.prisma.eventOrganizer?.findMany
+        ? this.prisma.eventOrganizer.findMany({
+            where: { eventId },
+            include: {
+              user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+            },
+            orderBy: { assignedAt: 'asc' },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const result: EventOrganizerDto[] = [];
+    if (primaryUser) {
+      result.push({
+        id: `primary-${primaryUser.id}`,
+        userId: primaryUser.id,
+        email: primaryUser.email,
+        fullName: primaryUser.fullName,
+        affiliation: primaryUser.affiliation ?? null,
+        assignedAt: event.createdAt.toISOString(),
+        isPrimary: true,
+      });
+    }
+
+    for (const co of coOrganizers) {
+      if (co.userId !== event.organizerId && co.user) {
+        result.push({
+          id: co.id,
+          userId: co.user.id,
+          email: co.user.email,
+          fullName: co.user.fullName,
+          affiliation: co.user.affiliation ?? null,
+          assignedAt: co.assignedAt.toISOString(),
+          isPrimary: false,
+        });
+      }
+    }
+    return result;
+  }
+
+  async addOrganizer(
+    user: UserSummaryDto,
+    eventId: string,
+    email: string,
+  ): Promise<EventOrganizerDto> {
+    const event = await this.findManageableEvent(user, eventId);
+    const cleanEmail = email?.trim()?.toLowerCase();
+    if (!cleanEmail) {
+      throw new BadRequestException('Organizer email is required');
+    }
+    const targetUser = await this.prisma.user.findUnique({
+      where: { email: cleanEmail },
+      select: { id: true, email: true, fullName: true, affiliation: true },
+    });
+    if (!targetUser) {
+      throw new NotFoundException(
+        `User with email '${cleanEmail}' not found. They must register an account first.`,
+      );
+    }
+    if (targetUser.id === event.organizerId) {
+      throw new BadRequestException('This user is already the primary organizer');
+    }
+    const assignment = await this.prisma.eventOrganizer.upsert({
+      where: { eventId_userId: { eventId, userId: targetUser.id } },
+      update: {},
+      create: { eventId, userId: targetUser.id },
+      include: {
+        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+      },
+    });
+
+    return {
+      id: assignment.id,
+      userId: assignment.user.id,
+      email: assignment.user.email,
+      fullName: assignment.user.fullName,
+      affiliation: assignment.user.affiliation ?? null,
+      assignedAt: assignment.assignedAt.toISOString(),
+      isPrimary: false,
+    };
+  }
+
+  async removeOrganizer(
+    user: UserSummaryDto,
+    eventId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    const event = await this.findManageableEvent(user, eventId);
+    if (event.organizerId === targetUserId) {
+      throw new BadRequestException('Cannot remove the primary organizer');
+    }
+    await this.prisma.eventOrganizer.deleteMany({
+      where: { eventId, userId: targetUserId },
+    });
+  }
+
+  async searchOrganizerCandidates(
+    user: UserSummaryDto,
+    query: string,
+  ): Promise<OrganizerCandidateDto[]> {
+    this.assertOrganizerRole(user);
+    const trimmed = (query || '').trim();
+    if (trimmed.length < 2) return [];
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { email: { contains: trimmed, mode: 'insensitive' } },
+          { fullName: { contains: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, email: true, fullName: true, affiliation: true },
+      take: 8,
+    });
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      affiliation: u.affiliation ?? null,
+    }));
+  }
 }

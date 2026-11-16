@@ -63,6 +63,11 @@ describe('EventsService', () => {
     event: Record<string, ReturnType<typeof vi.fn>>;
     ticket: Record<string, ReturnType<typeof vi.fn>>;
     user: Record<string, ReturnType<typeof vi.fn>>;
+    checkpoint: Record<string, ReturnType<typeof vi.fn>>;
+    attendanceLog: Record<string, ReturnType<typeof vi.fn>>;
+    checkpointStaff: Record<string, ReturnType<typeof vi.fn>>;
+    eventStaff: Record<string, ReturnType<typeof vi.fn>>;
+    eventOrganizer: Record<string, ReturnType<typeof vi.fn>>;
   };
   let invitationMailer: {
     assertConfigured: ReturnType<typeof vi.fn>;
@@ -86,7 +91,30 @@ describe('EventsService', () => {
       },
       user: {
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
         create: vi.fn(),
+      },
+      checkpoint: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      attendanceLog: {
+        count: vi.fn().mockResolvedValue(0),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      checkpointStaff: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      eventStaff: {
+        findMany: vi.fn().mockResolvedValue([]),
+        upsert: vi.fn(),
+        updateMany: vi.fn(),
+      },
+      eventOrganizer: {
+        findMany: vi.fn().mockResolvedValue([]),
+        createMany: vi.fn().mockResolvedValue({ count: 0 }),
+        upsert: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
     };
     invitationMailer = {
@@ -547,6 +575,349 @@ describe('EventsService', () => {
       await expect(
         service.restoreRegistrant(ORGANIZER, 'evt-1', 'tkt-1'),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('findAccessibleEvent, getLiveOverview, and getEventCheckpoints', () => {
+    const dynamicOrganizer: UserSummaryDto = {
+      id: 'usr-org',
+      email: 'organizer@alica.ph',
+      fullName: 'Campus Organizer',
+      role: 'USER',
+    };
+
+    const assignedStaff: UserSummaryDto = {
+      id: 'usr-staff',
+      email: 'staff@checkpoint.ph',
+      fullName: 'Station Staff',
+      role: 'USER',
+    };
+
+    const unrelatedUser: UserSummaryDto = {
+      id: 'usr-other',
+      email: 'other@alica.ph',
+      fullName: 'Other User',
+      role: 'USER',
+    };
+
+    it('allows a USER-role event organizer to access live overview and checkpoints with parentId', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent({ staff: [] }));
+      prisma.checkpoint.findMany.mockResolvedValue([
+        {
+          id: 'chk-booth-1',
+          name: 'AWS Booth',
+          location: 'Hall A',
+          type: 'BOOTH',
+          allowMultipleScans: true,
+          requireMainEntry: false,
+          parentId: null,
+          _count: { attendanceLogs: 4 },
+        },
+        {
+          id: 'chk-sub-1',
+          name: 'AWS Demo 1',
+          location: 'Hall A',
+          type: 'BOOTH',
+          allowMultipleScans: true,
+          requireMainEntry: false,
+          parentId: 'chk-booth-1',
+          _count: { attendanceLogs: 2 },
+        },
+      ]);
+
+      const overview = await service.getLiveOverview(dynamicOrganizer, 'evt-1');
+      expect(overview.organizerId).toBe('usr-org');
+      expect(overview.stationTraffic).toHaveLength(2);
+
+      const checkpoints = await service.getEventCheckpoints(dynamicOrganizer, 'evt-1');
+      expect(checkpoints).toHaveLength(2);
+      expect(checkpoints[1].parentId).toBe('chk-booth-1');
+    });
+
+    it('allows assigned USER-role staff and rejects unrelated USERs', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ staff: [{ userId: 'usr-staff', isActive: true }] }),
+      );
+      prisma.checkpoint.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.getEventCheckpoints(assignedStaff, 'evt-1'),
+      ).resolves.toEqual([]);
+
+      await expect(
+        service.getLiveOverview(unrelatedUser, 'evt-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows assigned staff to view registrants, toggle check-ins, and view staff', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ staff: [{ userId: 'usr-staff', isActive: true }] }),
+      );
+      prisma.ticket.findMany.mockResolvedValue([
+        {
+          id: 'tkt-1',
+          eventId: 'evt-1',
+          userId: 'usr-attendee',
+          firstName: 'Alice',
+          lastName: 'Smith',
+          email: 'alice@example.com',
+          ticketCode: 'TKT-1001',
+          status: TicketStatus.REGISTERED,
+          createdAt: new Date(),
+        },
+      ]);
+      prisma.ticket.findFirst.mockResolvedValue({
+        id: 'tkt-1',
+        eventId: 'evt-1',
+        status: TicketStatus.REGISTERED,
+        firstScannedAt: null,
+      });
+      prisma.ticket.update.mockResolvedValue({
+        id: 'tkt-1',
+        eventId: 'evt-1',
+        userId: 'usr-attendee',
+        firstName: 'Alice',
+        lastName: 'Smith',
+        email: 'alice@example.com',
+        ticketCode: 'TKT-1001',
+        status: TicketStatus.CHECKED_IN,
+        createdAt: new Date(),
+      });
+      prisma.eventStaff.findMany.mockResolvedValue([
+        {
+          id: 'es-1',
+          assignedAt: new Date(),
+          user: {
+            id: 'usr-staff',
+            email: 'staff@checkpoint.ph',
+            fullName: 'Station Staff',
+            affiliation: 'Staff Dept',
+          },
+        },
+      ]);
+
+      const registrants = await service.findRegistrants(assignedStaff, 'evt-1');
+      expect(registrants).toHaveLength(1);
+      expect(registrants[0].full_name).toBe('Alice Smith');
+
+      const toggled = await service.toggleCheckIn(assignedStaff, 'evt-1', 'tkt-1');
+      expect(toggled.status).toBe('Checked In');
+
+      const staff = await service.getStaff(assignedStaff, 'evt-1');
+      expect(staff).toHaveLength(1);
+      expect(staff[0].fullName).toBe('Station Staff');
+    });
+
+    it('returns assigned events for staff in findForOrganizer', async () => {
+      prisma.event.findMany.mockResolvedValue([
+        {
+          ...dbEvent({ id: 'evt-assigned' }),
+          _count: { tickets: 5, checkpoints: 2 },
+          tickets: [{ id: 'tkt-checked' }],
+        },
+      ]);
+
+      const events = await service.findForOrganizer(assignedStaff);
+      expect(events).toHaveLength(1);
+      expect(events[0].id).toBe('evt-assigned');
+      expect(prisma.event.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({ organizerId: 'usr-staff' }),
+              expect.objectContaining({
+                staff: { some: { userId: 'usr-staff', isActive: true } },
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('returns event details with schedule, speakers, and metadata in findOne', async () => {
+      prisma.event.findFirst.mockResolvedValue({
+        ...dbEvent({
+          id: 'evt-devcon-manila-2026',
+          slug: 'devcon-manila-2026',
+          title: 'DevCon Manila 2026',
+          description: 'Premier developer conference',
+          capacity: 1240,
+        }),
+        organizer: { id: 'usr-org', fullName: 'Campus Organizer', affiliation: 'Council' },
+        staff: [],
+        tickets: [{ id: 'tkt-1', userId: 'usr-attendee' }],
+        checkpoints: [
+          {
+            id: 'chk-gate-1',
+            name: 'Gate 1',
+            location: 'Main Hall',
+            type: 'MAIN_ENTRY',
+            allowMultipleScans: false,
+            requireMainEntry: false,
+          },
+          {
+            id: 'chk-booth-1',
+            name: 'AWS Booth',
+            location: 'Booth A',
+            type: 'BOOTH',
+            allowMultipleScans: true,
+            requireMainEntry: false,
+          },
+        ],
+      });
+
+      const res = await service.findOne('devcon-manila-2026');
+      expect(res.slug).toBe('devcon-manila-2026');
+      expect(res.durationLabel).toBe('3 Days');
+      expect(res.checkpointMode).toBe('Multi-stop Checks');
+      expect(res.spotsTotal).toBe(500);
+      expect(res.schedule).toHaveLength(4);
+      expect(res.schedule[0].title).toBe('Opening Plenary');
+      expect(res.speakers).toHaveLength(3);
+      expect(res.speakers[0].name).toBe('John Doe');
+      expect(res.speakers[1].name).toBe('Jane Smith');
+      expect(res.speakers[2].name).toBe('Alex Mercer');
+    });
+
+    it('creates an event with multiple co-organizers', async () => {
+      const createdEvent = dbEvent({ id: 'evt-multi-org' });
+      prisma.event.create.mockResolvedValue(createdEvent);
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'usr-co-1', email: 'co1@example.com', fullName: 'Co One', affiliation: 'CS' },
+      ]);
+      prisma.event.findUnique.mockImplementation(({ where }) => {
+        if (where?.slug) return Promise.resolve(null);
+        return Promise.resolve({
+          ...createdEvent,
+          organizer: { id: 'usr-org', email: 'org@alica.ph', fullName: 'Campus Organizer', affiliation: 'USC' },
+          organizers: [
+            {
+              id: 'eo-1',
+              userId: 'usr-co-1',
+              assignedAt: new Date(),
+              user: { id: 'usr-co-1', email: 'co1@example.com', fullName: 'Co One', affiliation: 'CS' },
+            },
+          ],
+        });
+      });
+
+      const res = await service.create(dynamicOrganizer, {
+        name: 'Hackathon 2026',
+        venue: 'Gym',
+        starts_at: '2026-12-01T08:00:00Z',
+        ends_at: '2026-12-01T17:00:00Z',
+        capacity: 100,
+        organizerEmails: ['co1@example.com'],
+      });
+
+      expect(prisma.eventOrganizer.createMany).toHaveBeenCalledWith({
+        data: [{ eventId: 'evt-multi-org', userId: 'usr-co-1' }],
+        skipDuplicates: true,
+      });
+      expect(res.organizers).toBeDefined();
+      expect(res.organizers).toHaveLength(2);
+      expect(res.organizers?.[0].isPrimary).toBe(true);
+      expect(res.organizers?.[1].email).toBe('co1@example.com');
+      expect(res.organizers?.[1].isPrimary).toBe(false);
+    });
+
+    it('allows a co-organizer to manage event in findManageableEvent and update organizers', async () => {
+      prisma.event.findFirst.mockResolvedValue({
+        ...dbEvent({ id: 'evt-co-managed', organizerId: 'usr-primary' }),
+        organizers: [{ userId: 'usr-org', id: 'eo-co' }],
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'usr-co-2', email: 'co2@example.com' },
+      ]);
+      prisma.event.update.mockResolvedValue({
+        ...dbEvent({ id: 'evt-co-managed', organizerId: 'usr-primary' }),
+        title: 'Renamed Event',
+        organizer: { id: 'usr-primary', email: 'primary@example.com', fullName: 'Primary Org', affiliation: null },
+        organizers: [
+          {
+            id: 'eo-co-2',
+            userId: 'usr-co-2',
+            assignedAt: new Date(),
+            user: { id: 'usr-co-2', email: 'co2@example.com', fullName: 'Co Two', affiliation: null },
+          },
+        ],
+      });
+
+      const updated = await service.update(dynamicOrganizer, 'evt-co-managed', {
+        name: 'Renamed Event',
+        organizerEmails: ['co2@example.com'],
+      });
+
+      expect(updated.name).toBe('Renamed Event');
+      expect(prisma.eventOrganizer.deleteMany).toHaveBeenCalled();
+      expect(prisma.eventOrganizer.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId_userId: { eventId: 'evt-co-managed', userId: 'usr-co-2' } },
+        }),
+      );
+    });
+
+    it('gets, adds, and removes co-organizers', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ id: 'evt-1', organizerId: 'usr-org' }),
+      );
+      prisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'usr-org',
+          email: 'org@alica.ph',
+          fullName: 'Campus Organizer',
+          affiliation: 'USC' },
+        )
+        .mockResolvedValueOnce({
+          id: 'usr-new-co',
+          email: 'newco@example.com',
+          fullName: 'New Co',
+          affiliation: 'CS',
+        });
+      prisma.eventOrganizer.findMany.mockResolvedValue([
+        {
+          id: 'eo-existing',
+          userId: 'usr-existing-co',
+          assignedAt: new Date(),
+          user: {
+            id: 'usr-existing-co',
+            email: 'existing@example.com',
+            fullName: 'Existing Co',
+            affiliation: null,
+          },
+        },
+      ]);
+
+      const orgs = await service.getOrganizers(dynamicOrganizer, 'evt-1');
+      expect(orgs).toHaveLength(2);
+      expect(orgs[0].isPrimary).toBe(true);
+      expect(orgs[1].email).toBe('existing@example.com');
+      expect(orgs[1].isPrimary).toBe(false);
+
+      prisma.eventOrganizer.upsert.mockResolvedValue({
+        id: 'eo-added',
+        userId: 'usr-new-co',
+        assignedAt: new Date(),
+        user: {
+          id: 'usr-new-co',
+          email: 'newco@example.com',
+          fullName: 'New Co',
+          affiliation: 'CS',
+        },
+      });
+
+      const added = await service.addOrganizer(dynamicOrganizer, 'evt-1', 'newco@example.com');
+      expect(added.email).toBe('newco@example.com');
+
+      // Attempting to remove primary organizer throws BadRequestException
+      await expect(
+        service.removeOrganizer(dynamicOrganizer, 'evt-1', 'usr-org'),
+      ).rejects.toThrow(BadRequestException);
+
+      await service.removeOrganizer(dynamicOrganizer, 'evt-1', 'usr-new-co');
+      expect(prisma.eventOrganizer.deleteMany).toHaveBeenCalledWith({
+        where: { eventId: 'evt-1', userId: 'usr-new-co' },
+      });
     });
   });
 });

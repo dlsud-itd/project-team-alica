@@ -16,6 +16,7 @@ import {
   GuestImportResult,
   OrganizerEventsService,
 } from '../../../core/organizer/organizer-events.service';
+import { AuthService } from '../../../core/auth/auth.service';
 
 export type RegistrantFilter = 'ALL' | 'Registered' | 'Checked In' | 'Cancelled';
 
@@ -28,6 +29,7 @@ export type RegistrantFilter = 'ALL' | 'Registered' | 'Checked In' | 'Cancelled'
 export class OrganizerRegistrants {
   private readonly route = inject(ActivatedRoute);
   private readonly organizerEvents = inject(OrganizerEventsService);
+  private readonly auth = inject(AuthService);
 
   readonly eventId = toSignal(
     (this.route.parent?.paramMap ?? this.route.paramMap).pipe(
@@ -36,6 +38,13 @@ export class OrganizerRegistrants {
     { initialValue: '' },
   );
   readonly eventsLoaded = this.organizerEvents.eventsLoaded;
+  readonly isOrganizer = computed(() => {
+    const user = this.auth.user();
+    if (!user) return false;
+    if (user.role === 'ADMIN' || user.role === 'ORGANIZER') return true;
+    const ev = this.event();
+    return !!ev && ev.organizer_id === user.id;
+  });
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
   readonly actionLoading = signal(false);

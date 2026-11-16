@@ -28,10 +28,15 @@
         @if (current.location) {
           <p class="station-location">{{ current.location }}</p>
         }
+        @if (parentStationName(); as parentName) {
+          <p class="station-parent">Sub-booth of {{ parentName }}</p>
+        }
         <div class="station-tags">
           <span class="tag tag-type">{{ typeLabel(current.type) }}</span>
           <span class="tag">{{
-            current.allowMultipleScans ? 'Re-entry allowed' : 'Single scan'
+            current.allowMultipleScans
+              ? 'Re-entry allowed · ' + (current.cooldownSeconds ?? 30) + 's cooldown'
+              : 'Single scan'
           }}</span>
           @if (current.requireMainEntry) {
             <span class="tag">Requires main entry</span>
@@ -42,9 +47,15 @@
       @if (checkpoints().length > 1) {
         <label class="station-switch">
           <span>Station</span>
-          <select (change)="selectStation($any($event.target).value)">
-            @for (cp of checkpoints(); track cp.id) {
-              <option [value]="cp.id" [selected]="cp.id === current.id">{{ cp.name }}</option>
+          <select
+            [value]="current.id"
+            (change)="selectStation($any($event.target).value)"
+            aria-label="Switch active station"
+          >
+            @for (opt of stationOptions(); track opt.checkpoint.id) {
+              <option [value]="opt.checkpoint.id" [selected]="opt.checkpoint.id === current.id">
+                {{ opt.label }}
+              </option>
             }
           </select>
         </label>
@@ -156,7 +167,7 @@
                   }
                 }
               </div>
-              <h2>{{ resultTitle(r.scanResult) }}</h2>
+              <h2>{{ resultTitle(r) }}</h2>
               <p class="result-message">{{ r.message }}</p>
 
               @if (r.attendee; as a) {
@@ -178,7 +189,7 @@
                   }
                   @if (r.firstScannedAt) {
                     <div>
-                      <dt>First check-in</dt>
+                      <dt>{{ r.cooldownActive ? 'Last check-in' : 'First check-in' }}</dt>
                       <dd>{{ r.firstScannedAt | date: 'MMM d, h:mm:ss a' }}</dd>
                     </div>
                   }
@@ -191,7 +202,39 @@
         </section>
 
         @if (cameraState() === 'active') {
-          <button type="button" class="btn-text" (click)="stopCamera()">Pause camera</button>
+          <div class="camera-toolbar">
+            <button
+              type="button"
+              class="btn-control"
+              [class.is-on]="torchEnabled()"
+              [disabled]="!torchSupported()"
+              (click)="toggleTorch()"
+              [title]="
+                torchSupported() ? 'Toggle flashlight' : 'Flashlight not supported on this camera'
+              "
+            >
+              {{ !torchSupported() ? 'Torch N/A' : torchEnabled() ? 'Torch On' : 'Torch Off' }}
+            </button>
+
+            @if (cameraDevices().length > 1) {
+              <select
+                class="camera-device-select"
+                [value]="selectedCameraId() ?? ''"
+                (change)="switchCamera($any($event.target).value)"
+                aria-label="Select camera"
+              >
+                @for (dev of cameraDevices(); track dev.deviceId) {
+                  <option [value]="dev.deviceId">{{ dev.label }}</option>
+                }
+              </select>
+            }
+
+            <button type="button" class="btn-text" (click)="stopCamera()">Pause camera</button>
+          </div>
+        }
+
+        @if (debounceNotice()) {
+          <div class="notice-banner" role="status">{{ debounceNotice() }}</div>
         }
 
         @if (scanError()) {
@@ -222,7 +265,7 @@
         </form>
       </div>
 
-      <!-- Station stats & recent scans -->
+      <!-- Station stats, recent scans & diagnostics -->
       <aside class="scanner-side">
         <div class="stats">
           <div class="stat">
@@ -254,13 +297,54 @@
                   </div>
                   <div class="recent-meta">
                     <span class="badge" [class]="'badge-' + resultTone(scan.scanResult)">
-                      {{ resultTitle(scan.scanResult) }}
+                      {{ resultTitle(scan) }}
                     </span>
                     <time [attr.datetime]="scan.scannedAt">{{ relativeTime(scan.scannedAt) }}</time>
                   </div>
                 </li>
               }
             </ul>
+          }
+        </section>
+
+        <section class="diagnostics-card">
+          <div class="diagnostics-header">
+            <button type="button" class="btn-text" (click)="toggleDiagnostics()">
+              {{ showDiagnostics() ? 'Hide diagnostics' : 'Show diagnostics' }}
+              ({{ diagnostics.entries().length }})
+            </button>
+            @if (showDiagnostics() && diagnostics.entries().length > 0) {
+              <button type="button" class="btn-text" (click)="diagnostics.clear()">Clear</button>
+            }
+          </div>
+
+          @if (showDiagnostics()) {
+            <div class="diagnostics-meta">
+              <span
+                >Booth: <code>{{ current.id }}</code></span
+              >
+              <span
+                >Camera: <code>{{ cameraState() }}</code></span
+              >
+              <span
+                >Torch:
+                <code>{{
+                  torchSupported() ? (torchEnabled() ? 'on' : 'off') : 'unsupported'
+                }}</code></span
+              >
+            </div>
+            @if (diagnostics.entries().length === 0) {
+              <p class="recent-empty">No diagnostic events logged yet.</p>
+            } @else {
+              <ul class="diagnostics-list">
+                @for (entry of diagnostics.entries().slice(0, 12); track entry.id) {
+                  <li class="diag-item" [class]="'diag-' + entry.level">
+                    <span class="diag-cat">[{{ entry.category }}]</span>
+                    <span class="diag-msg">{{ entry.message }}</span>
+                  </li>
+                }
+              </ul>
+            }
           }
         </section>
       </aside>

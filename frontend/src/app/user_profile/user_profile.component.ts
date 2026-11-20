@@ -1,4 +1,13 @@
-import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  ChangeDetectorRef,
+  inject,
+  viewChild,
+  ElementRef,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -11,6 +20,8 @@ import { AttendeeProgressService } from '../core/attendee/attendee-progress.serv
 import { TicketProgress } from '../core/attendee/attendee-progress.models';
 import { StampCardComponent } from '../shared/stamp-card/stamp-card.component';
 import { TicketQrService } from '../core/tickets/ticket-qr.service';
+import { FaceIdService } from '../core/face-id/face-id.service';
+import { FaceIdStatus } from '../core/face-id/face-id.model';
 import {
   UserProfile,
   UserRole,
@@ -33,7 +44,7 @@ type SaveFilePickerWindow = Window & {
   templateUrl: './user_profile.component.html',
   styleUrl: './user_profile.component.scss',
 })
-export class UserProfileComponent implements OnInit {
+export class UserProfileComponent implements OnInit, OnDestroy {
   userProfile: UserProfile | null = null;
   qrDataUrl = '';
   /** True on /profile/:ticketCode; the QR pass is only shown for a specific ticket. */
@@ -54,12 +65,19 @@ export class UserProfileComponent implements OnInit {
   passwordError = '';
   passwordSuccess = '';
 
+  // Face ID Biometric registration state
+  readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
+  readonly status = signal<FaceIdStatus>('idle');
+  readonly faceRegistered = signal<boolean>(false);
+  readonly faceErrorMessage = signal<string>('');
+
   readonly userRole = UserRole;
   readonly profileStatus = ProfileStatus;
   private readonly auth = inject(AuthService, { optional: true });
   private readonly progressService = inject(AttendeeProgressService);
   ticketProgress: TicketProgress | null = null;
   private readonly ticketQr = inject(TicketQrService);
+  private readonly faceIdService = inject(FaceIdService, { optional: true });
 
   constructor(
     private readonly userProfileService: UserProfileService,
@@ -70,6 +88,166 @@ export class UserProfileComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadUserProfile();
+    this.checkFaceIdStatus();
+  }
+
+  ngOnDestroy(): void {
+    if (this.faceIdService) {
+      this.faceIdService.stopCamera(this.video()?.nativeElement);
+    }
+  }
+
+  /**
+   * Checks whether Face ID is registered for the logged in user.
+   * If not registered and not dismissed this session, automatically prompts the user.
+   */
+  checkFaceIdStatus(): void {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    this.faceIdService.getFaceStatus().subscribe({
+      next: (res) => {
+        this.faceRegistered.set(res.registered);
+        if (!res.registered && !this.faceIdService?.isDismissedThisSession()) {
+          this.status.set('prompting');
+          this.cdr.markForCheck();
+        }
+      },
+      error: () => {
+        this.faceRegistered.set(false);
+      },
+    });
+  }
+
+  /** Opens the registration prompt modal. */
+  promptFaceRegistration(): void {
+    this.status.set('prompting');
+    this.faceErrorMessage.set('');
+    this.cdr.markForCheck();
+  }
+
+  /** Dismisses Face ID prompt for the rest of this session. */
+  dismissFacePrompt(): void {
+    if (this.faceIdService) {
+      this.faceIdService.dismissThisSession();
+    }
+    this.status.set('idle');
+    this.cdr.markForCheck();
+  }
+
+  /** Initiates camera feed and transitions to capturing view. */
+  async startFaceRegistration(): Promise<void> {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    this.faceErrorMessage.set('');
+    this.status.set('loading');
+    this.cdr.markForCheck();
+
+    try {
+      this.status.set('capturing');
+      this.cdr.detectChanges();
+
+      const videoEl = this.video()?.nativeElement;
+      if (!videoEl) {
+        throw new Error('Video preview element is not ready. Please try again.');
+      }
+
+      await this.faceIdService.startCamera(videoEl);
+      this.cdr.markForCheck();
+    } catch (err: unknown) {
+      this.status.set('error');
+      this.faceErrorMessage.set(
+        err instanceof Error ? err.message : 'Failed to initialize camera.',
+      );
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Captures the face from live video, generates 128-number descriptor,
+   * stops camera tracks, and persists the descriptor to the backend.
+   */
+  async captureAndRegisterFace(): Promise<void> {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    const videoEl = this.video()?.nativeElement;
+    if (!videoEl) {
+      this.status.set('error');
+      this.faceErrorMessage.set('Camera stream is unavailable.');
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.status.set('loading');
+    this.cdr.markForCheck();
+
+    try {
+      const descriptor = await this.faceIdService.detectFaceDescriptor(videoEl);
+      this.faceIdService.stopCamera(videoEl);
+
+      this.faceIdService.registerFace(descriptor).subscribe({
+        next: () => {
+          this.faceRegistered.set(true);
+          this.status.set('success');
+          this.faceIdService?.clearSessionDismissal();
+          this.cdr.markForCheck();
+        },
+        error: (err: HttpErrorResponse) => {
+          const msg = err.error?.message || 'Server failed to save Face ID.';
+          this.status.set('error');
+          this.faceErrorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
+          this.cdr.markForCheck();
+        },
+      });
+    } catch (err: unknown) {
+      this.faceIdService.stopCamera(videoEl);
+      this.status.set('error');
+      this.faceErrorMessage.set(
+        err instanceof Error
+          ? err.message
+          : 'Could not detect face. Please try again.',
+      );
+      this.cdr.markForCheck();
+    }
+  }
+
+  /** Cancels face registration and stops camera stream. */
+  cancelFaceRegistration(): void {
+    if (this.faceIdService) {
+      this.faceIdService.stopCamera(this.video()?.nativeElement);
+    }
+    this.status.set('idle');
+    this.faceErrorMessage.set('');
+    this.cdr.markForCheck();
+  }
+
+  /** Closes any open Face ID modal dialog. */
+  closeFaceModal(): void {
+    this.cancelFaceRegistration();
+  }
+
+  /** Removes stored Face ID registration for the logged-in user. */
+  removeFaceId(): void {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    this.faceIdService.removeFace().subscribe({
+      next: () => {
+        this.faceRegistered.set(false);
+        this.faceIdService?.clearSessionDismissal();
+        this.cdr.markForCheck();
+      },
+      error: (err: HttpErrorResponse) => {
+        const msg = err.error?.message || 'Failed to remove Face ID.';
+        alert(Array.isArray(msg) ? msg.join(', ') : msg);
+      },
+    });
   }
 
   loadUserProfile(): void {

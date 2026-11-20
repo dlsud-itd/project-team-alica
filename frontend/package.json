@@ -17,6 +17,7 @@
     "@angular/forms": "^22.1.0",
     "@angular/platform-browser": "^22.1.0",
     "@angular/router": "^22.1.0",
+    "@vladmandic/face-api": "^1.7.15",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
     "qrcode": "^1.5.4",

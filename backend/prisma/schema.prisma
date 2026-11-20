@@ -66,6 +66,8 @@ model User {
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(false)
   deletedAt          DateTime?
+  faceDescriptor     Float[]
+  faceRegisteredAt   DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

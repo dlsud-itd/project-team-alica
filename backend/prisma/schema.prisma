@@ -102,13 +102,16 @@ model SavedProfile {
 }
 
 model Event {
-  id           String    @id @default(uuid())
-  title        String
-  slug         String    @unique
-  description  String?
-  venueName    String
-  startDate    DateTime
-  endDate      DateTime
+  id             String              @id @default(uuid())
+  title          String
+  slug           String              @unique
+  description    String?
+  venueName      String
+  category       String?
+  bannerImageUrl String?
+  schedule       Json?
+  startDate      DateTime
+  endDate        DateTime
   capacity     Int?
   allowWalkIns Boolean   @default(false)
   isPrivate    Boolean   @default(false)

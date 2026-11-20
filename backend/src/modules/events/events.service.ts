@@ -112,6 +112,7 @@ export interface EventResponseDto {
   organizerId?: string;
   staffIds?: string[];
   registeredUserIds?: string[];
+  bannerImageUrl?: string | null;
 }
 
 export interface EventScheduleItemDto {
@@ -179,6 +180,8 @@ export interface OrganizerEventDto {
   checkpoints_count?: number;
   admitted_count?: number;
   organizers?: EventOrganizerDto[];
+  banner_image_url?: string | null;
+  schedule?: EventScheduleItemDto[];
 }
 
 export interface EventLiveKpisDto {
@@ -306,6 +309,9 @@ export class UpdateEventDto {
   capacity?: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
+  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  banner_image_url?: string;
+  schedule?: EventScheduleItemDto[];
   organizerEmails?: string[];
 }
 
@@ -327,6 +333,9 @@ export class CreateEventDto {
   capacity!: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
+  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  banner_image_url?: string;
+  schedule?: EventScheduleItemDto[];
   organizerEmails?: string[];
 }
 
@@ -930,13 +939,16 @@ export class EventsService {
         statusLabel = `${spotsRemaining} Spots Left`;
       }
 
-      // Infer category from title/slug
+      // Infer or use explicitly saved category
       const lowerSlug = (ev.slug + ' ' + ev.title).toLowerCase();
       let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
         'CONFERENCE';
       let categoryLabel = 'Conference';
 
-      if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
+        category = ev.category as any;
+        categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
+      } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
         category = 'HACKATHON';
         categoryLabel = 'Hackathon';
       } else if (
@@ -984,6 +996,7 @@ export class EventsService {
         registeredUserIds: ev.tickets
           .map((t) => t.userId)
           .filter((uid): uid is string => uid !== null),
+        bannerImageUrl: ev.bannerImageUrl ?? null,
       };
     });
   }
@@ -1052,7 +1065,10 @@ export class EventsService {
       'CONFERENCE';
     let categoryLabel = 'Conference';
 
-    if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+    if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
+      category = ev.category as any;
+      categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
+    } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
       category = 'HACKATHON';
       categoryLabel = 'Hackathon';
     } else if (
@@ -1095,9 +1111,13 @@ export class EventsService {
     const checkpointMode =
       ev.checkpoints.length > 1 ? 'Multi-stop Checks' : 'Single Gate Entry';
 
-    const schedule = this.buildScheduleTimeline(ev);
+    const schedule =
+      ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0
+        ? (ev.schedule as unknown as EventScheduleItemDto[])
+        : this.buildScheduleTimeline(ev);
     const speakers = this.buildFeaturedSpeakers(ev);
-    const bannerImageUrl = this.resolveBannerImage(ev.slug, category);
+    const bannerImageUrl =
+      ev.bannerImageUrl || this.resolveBannerImage(ev.slug, category);
 
     return {
       id: ev.id,
@@ -1564,16 +1584,22 @@ export class EventsService {
       const base = this.toOrganizerEvent(ev, ev._count.tickets);
       let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' = 'CONFERENCE';
       let category_label = 'Conference';
-      const lowerTitle = ev.title.toLowerCase();
-      if (lowerTitle.includes('hackathon')) {
-        category = 'HACKATHON';
-        category_label = 'Hackathon';
-      } else if (lowerTitle.includes('workshop')) {
-        category = 'WORKSHOP';
-        category_label = 'Workshop';
-      } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
-        category = 'EXPO';
-        category_label = 'Expo';
+
+      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
+        category = ev.category as any;
+        category_label = category.charAt(0) + category.slice(1).toLowerCase();
+      } else {
+        const lowerTitle = ev.title.toLowerCase();
+        if (lowerTitle.includes('hackathon')) {
+          category = 'HACKATHON';
+          category_label = 'Hackathon';
+        } else if (lowerTitle.includes('workshop')) {
+          category = 'WORKSHOP';
+          category_label = 'Workshop';
+        } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
+          category = 'EXPO';
+          category_label = 'Expo';
+        }
       }
 
       return {
@@ -1622,6 +1648,9 @@ export class EventsService {
         isPrivate,
         approvalStatus,
         organizerId: user.id,
+        category: dto.category ?? null,
+        bannerImageUrl: dto.banner_image_url ?? null,
+        schedule: dto.schedule ? (dto.schedule as any) : undefined,
       },
       include: {
         organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
@@ -1712,6 +1741,18 @@ export class EventsService {
 
     if (dto.is_private !== undefined) {
       data.isPrivate = Boolean(dto.is_private);
+    }
+
+    if (dto.category !== undefined) {
+      data.category = dto.category;
+    }
+
+    if (dto.banner_image_url !== undefined) {
+      data.bannerImageUrl = dto.banner_image_url ? dto.banner_image_url.trim() : null;
+    }
+
+    if (dto.schedule !== undefined) {
+      data.schedule = dto.schedule ? (dto.schedule as any) : null;
     }
 
     const [startDate, endDate] = this.parseDateRange(
@@ -2131,6 +2172,16 @@ export class EventsService {
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
       is_private: ev.isPrivate,
+      category: (ev.category as any) ?? undefined,
+      banner_image_url:
+        ev.bannerImageUrl ??
+        (ev.slug ? this.resolveBannerImage(ev.slug, (ev.category as any) || 'CONFERENCE') : null),
+      schedule:
+        (ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0)
+          ? (ev.schedule as unknown as EventScheduleItemDto[])
+          : ev.slug
+            ? this.buildScheduleTimeline({ slug: ev.slug, checkpoints: (ev as any).checkpoints || [] })
+            : undefined,
       ...(organizersList.length > 0 ? { organizers: organizersList } : {}),
     };
   }

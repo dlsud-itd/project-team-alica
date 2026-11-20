@@ -24,6 +24,18 @@ const MOCK_EVENT: OrganizerEvent = {
   reviewed_at: null,
   submitted_at: '2026-10-01T00:00:00.000Z',
   is_private: false,
+  category: 'CONFERENCE',
+  banner_image_url: 'https://images.unsplash.com/photo-mock',
+  schedule: [
+    {
+      id: 'sch-1',
+      time: '09:00 AM',
+      title: 'Opening Keynote',
+      type: 'KEYNOTE',
+      location: 'Grand Ballroom',
+      description: 'Opening and welcomes',
+    },
+  ],
 };
 
 const MOCK_ORGANIZERS: EventOrganizer[] = [
@@ -88,7 +100,7 @@ describe('EventSettingsComponent', () => {
       updateEvent: vi.fn().mockReturnValue(
         of({ ...MOCK_EVENT, name: 'Renamed Summit 2026' }),
       ),
-      deleteEvent: vi.fn(),
+      deleteEvent: vi.fn().mockReturnValue(of(undefined)),
     };
 
     mockAuth = {
@@ -195,6 +207,87 @@ describe('EventSettingsComponent', () => {
 
     expect(mockOrganizerEvents.removeOrganizer).toHaveBeenCalledWith('evt-settings-1', 'usr-co-1');
     expect(component.organizerSuccess()).toContain('Co-organizer removed');
+  });
+
+  it('should populate category, banner image, and schedule', () => {
+    expect(component.generalForm.get('category')?.value).toBe('CONFERENCE');
+    expect(component.bannerImageUrl()).toBe('https://images.unsplash.com/photo-mock');
+    expect(component.scheduleItems().length).toBe(1);
+    expect(component.scheduleItems()[0].title).toBe('Opening Keynote');
+  });
+
+  it('should allow adding, editing, and removing schedule items', () => {
+    // Open add session modal
+    component.openAddScheduleItem();
+    expect(component.scheduleFormOpen()).toBe(true);
+    expect(component.editingScheduleIndex()).toBeNull();
+
+    // Fill and save new session
+    component.scheduleItemForm.patchValue({
+      time: '11:00 AM',
+      title: 'DevOps Workshop',
+      type: 'WORKSHOP',
+      location: 'Lab 3',
+      description: 'Hands-on CI/CD',
+    });
+    component.saveScheduleItem();
+    expect(component.scheduleFormOpen()).toBe(false);
+    expect(component.scheduleItems().length).toBe(2);
+    expect(component.scheduleItems()[1].title).toBe('DevOps Workshop');
+
+    // Open edit session
+    component.openEditScheduleItem(1);
+    expect(component.scheduleFormOpen()).toBe(true);
+    expect(component.editingScheduleIndex()).toBe(1);
+    expect(component.scheduleItemForm.get('title')?.value).toBe('DevOps Workshop');
+
+    // Update title and save
+    component.scheduleItemForm.patchValue({ title: 'Advanced DevOps Workshop' });
+    component.saveScheduleItem();
+    expect(component.scheduleItems()[1].title).toBe('Advanced DevOps Workshop');
+
+    // Remove session
+    component.removeScheduleItem(0);
+    expect(component.scheduleItems().length).toBe(1);
+    expect(component.scheduleItems()[0].title).toBe('Advanced DevOps Workshop');
+  });
+
+  it('should validate and handle cover image selection and removal', () => {
+    // Invalid type
+    const invalidFile = new File(['dummy content'], 'document.pdf', { type: 'application/pdf' });
+    const invalidEvent = { target: { files: [invalidFile], value: '' } } as unknown as Event;
+    component.onImageSelected(invalidEvent);
+    expect(component.imageError()).toContain('valid image file');
+
+    // Size limit (> 2MB)
+    const bigBlob = new Blob([new Uint8Array(3 * 1024 * 1024)], { type: 'image/png' });
+    const oversizedFile = new File([bigBlob], 'huge.png', { type: 'image/png' });
+    const oversizedEvent = { target: { files: [oversizedFile], value: '' } } as unknown as Event;
+    component.onImageSelected(oversizedEvent);
+    expect(component.imageError()).toContain('less than 2MB');
+
+    // Removal
+    component.removeImage();
+    expect(component.bannerImageUrl()).toBeNull();
+    expect(component.imageError()).toBe('');
+  });
+
+  it('should include category, banner image, and schedule in saveGeneralSettings', () => {
+    component.generalForm.patchValue({
+      category: 'WORKSHOP',
+    });
+    component.removeImage();
+
+    component.saveGeneralSettings();
+
+    expect(mockOrganizerEvents.updateEvent).toHaveBeenCalledWith(
+      'evt-settings-1',
+      expect.objectContaining({
+        category: 'WORKSHOP',
+        banner_image_url: null,
+        schedule: expect.any(Array),
+      }),
+    );
   });
 
   it('should confirm delete and navigate to /hub', () => {

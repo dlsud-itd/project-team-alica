@@ -9,6 +9,16 @@ export type EventStatus = 'Upcoming' | 'In progress' | 'Completed';
 
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
 
+export interface EventScheduleItem {
+  id: string;
+  time: string;
+  title: string;
+  description: string;
+  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BOOTH' | 'GATE' | string;
+  location?: string;
+  checkpointId?: string;
+}
+
 export interface OrganizerEvent {
   id: UUID;
   organizer_id: UUID;
@@ -34,6 +44,8 @@ export interface OrganizerEvent {
   checkpoints_count?: number;
   admitted_count?: number;
   is_private?: boolean;
+  banner_image_url?: string | null;
+  schedule?: EventScheduleItem[];
   organizers?: EventOrganizer[];
 }
 
@@ -154,16 +166,21 @@ type EditableEventFields =
   | 'ends_at'
   | 'capacity'
   | 'allow_walk_ins'
-  | 'is_private';
+  | 'is_private'
+  | 'category'
+  | 'banner_image_url';
 
 export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>> & {
+  schedule?: EventScheduleItem[];
   organizerEmails?: string[];
 };
 
-export type NewOrganizerEvent = Pick<OrganizerEvent, EditableEventFields> & {
-  capacity: number;
-  organizerEmails?: string[];
-};
+export type NewOrganizerEvent = Pick<OrganizerEvent, 'name' | 'venue' | 'starts_at' | 'ends_at'> &
+  Partial<Pick<OrganizerEvent, EditableEventFields>> & {
+    capacity: number;
+    schedule?: EventScheduleItem[];
+    organizerEmails?: string[];
+  };
 
 export interface EventRegistrant {
   id: UUID;

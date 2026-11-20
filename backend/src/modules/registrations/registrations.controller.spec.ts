@@ -63,6 +63,16 @@ describe('RegistrationsController', () => {
         ticketCode: 'CHK-2026-9812A',
         status: 'Cancelled',
       }),
+      getProgress: vi.fn().mockResolvedValue({
+        ticketCode: 'CHK-2026-9812A',
+        eventId: 'evt-1',
+        eventName: 'Tech Summit 2026',
+        visitedCount: 3,
+        totalCount: 5,
+        percent: 60,
+        completed: false,
+        stamps: [],
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -117,5 +127,13 @@ describe('RegistrationsController', () => {
     expect(res.success).toBe(true);
     expect(res.data.status).toBe('Cancelled');
     expect(service.cancelRsvp).toHaveBeenCalledWith(mockUser, 'CHK-2026-9812A');
+  });
+
+  it('should return booth stamp progress for a ticket', async () => {
+    const res = await controller.getProgress(mockUser, 'CHK-2026-9812A');
+    expect(res.success).toBe(true);
+    expect(res.data.visitedCount).toBe(3);
+    expect(res.data.totalCount).toBe(5);
+    expect(service.getProgress).toHaveBeenCalledWith(mockUser, 'CHK-2026-9812A');
   });
 });

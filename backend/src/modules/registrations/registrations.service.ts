@@ -9,6 +9,12 @@ import {
 import { TicketStatus, type Event, type Ticket } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
+import {
+  canViewTicket,
+  computeTicketProgress,
+  findTicketByAnyCode,
+  type TicketProgressDto,
+} from '../checkpoints/ticket-progress.js';
 
 export class CreateRegistrationDto {
   eventId!: string;
@@ -219,6 +225,25 @@ export class RegistrationsService {
     });
 
     return this.toAttendeeRsvp(updated, updated.event);
+  }
+
+  /** Booth stamp-card progress for a ticket (owner, event organizers/staff, or admin). */
+  async getProgress(
+    user: UserSummaryDto,
+    ticketCode: string,
+  ): Promise<TicketProgressDto> {
+    const ticket = await findTicketByAnyCode(this.prisma, ticketCode);
+    if (!ticket) {
+      throw new NotFoundException(`Ticket '${ticketCode}' not found`);
+    }
+
+    if (!(await canViewTicket(this.prisma, user, ticket))) {
+      throw new ForbiddenException(
+        'You do not have access to this ticket’s progress',
+      );
+    }
+
+    return computeTicketProgress(this.prisma, ticket);
   }
 
   async findByTicketCode(ticketCode: string): Promise<TicketProfileDto> {

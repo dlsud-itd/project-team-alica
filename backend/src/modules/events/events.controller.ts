@@ -38,6 +38,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
+import type { RegistrantProgressDto } from '../checkpoints/ticket-progress.js';
 
 @Controller('events')
 export class EventsController {
@@ -140,6 +141,17 @@ export class EventsController {
       success: true,
       data,
     };
+  }
+  
+  
+  @Get(':eventId/progress')
+  @UseGuards(JwtAuthGuard)
+  async getEventProgress(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: RegistrantProgressDto[] }> {
+    const data = await this.eventsService.getEventProgress(user, eventId);
+    return { success: true, data };
   }
 
   @Patch(':eventId/registrants/:registrantId/check-in')

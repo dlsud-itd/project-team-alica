@@ -1,4 +1,5 @@
 import { ProgressSummary } from '../attendee/attendee-progress.models';
+import { TicketProgress } from '../attendee/attendee-progress.models';
 
 export type UUID = string;
 
@@ -190,4 +191,10 @@ export interface GuestImportMapping {
   studentIdColumn?: string | number;
   contactNumberColumn?: string | number;
   affiliationColumn?: string | number;
+}
+
+/** One row of GET /events/:eventId/progress. */
+export interface EventRegistrantProgress extends TicketProgress {
+  /** Same as EventRegistrant.id */
+  ticketId: string;
 }

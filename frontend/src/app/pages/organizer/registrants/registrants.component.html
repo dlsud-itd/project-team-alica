@@ -157,6 +157,7 @@
               <th scope="col">PASS CODE</th>
               <th scope="col">REGISTERED DATE</th>
               <th scope="col">STATUS</th>
+              <th scope="col">BOOTHS VISITED</th>
               <th scope="col" class="text-right">ACTIONS</th>
             </tr>
           </thead>
@@ -176,6 +177,25 @@
                     {{ attendee.status }}
                   </span>
                 </td>
+                <td class="col-progress" (click)="$event.stopPropagation()">
+                    @if (progressFor(attendee); as p) {
+                      <button
+                        type="button"
+                        class="progress-cell"
+                        [attr.aria-label]="'View stamp card for ' + attendee.full_name"
+                        (click)="openStampCard(attendee)"
+                      >
+                        <span class="progress-count">{{ p.visitedCount }}/{{ p.totalCount }}</span>
+                        <span class="progress-mini" aria-hidden="true">
+                          <span class="progress-mini-fill" [style.width.%]="p.percent"></span>
+                        </span>
+                      </button>
+                    } @else if (progressLoading()) {
+                      <span class="progress-pending">…</span>
+                    } @else {
+                      <span class="progress-pending" [title]="progressError() ? 'Could not load progress' : ''">—</span>
+                    }
+                  </td>
                 <td class="col-actions text-right" (click)="$event.stopPropagation()">
                   <div class="action-buttons-group">
                     <button
@@ -717,6 +737,36 @@
         <button type="button" class="btn-submit" [disabled]="actionLoading()" (click)="executeRestore()">
           {{ actionLoading() ? 'Restoring…' : 'Restore Registration' }}
         </button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- 7. STAMP CARD MODAL -->
+@if (activeStampRegistrant(); as attendee) {
+  <div class="dialog-backdrop" (click)="closeStampCard()" tabindex="-1">
+    <section class="modal-card stamp-modal" role="dialog" aria-modal="true" aria-labelledby="stamp-dialog-title" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="stamp-dialog-title">Stamp Card</h2>
+          <p class="modal-subtitle">{{ attendee.full_name }} · {{ attendee.email }}</p>
+        </div>
+        <button type="button" class="btn-close" (click)="closeStampCard()" aria-label="Close stamp card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <div class="modal-body">
+        @if (activeStampProgress(); as p) {
+          <app-stamp-card [progress]="p" [stamps]="p.stamps" />
+        }
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeStampCard()">Close</button>
       </footer>
     </section>
   </div>

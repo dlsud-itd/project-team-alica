@@ -117,32 +117,57 @@ export function summarizeProgress(
   };
 }
 
-/**
- * Builds the stamp card for a ticket: every active booth/session checkpoint of the
- * ticket's event, marked visited when it has at least one SUCCESS scan for this ticket.
- * Duplicate scans never add stamps.
- */
+type StampCheckpointRow = {
+  id: string;
+  name: string;
+  location: string | null;
+  type: CheckpointType;
+  parentId: string | null;
+};
+
+/** Active booth/session checkpoints of an event. Same for every registrant. */
+function findStampCheckpoints(prisma: PrismaService, eventId: string) {
+  return prisma.checkpoint.findMany({
+    where: {
+      eventId,
+      isActive: true,
+      deletedAt: null,
+      type: { in: STAMP_CHECKPOINT_TYPES },
+    },
+    select: {
+      id: true,
+      name: true,
+      location: true,
+      type: true,
+      parentId: true,
+    },
+    orderBy: [{ createdAt: 'asc' }, { name: 'asc' }],
+  });
+}
+
+function buildStamps(
+  checkpoints: StampCheckpointRow[],
+  firstVisit: Map<string, Date>,
+): TicketStampDto[] {
+  return checkpoints.map((c) => {
+    const visitedAt = firstVisit.get(c.id) ?? null;
+    return {
+      checkpointId: c.id,
+      name: c.name,
+      location: c.location,
+      type: c.type,
+      parentId: c.parentId ?? null,
+      visited: visitedAt !== null,
+      firstVisitedAt: visitedAt ? visitedAt.toISOString() : null,
+    };
+  });
+}
 export async function computeTicketProgress(
   prisma: PrismaService,
   ticket: Pick<TicketForAccess, 'id' | 'ticketCode' | 'eventId' | 'event'>,
 ): Promise<TicketProgressDto> {
   const [checkpoints, successLogs] = await Promise.all([
-    prisma.checkpoint.findMany({
-      where: {
-        eventId: ticket.eventId,
-        isActive: true,
-        deletedAt: null,
-        type: { in: STAMP_CHECKPOINT_TYPES },
-      },
-      select: {
-        id: true,
-        name: true,
-        location: true,
-        type: true,
-        parentId: true,
-      },
-      orderBy: [{ createdAt: 'asc' }, { name: 'asc' }],
-    }),
+    findStampCheckpoints(prisma, ticket.eventId),
     prisma.attendanceLog.findMany({
       where: {
         scanResult: 'SUCCESS',
@@ -164,18 +189,7 @@ export async function computeTicketProgress(
     }
   }
 
-  const stamps: TicketStampDto[] = checkpoints.map((c) => {
-    const visitedAt = firstVisit.get(c.id) ?? null;
-    return {
-      checkpointId: c.id,
-      name: c.name,
-      location: c.location,
-      type: c.type,
-      parentId: c.parentId ?? null,
-      visited: visitedAt !== null,
-      firstVisitedAt: visitedAt ? visitedAt.toISOString() : null,
-    };
-  });
+  const stamps = buildStamps(checkpoints, firstVisit);
 
   const visitedCount = stamps.filter((s) => s.visited).length;
 
@@ -197,4 +211,78 @@ export async function computeProgressSummaryForCode(
   if (!ticket) return null;
   const progress = await computeTicketProgress(prisma, ticket);
   return summarizeProgress(progress.visitedCount, progress.totalCount);
+}
+
+export interface RegistrantProgressDto extends TicketProgressDto {
+  /** Ticket row id. Same as `id` in GET /events/:eventId/registrants. */
+  ticketId: string;
+}
+
+/**
+ * Progress of EVERY ticket of an event in a fixed number of queries
+ * (tickets, checkpoints, success logs), no matter how many registrants.
+ */
+export async function computeEventProgress(
+  prisma: PrismaService,
+  event: { id: string; title: string },
+): Promise<RegistrantProgressDto[]> {
+  const [tickets, checkpoints, successLogs] = await Promise.all([
+    prisma.ticket.findMany({
+      where: { eventId: event.id },
+      select: { id: true, ticketCode: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    findStampCheckpoints(prisma, event.id),
+    prisma.attendanceLog.findMany({
+      where: { scanResult: 'SUCCESS', checkpoint: { eventId: event.id } },
+      select: {
+        ticketId: true,
+        ticketCode: true,
+        checkpointId: true,
+        scannedAt: true,
+      },
+      orderBy: { scannedAt: 'asc' },
+    }),
+  ]);
+
+  // Same matching rule as computeTicketProgress: by ticketId, or by code (case-insensitive).
+  const byId = new Map(tickets.map((t) => [t.id, t] as const));
+  const byCode = new Map(
+    tickets.map((t) => [t.ticketCode.toLowerCase(), t] as const),
+  );
+
+  // ticketId -> (checkpointId -> first successful visit)
+  const firstVisits = new Map<string, Map<string, Date>>();
+  for (const log of successLogs) {
+    const ticket =
+      (log.ticketId ? byId.get(log.ticketId) : undefined) ??
+      byCode.get(log.ticketCode.toLowerCase());
+    if (!ticket) continue;
+
+    let visits = firstVisits.get(ticket.id);
+    if (!visits) {
+      visits = new Map();
+      firstVisits.set(ticket.id, visits);
+    }
+    // logs are sorted ascending, so the first one we see is the first visit
+    if (!visits.has(log.checkpointId)) {
+      visits.set(log.checkpointId, log.scannedAt);
+    }
+  }
+
+  return tickets.map((ticket) => {
+    const stamps = buildStamps(
+      checkpoints,
+      firstVisits.get(ticket.id) ?? new Map(),
+    );
+    const visitedCount = stamps.filter((s) => s.visited).length;
+    return {
+      ticketId: ticket.id,
+      ticketCode: ticket.ticketCode,
+      eventId: event.id,
+      eventName: event.title,
+      stamps,
+      ...summarizeProgress(visitedCount, stamps.length),
+    };
+  });
 }

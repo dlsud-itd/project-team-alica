@@ -24,8 +24,10 @@ import {
   resolveCheckpointCooldownSeconds,
 } from '../checkpoints/checkpoint-scan.evaluator.js';
 import {
+  computeEventProgress,
   computeProgressSummaryForCode,
   type ProgressSummaryDto,
+  type RegistrantProgressDto,
 } from '../checkpoints/ticket-progress.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
 
@@ -1859,6 +1861,17 @@ export class EventsService {
     });
 
     return tickets.map((ticket) => this.toRegistrant(ticket));
+  }
+
+    async getEventProgress(
+    user: UserSummaryDto,
+    eventId: string,
+  ): Promise<RegistrantProgressDto[]> {
+    const event = await this.findAccessibleEvent(user, eventId);
+    return computeEventProgress(this.prisma, {
+      id: event.id,
+      title: event.title,
+    });
   }
 
   async toggleCheckIn(

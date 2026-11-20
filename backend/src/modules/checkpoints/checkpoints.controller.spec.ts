@@ -160,8 +160,15 @@ describe('CheckpointsController', () => {
   });
 
   it('should get attendee history', async () => {
-    const result = await controller.getAttendeeHistory('CHK-2026-9812A');
+    const result = await controller.getAttendeeHistory(
+      mockUser,
+      'CHK-2026-9812A',
+    );
     expect(result.success).toBe(true);
+    expect(mockService.getAttendeeHistory).toHaveBeenCalledWith(
+      mockUser,
+      'CHK-2026-9812A',
+    );
     expect(result.data.ticketCode).toBe('CHK-2026-9812A');
   });
 });

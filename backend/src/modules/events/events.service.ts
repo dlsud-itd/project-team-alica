@@ -23,6 +23,10 @@ import {
   evaluateCheckpointScan,
   resolveCheckpointCooldownSeconds,
 } from '../checkpoints/checkpoint-scan.evaluator.js';
+import {
+  computeProgressSummaryForCode,
+  type ProgressSummaryDto,
+} from '../checkpoints/ticket-progress.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
 
 const MAX_GUEST_ROWS = 5000;
@@ -248,6 +252,8 @@ export interface ScanResultDto {
   cooldownActive?: boolean;
   cooldownSeconds?: number;
   cooldownRemainingSeconds?: number;
+  /** Attendee's booth stamp progress, present on SUCCESS/DUPLICATE scans. */
+  progress?: ProgressSummaryDto;
 }
 
 export interface AdminEventDto extends OrganizerEventDto {
@@ -2383,7 +2389,23 @@ export class EventsService {
       ticketCode,
     });
 
+    let progress: ProgressSummaryDto | null = null;
+    if (
+      outcome.attendee &&
+      (outcome.scanResult === 'SUCCESS' || outcome.scanResult === 'DUPLICATE')
+    ) {
+      try {
+        progress = await computeProgressSummaryForCode(
+          this.prisma,
+          outcome.attendee.ticketCode,
+        );
+      } catch (err) {
+        this.logger.debug(`Progress summary unavailable: ${String(err)}`);
+      }
+    }
+
     return {
+      ...(progress ? { progress } : {}),
       scanResult: outcome.scanResult,
       ticketCode: outcome.attendee?.ticketCode ?? ticketCode.trim(),
       attendeeName: outcome.attendee?.fullName,

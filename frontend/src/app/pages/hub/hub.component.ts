@@ -1,5 +1,8 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Subscription, interval, startWith, switchMap } from 'rxjs';
+import { AttendeeProgressService } from '../../core/attendee/attendee-progress.service';
+import { StampCardComponent } from '../../shared/stamp-card/stamp-card.component';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import * as QRCode from 'qrcode';
@@ -29,7 +32,7 @@ function toDateTimeLocalInput(isoString: string): string {
 @Component({
   selector: 'app-hub',
   standalone: true,
-  imports: [CommonModule, DatePipe, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, DatePipe, ReactiveFormsModule, RouterLink, StampCardComponent],
   templateUrl: './hub.component.html',
   styleUrl: './hub.component.scss',
 })
@@ -50,6 +53,16 @@ export class HubComponent implements OnInit {
   readonly qrDataUrl = signal<string>('');
   readonly qrLoading = signal<boolean>(false);
   readonly copiedCode = signal<string | null>(null);
+
+  // Booth stamp-card progress (keyed by ticket code)
+  private readonly progressService = inject(AttendeeProgressService);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly progressByTicket = this.progressService.byTicket;
+  /** Stamp earned while the QR pass was open, to animate it. */
+  readonly newStampId = signal<string | null>(null);
+  private progressPoll: Subscription | null = null;
+  /** How often the open QR pass re-checks progress, so a staff scan shows up live. */
+  static readonly PROGRESS_POLL_MS = 5000;
 
   // Organizing state
   readonly organizedEvents = this.organizerService.events;
@@ -86,12 +99,18 @@ export class HubComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.stopProgressPoll());
     this.loadAllData();
   }
 
   loadAllData(): void {
     this.rsvpService.loadMyRsvps().subscribe({
       next: (items) => {
+        for (const rsvp of items) {
+          if (rsvp.status !== 'Cancelled') {
+            this.progressService.loadProgress(rsvp.ticketCode).subscribe({ error: () => undefined });
+          }
+        }
         // If user has no RSVPs but organizes events, default to organizing tab
         if (items.length === 0 && this.organizedEvents().length > 0) {
           this.activeTab.set('organizing');
@@ -148,11 +167,54 @@ export class HubComponent implements OnInit {
       .catch(() => {
         this.qrLoading.set(false);
       });
+
+    if (rsvp.status !== 'Cancelled') {
+      this.startProgressPoll(rsvp.ticketCode);
+    }
   }
 
   closeQrPass(): void {
+    this.stopProgressPoll();
     this.activeQrRsvp.set(null);
     this.qrDataUrl.set('');
+  }
+
+  /** Re-checks progress while the pass is open so the attendee sees a new stamp right after a scan. */
+  private startProgressPoll(ticketCode: string): void {
+    this.stopProgressPoll();
+    this.newStampId.set(null);
+    // Stamps already known when the pass opened; null until the first load completes,
+    // so nothing is animated on the initial fetch.
+    let known: Set<string> | null = this.visitedIds(ticketCode);
+
+    this.progressPoll = interval(HubComponent.PROGRESS_POLL_MS)
+      .pipe(
+        startWith(0),
+        switchMap(() => this.progressService.loadProgress(ticketCode)),
+      )
+      .subscribe({
+        next: (progress) => {
+          const visited = progress.stamps.filter((s) => s.visited).map((s) => s.checkpointId);
+          const fresh = known ? visited.find((id) => !known!.has(id)) : undefined;
+          if (fresh) {
+            this.newStampId.set(fresh);
+          }
+          known = new Set(visited);
+        },
+        error: () => this.stopProgressPoll(),
+      });
+  }
+
+  private stopProgressPoll(): void {
+    this.progressPoll?.unsubscribe();
+    this.progressPoll = null;
+  }
+
+  private visitedIds(ticketCode: string): Set<string> | null {
+    const progress = this.progressByTicket()[ticketCode];
+    return progress
+      ? new Set(progress.stamps.filter((s) => s.visited).map((s) => s.checkpointId))
+      : null;
   }
 
   copyTicketCode(code: string): void {

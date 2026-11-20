@@ -1,3 +1,5 @@
+import { ProgressSummary } from '../attendee/attendee-progress.models';
+
 // Mirrors the Prisma enums in backend/prisma/schema.prisma.
 export type CheckpointType = 'MAIN_ENTRY' | 'SESSION' | 'BOOTH' | 'EXIT';
 export type ScanResult = 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET';
@@ -50,4 +52,6 @@ export interface ScanOutcome {
   cooldownActive?: boolean;
   cooldownSeconds?: number;
   cooldownRemainingSeconds?: number;
+  /** Attendee's booth stamp progress (SUCCESS/DUPLICATE scans only). */
+  progress?: ProgressSummary;
 }

@@ -1,3 +1,5 @@
+import { ProgressSummary } from '../attendee/attendee-progress.models';
+
 export type UUID = string;
 
 export type RegistrationStatus = 'Registered' | 'Checked In' | 'Cancelled';
@@ -137,6 +139,8 @@ export interface RecordScanResponse {
   cooldownActive?: boolean;
   cooldownSeconds?: number;
   cooldownRemainingSeconds?: number;
+  /** Attendee's booth stamp progress (SUCCESS/DUPLICATE scans only). */
+  progress?: ProgressSummary;
 }
 
 type EditableEventFields =

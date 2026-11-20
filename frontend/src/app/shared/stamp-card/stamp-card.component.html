@@ -1,0 +1,48 @@
+<div class="stamp-card" [class.compact]="compact()" [class.completed]="progress().completed">
+  <div class="progress-head">
+    <span class="progress-label">{{ label() }}</span>
+    @if (progress().totalCount > 0) {
+      <span class="progress-percent">{{ progress().percent }}%</span>
+    }
+  </div>
+
+  <div
+    class="progress-track"
+    role="progressbar"
+    [attr.aria-valuenow]="progress().visitedCount"
+    aria-valuemin="0"
+    [attr.aria-valuemax]="progress().totalCount"
+    [attr.aria-label]="label()"
+  >
+    <div class="progress-fill" [style.width]="barWidth()"></div>
+  </div>
+
+  @if (!compact() && stamps().length > 0) {
+    <ul class="stamp-grid">
+      @for (stamp of stamps(); track stamp.checkpointId; let i = $index) {
+        <li
+          class="stamp"
+          [class.visited]="stamp.visited"
+          [class.highlight]="stamp.checkpointId === highlightId()"
+          [attr.aria-label]="stamp.name + (stamp.visited ? ', visited' : ', not visited yet')"
+        >
+          <span class="stamp-seal" aria-hidden="true">
+            @if (stamp.visited) {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            } @else {
+              {{ i + 1 }}
+            }
+          </span>
+          <span class="stamp-name">{{ stamp.name }}</span>
+          @if (stamp.visited && stamp.firstVisitedAt) {
+            <span class="stamp-meta">{{ stamp.firstVisitedAt | date: 'MMM d, h:mm a' }}</span>
+          } @else if (stamp.location) {
+            <span class="stamp-meta">{{ stamp.location }}</span>
+          }
+        </li>
+      }
+    </ul>
+  }
+</div>

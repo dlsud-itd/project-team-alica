@@ -20,6 +20,7 @@ import { safeGetStorageItem, safeSetStorageItem } from '../../../core/staff/safe
 import { ScannerApi } from '../../../core/staff/scanner-api';
 import { ScannerCameraController } from '../../../core/staff/scanner-camera.service';
 import { ScannerDiagnosticsService } from '../../../core/staff/scanner-diagnostics.service';
+import { StampCardComponent } from '../../../shared/stamp-card/stamp-card.component';
 import {
   CheckpointType,
   ScanOutcome,
@@ -71,7 +72,7 @@ const CHECKPOINT_TYPE_LABELS: Record<CheckpointType, string> = {
 };
 
 @Component({
-  imports: [DatePipe, ReactiveFormsModule],
+  imports: [DatePipe, ReactiveFormsModule, StampCardComponent],
   providers: [ScannerCameraController],
   selector: 'app-scanner',
   styleUrl: './scanner.component.scss',

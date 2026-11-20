@@ -146,6 +146,11 @@
           <span class="detail-code"
             >Pass: <code>{{ res.ticketCode }}</code></span
           >
+          @if (res.progress; as p) {
+            @if (p.totalCount > 0) {
+              <span class="detail-org">Booths visited: {{ p.visitedCount }} / {{ p.totalCount }}</span>
+            }
+          }
           @if (res.firstScannedAt) {
             <span class="detail-org">
               {{ res.cooldownActive ? 'Last scan:' : 'First scan:' }}

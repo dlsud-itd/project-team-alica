@@ -10,6 +10,7 @@ import { AuthService } from '../core/auth/auth.service';
 import { AttendeeProgressService } from '../core/attendee/attendee-progress.service';
 import { TicketProgress } from '../core/attendee/attendee-progress.models';
 import { StampCardComponent } from '../shared/stamp-card/stamp-card.component';
+import { TicketQrService } from '../core/tickets/ticket-qr.service';
 import {
   UserProfile,
   UserRole,
@@ -35,6 +36,8 @@ type SaveFilePickerWindow = Window & {
 export class UserProfileComponent implements OnInit {
   userProfile: UserProfile | null = null;
   qrDataUrl = '';
+  /** True on /profile/:ticketCode; the QR pass is only shown for a specific ticket. */
+  isTicketView = false;
   isLoading = true;
   errorMessage = '';
   isCodeCopied = false;
@@ -56,6 +59,7 @@ export class UserProfileComponent implements OnInit {
   private readonly auth = inject(AuthService, { optional: true });
   private readonly progressService = inject(AttendeeProgressService);
   ticketProgress: TicketProgress | null = null;
+  private readonly ticketQr = inject(TicketQrService);
 
   constructor(
     private readonly userProfileService: UserProfileService,
@@ -76,22 +80,19 @@ export class UserProfileComponent implements OnInit {
     this.activatedRoute.paramMap
       .pipe(
         map((params) => params.get('ticketCode') || undefined),
-        switchMap((ticketCode) =>
-          this.userProfileService.getProfile(ticketCode)
-        ),
+        switchMap((ticketCode) => {
+          this.isTicketView = !!ticketCode;
+          this.qrDataUrl = '';
+          return this.userProfileService.getProfile(ticketCode);
+        }),
         switchMap((profile: UserProfile) => {
           this.userProfile = profile;
           this.loadProgress(profile.ticketCode);
-          return this.userProfileService.generateQrCode(profile.qrPayload);
+          return this.isTicketView ? this.ticketQr.render(profile) : of('');
         }),
         catchError((error: unknown) => {
           const response = error instanceof HttpErrorResponse ? error : null;
-          this.errorMessage =
-            response?.status === 403
-              ? 'Change your temporary password before opening your profile.'
-              : response?.status === 401
-                ? 'Sign in to load your profile.'
-                : 'Failed to load user profile and QR code.';
+          this.errorMessage = this.describeLoadError(response);
           this.isLoading = false;
           this.cdr.markForCheck();
           return of('');
@@ -320,21 +321,13 @@ export class UserProfileComponent implements OnInit {
     this.userProfile.fullName =
       `${this.userProfile.firstName} ${this.userProfile.lastName}`.trim();
 
-    this.userProfileService.saveProfile(this.userProfile)
-      .pipe(
-        switchMap((profile) =>
-          this.userProfileService.generateQrCode(profile.qrPayload)
-        )
-      )
-      .subscribe({
-        next: (newQrUrl) => {
-          if (newQrUrl) {
-            this.qrDataUrl = newQrUrl;
-          }
-          this.isEditing = false;
-          this.cdr.markForCheck();
-        },
-      });
+    // The QR encodes the ticket's payload, not the name, so it doesn't need re-rendering.
+    this.userProfileService.saveProfile(this.userProfile).subscribe({
+      next: () => {
+        this.isEditing = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   // Password Management
@@ -435,6 +428,21 @@ export class UserProfileComponent implements OnInit {
         return 'badge-speaker';
       default:
         return 'badge-attendee';
+    }
+  }
+
+  private describeLoadError(response: HttpErrorResponse | null): string {
+    switch (response?.status) {
+      case 401:
+        return 'Sign in to load your profile.';
+      case 403:
+        return /change your password/i.test(String(response.error?.message ?? ''))
+          ? 'Change your temporary password before opening your profile.'
+          : 'You do not have access to this ticket.';
+      case 404:
+        return 'This ticket could not be found.';
+      default:
+        return 'Failed to load user profile and QR code.';
     }
   }
 }

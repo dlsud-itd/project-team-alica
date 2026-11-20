@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { ActivatedRoute, ParamMap, Router, convertToParamMap } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { UserProfileComponent } from './user_profile.component';
 import { UserProfileService } from './user_profile.service';
 import { AuthService } from '../core/auth/auth.service';
+import { TicketQrService } from '../core/tickets/ticket-qr.service';
 import {
   UserProfile,
   UserRole,
@@ -15,9 +16,10 @@ describe('UserProfileComponent', () => {
   let fixture: ComponentFixture<UserProfileComponent>;
   let mockUserProfileService: {
     getProfile: ReturnType<typeof vi.fn>;
-    generateQrCode: ReturnType<typeof vi.fn>;
     saveProfile: ReturnType<typeof vi.fn>;
   };
+  let mockTicketQr: { render: ReturnType<typeof vi.fn> };
+  let routeParams: BehaviorSubject<ParamMap>;
   let mockRouter: {
     navigate: ReturnType<typeof vi.fn>;
   };
@@ -43,9 +45,12 @@ describe('UserProfileComponent', () => {
   beforeEach(async () => {
     mockUserProfileService = {
       getProfile: vi.fn().mockReturnValue(of(mockProfile)),
-      generateQrCode: vi.fn().mockReturnValue(of('data:image/png;base64,mockQrCode')),
       saveProfile: vi.fn().mockReturnValue(of(mockProfile)),
     };
+    mockTicketQr = {
+      render: vi.fn().mockReturnValue(of('data:image/png;base64,mockQrCode')),
+    };
+    routeParams = new BehaviorSubject(convertToParamMap({ ticketCode: 'CHK-2026-9812A' }));
     mockRouter = {
       navigate: vi.fn().mockReturnValue(Promise.resolve(true)),
     };
@@ -70,7 +75,7 @@ describe('UserProfileComponent', () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            paramMap: of(convertToParamMap({ ticketCode: 'CHK-2026-9812A' })),
+            paramMap: routeParams.asObservable(),
           },
         },
         {
@@ -78,6 +83,7 @@ describe('UserProfileComponent', () => {
           useValue: mockRouter,
         },
         { provide: AuthService, useValue: mockAuthService },
+        { provide: TicketQrService, useValue: mockTicketQr },
       ],
     }).compileComponents();
 
@@ -96,12 +102,31 @@ describe('UserProfileComponent', () => {
     expect(mockUserProfileService.getProfile).toHaveBeenCalledWith(
       'CHK-2026-9812A'
     );
-    expect(mockUserProfileService.generateQrCode).toHaveBeenCalledWith(
-      'CHK-2026-9812A'
-    );
+    expect(mockTicketQr.render).toHaveBeenCalledWith(mockProfile);
     expect(component.userProfile).toEqual(mockProfile);
     expect(component.qrDataUrl).toBe('data:image/png;base64,mockQrCode');
     expect(component.isLoading).toBe(false);
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('#ticket_qr_image')).not.toBeNull();
+    expect(compiled.querySelector('#tickets_hint')).toBeNull();
+    expect(compiled.textContent).not.toContain('UNIQUE ID');
+  });
+
+  it('should not render a QR on /profile without a ticket code and point to My Hub', () => {
+    routeParams.next(convertToParamMap({}));
+    fixture.detectChanges();
+
+    expect(mockUserProfileService.getProfile).toHaveBeenCalledWith(undefined);
+    expect(mockTicketQr.render).not.toHaveBeenCalled();
+    expect(component.isTicketView).toBe(false);
+    expect(component.qrDataUrl).toBe('');
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('#ticket_qr_image')).toBeNull();
+    expect(compiled.querySelector('#download_qr_pass_btn')).toBeNull();
+    expect(compiled.querySelector('#tickets_hint')).not.toBeNull();
+    expect(compiled.querySelector('#go_to_hub_link')?.textContent).toContain('My Hub');
   });
 
   it('should NOT render ATTENDEE role badge for standard accounts', () => {

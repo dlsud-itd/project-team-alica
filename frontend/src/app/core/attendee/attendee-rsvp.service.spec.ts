@@ -78,11 +78,4 @@ describe('AttendeeRsvpService', () => {
 
     expect(service.rsvps()[0].status).toBe('Cancelled');
   });
-
-  it('should generate a QR data URL', async () => {
-    const dataUrl = await new Promise<string>((resolve) => {
-      service.generateQrCode('CHK-2026-TEST').subscribe((url) => resolve(url));
-    });
-    expect(dataUrl).toContain('data:image/png;base64,');
-  });
 });

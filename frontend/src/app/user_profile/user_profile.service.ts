@@ -1,8 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, from, of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
-import * as QRCode from 'qrcode';
 import { environment } from '../../environments/environment';
 import { UserProfile, ApiResponse } from './user_profile.model';
 
@@ -32,17 +31,4 @@ export class UserProfileService {
     return of(profile);
   }
 
-  generateQrCode(payload: string): Observable<string> {
-    const options: QRCode.QRCodeToDataURLOptions = {
-      width: 320,
-      margin: 2,
-      color: {
-        dark: '#0f6e56',
-        light: '#ffffff',
-      },
-      errorCorrectionLevel: 'H',
-    };
-
-    return from(QRCode.toDataURL(payload, options));
-  }
 }

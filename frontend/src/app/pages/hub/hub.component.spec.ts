@@ -9,6 +9,8 @@ import { OrganizerEventsService } from '../../core/organizer/organizer-events.se
 import { OrganizerEvent } from '../../core/organizer/organizer.models';
 import { ScannerApi } from '../../core/staff/scanner-api';
 import { AuthService } from '../../core/auth/auth.service';
+import { AttendeeRsvp } from '../../core/attendee/attendee-rsvp.models';
+import { TicketQrService } from '../../core/tickets/ticket-qr.service';
 
 describe('HubComponent', () => {
   let component: HubComponent;
@@ -178,5 +180,24 @@ describe('HubComponent', () => {
     // remove
     component.removeCoOrganizerEmail(0);
     expect(component.coOrganizerEmails().length).toBe(0);
+  });
+
+  it('renders the pass QR with the shared ticket renderer, matching Full Details', async () => {
+    const rsvp = {
+      ticketCode: 'CHK-0F3A9C2E-1B7D-4E2A-9C1F-6D8E2A4B7C90',
+      qrPayload: 'CHK-0F3A9C2E-1B7D-4E2A-9C1F-6D8E2A4B7C90',
+      status: 'Registered',
+      eventName: 'Tech Summit',
+    } as AttendeeRsvp;
+
+    component.openQrPass(rsvp);
+    await vi.waitFor(() => expect(component.qrLoading()).toBe(false));
+
+    // /profile/:ticketCode renders through the same service from the same payload.
+    const expected = await TestBed.inject(TicketQrService).toDataUrl({
+      ticketCode: rsvp.ticketCode,
+      qrPayload: rsvp.qrPayload,
+    });
+    expect(component.qrDataUrl()).toBe(expected);
   });
 });

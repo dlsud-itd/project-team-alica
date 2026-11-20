@@ -5,7 +5,6 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { EMPTY, catchError, filter, finalize, map, switchMap, tap } from 'rxjs';
-import * as QRCode from 'qrcode';
 import { StampCardComponent } from '../../../shared/stamp-card/stamp-card.component';
 import {
   EventRegistrant,
@@ -19,6 +18,7 @@ import {
   OrganizerEventsService,
 } from '../../../core/organizer/organizer-events.service';
 import { AuthService } from '../../../core/auth/auth.service';
+import { TicketQrService } from '../../../core/tickets/ticket-qr.service';
 
 export type RegistrantFilter = 'ALL' | 'Registered' | 'Checked In' | 'Cancelled';
 
@@ -32,6 +32,7 @@ export class OrganizerRegistrants {
   private readonly route = inject(ActivatedRoute);
   private readonly organizerEvents = inject(OrganizerEventsService);
   private readonly auth = inject(AuthService);
+  private readonly ticketQr = inject(TicketQrService);
 
   readonly eventId = toSignal(
     (this.route.parent?.paramMap ?? this.route.paramMap).pipe(
@@ -243,11 +244,8 @@ export class OrganizerRegistrants {
     this.qrLoading.set(true);
     this.qrDataUrl.set('');
 
-    QRCode.toDataURL(registrant.ticket_id, {
-      width: 280,
-      margin: 1,
-      color: { dark: '#0d5c46', light: '#ffffff' },
-    })
+    this.ticketQr
+      .toDataUrl({ ticketCode: registrant.ticket_id })
       .then((url) => {
         this.qrDataUrl.set(url);
         this.qrLoading.set(false);

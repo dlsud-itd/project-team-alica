@@ -118,6 +118,9 @@ describe('CheckpointsService', () => {
       eventStaff: {
         findMany: vi.fn().mockResolvedValue([{ eventId: 'evt-devcon-1' }]),
       },
+      user: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       ticket: {
         findFirst: vi.fn().mockImplementation(({ where }) => {
           const codes = (where.OR || [])
@@ -413,6 +416,60 @@ describe('CheckpointsService', () => {
         cooldownSeconds: 30,
       });
       expect(outcome.scanResult).toBe('SUCCESS');
+    });
+
+    it('successfully evaluates scan when matching face descriptor is provided', async () => {
+      const sampleDescriptor = new Array(128).fill(0.1);
+      mockPrisma.ticket.findMany = vi.fn().mockResolvedValueOnce([
+        {
+          id: 'tkt-face-1',
+          ticketCode: 'CHK-2026-9812A',
+          user: {
+            id: 'usr-attendee-1',
+            fullName: 'Face Attendee',
+            faceDescriptor: new Array(128).fill(0.1),
+          },
+        },
+      ]);
+      mockPrisma.attendanceLog.findFirst = vi.fn().mockResolvedValueOnce(null);
+
+      const outcome = await service.scan(mockUser, 'chk-booth-1', {
+        faceDescriptor: sampleDescriptor,
+      });
+
+      expect(outcome.scanResult).toBe('SUCCESS');
+      expect(outcome.verificationMethod).toBe('FACE_ID');
+      expect(outcome.faceConfidence).toBeGreaterThanOrEqual(90);
+    });
+
+    it('rejects scan when face does not match any attendee', async () => {
+      const sampleDescriptor = new Array(128).fill(0.1);
+      mockPrisma.ticket.findMany = vi.fn().mockResolvedValueOnce([
+        {
+          id: 'tkt-face-1',
+          ticketCode: 'CHK-2026-9812A',
+          user: {
+            id: 'usr-attendee-1',
+            fullName: 'Face Attendee',
+            faceDescriptor: new Array(128).fill(0.9),
+          },
+        },
+      ]);
+      mockPrisma.user.findMany = vi.fn().mockResolvedValueOnce([]);
+
+      await expect(
+        service.scan(mockUser, 'chk-booth-1', {
+          faceDescriptor: sampleDescriptor,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException for malformed face descriptor', async () => {
+      await expect(
+        service.scan(mockUser, 'chk-booth-1', {
+          faceDescriptor: [0.1, 0.2],
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

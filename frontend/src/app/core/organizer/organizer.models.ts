@@ -142,6 +142,8 @@ export interface RecordScanResponse {
   cooldownRemainingSeconds?: number;
   /** Attendee's booth stamp progress (SUCCESS/DUPLICATE scans only). */
   progress?: ProgressSummary;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }
 
 type EditableEventFields =

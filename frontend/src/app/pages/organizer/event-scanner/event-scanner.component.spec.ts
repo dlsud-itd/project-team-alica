@@ -131,4 +131,49 @@ describe('EventScannerComponent', () => {
     expect(component.scanError()).toContain('Unable to record scan');
     expect(component.processing()).toBe(false);
   });
+
+  it('should switch scan modes and update viewfinder hint', () => {
+    expect(component.scanMode()).toBe('hybrid');
+    expect(component.viewfinderHint()).toContain('Scan QR pass or look into camera for Face ID');
+
+    component.setScanMode('qr');
+    expect(component.scanMode()).toBe('qr');
+    expect(component.viewfinderHint()).toContain('Point camera at attendee’s QR pass');
+
+    component.setScanMode('face');
+    expect(component.scanMode()).toBe('face');
+    expect(component.viewfinderHint()).toContain('Align face inside the oval guide for Face ID');
+  });
+
+  it('should submit face descriptor when submitScanFace is called', () => {
+    const sampleDescriptor = new Array(128).fill(0.1);
+    organizerEventsMock.recordScan.mockReturnValueOnce(
+      of({
+        scanResult: 'SUCCESS',
+        ticketCode: 'CHK-FACE-1',
+        attendeeName: 'Jane Face',
+        message: 'Check-in successful',
+        verificationMethod: 'FACE_ID',
+        faceConfidence: 96,
+        scannedAt: new Date().toISOString(),
+      }),
+    );
+
+    component.submitScanFace(sampleDescriptor);
+    expect(organizerEventsMock.recordScan).toHaveBeenCalledWith(
+      'evt-devcon-manila-2026',
+      'chk-gate-1',
+      { faceDescriptor: sampleDescriptor },
+    );
+    expect(component.lastResult()?.verificationMethod).toBe('FACE_ID');
+    expect(component.recentStationScans().length).toBe(1);
+  });
+
+  it('should ignore QR decodes when scanMode is set to face', () => {
+    component.setScanMode('face');
+    organizerEventsMock.recordScan.mockClear();
+    (component as unknown as { onDecoded: (t: string) => void }).onDecoded('#DEV-928472');
+
+    expect(organizerEventsMock.recordScan).not.toHaveBeenCalled();
+  });
 });

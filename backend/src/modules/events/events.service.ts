@@ -29,6 +29,10 @@ import {
   type ProgressSummaryDto,
   type RegistrantProgressDto,
 } from '../checkpoints/ticket-progress.js';
+import {
+  euclideanDistance,
+  FACE_MATCH_THRESHOLD,
+} from '../checkpoints/checkpoints.service.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
 
 const MAX_GUEST_ROWS = 5000;
@@ -256,6 +260,8 @@ export interface ScanResultDto {
   cooldownRemainingSeconds?: number;
   /** Attendee's booth stamp progress, present on SUCCESS/DUPLICATE scans. */
   progress?: ProgressSummaryDto;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }
 
 export interface AdminEventDto extends OrganizerEventDto {
@@ -2376,7 +2382,9 @@ export class EventsService {
     user: UserSummaryDto,
     eventId: string,
     checkpointId: string,
-    ticketCode: string,
+    ticketCodeOrPayload:
+      | string
+      | { ticketCode?: string; faceDescriptor?: number[] },
   ): Promise<ScanResultDto> {
     await this.findAccessibleEvent(user, eventId);
 
@@ -2389,6 +2397,104 @@ export class EventsService {
       );
     }
 
+    const payload =
+      typeof ticketCodeOrPayload === 'string'
+        ? { ticketCode: ticketCodeOrPayload }
+        : ticketCodeOrPayload ?? {};
+
+    const hasFace =
+      Array.isArray(payload.faceDescriptor) && payload.faceDescriptor.length > 0;
+    const hasTicket =
+      typeof payload.ticketCode === 'string' &&
+      payload.ticketCode.trim().length > 0;
+
+    if (!hasFace && !hasTicket) {
+      throw new BadRequestException(
+        'Either ticketCode or faceDescriptor must be provided.',
+      );
+    }
+
+    let ticketCodeToEvaluate = payload.ticketCode?.trim();
+    let verificationMethod: 'QR' | 'FACE_ID' = 'QR';
+    let faceConfidence: number | undefined;
+
+    if (hasFace) {
+      verificationMethod = 'FACE_ID';
+      const descriptor = payload.faceDescriptor!;
+      if (
+        descriptor.length !== 128 ||
+        descriptor.some((n) => typeof n !== 'number' || !Number.isFinite(n))
+      ) {
+        throw new BadRequestException(
+          'Face descriptor must be an array of exactly 128 finite numbers',
+        );
+      }
+
+      const attendeesWithFace = await this.prisma.ticket.findMany({
+        where: {
+          eventId,
+          user: {
+            faceRegisteredAt: { not: null },
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              studentId: true,
+              faceDescriptor: true,
+            },
+          },
+        },
+      });
+
+      let bestMatch: {
+        ticket: (typeof attendeesWithFace)[0];
+        distance: number;
+      } | null = null;
+      let minDistance = Infinity;
+
+      for (const t of attendeesWithFace) {
+        const desc = t.user?.faceDescriptor;
+        if (!desc || desc.length !== 128) continue;
+        const dist = euclideanDistance(descriptor, desc);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestMatch = { ticket: t, distance: dist };
+        }
+      }
+
+      if (bestMatch && minDistance < FACE_MATCH_THRESHOLD) {
+        ticketCodeToEvaluate = bestMatch.ticket.ticketCode;
+        faceConfidence = Math.round(
+          Math.max(
+            60,
+            Math.min(
+              99,
+              ((FACE_MATCH_THRESHOLD - minDistance) / FACE_MATCH_THRESHOLD) *
+                39 +
+                60,
+            ),
+          ),
+        );
+      } else {
+        const notFoundMsg =
+          'Face not recognized for any registered attendee of this event.';
+        await this.prisma.attendanceLog.create({
+          data: {
+            ticketCode: 'FACE:UNKNOWN',
+            checkpointId: checkpoint.id,
+            scannedByUserId: user.id,
+            scanResult: 'INVALID_TICKET',
+            notes: notFoundMsg,
+          },
+        });
+        throw new NotFoundException(notFoundMsg);
+      }
+    }
+
     const { outcome } = await evaluateCheckpointScan(this.prisma, {
       userId: user.id,
       checkpoint: {
@@ -2399,7 +2505,13 @@ export class EventsService {
         allowMultipleScans: checkpoint.allowMultipleScans,
         requireMainEntry: checkpoint.requireMainEntry,
       },
-      ticketCode,
+      ticketCode: ticketCodeToEvaluate!,
+      notes:
+        verificationMethod === 'FACE_ID'
+          ? `Face ID verified (score: ${faceConfidence}%)`
+          : undefined,
+      verificationMethod,
+      faceConfidence,
     });
 
     let progress: ProgressSummaryDto | null = null;
@@ -2420,13 +2532,15 @@ export class EventsService {
     return {
       ...(progress ? { progress } : {}),
       scanResult: outcome.scanResult,
-      ticketCode: outcome.attendee?.ticketCode ?? ticketCode.trim(),
+      ticketCode: outcome.attendee?.ticketCode ?? ticketCodeToEvaluate!,
       attendeeName: outcome.attendee?.fullName,
       affiliation: outcome.affiliation,
       stationName: checkpoint.name,
       scannedAt: outcome.scannedAt,
       firstScannedAt: outcome.firstScannedAt,
       message: outcome.message,
+      verificationMethod,
+      faceConfidence,
       ...(outcome.cooldownActive !== undefined
         ? { cooldownActive: outcome.cooldownActive }
         : {}),

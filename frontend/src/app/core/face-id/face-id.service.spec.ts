@@ -193,5 +193,46 @@ describe('FaceIdService', () => {
         /No face detected/i,
       );
     });
+
+    it('returns null when video element is not ready or paused in detectFaceDescriptorOptional', async () => {
+      const video = document.createElement('video');
+      const result = await service.detectFaceDescriptorOptional(video);
+      expect(result).toBeNull();
+    });
+
+    it('returns descriptor, score, and box when face is detected in detectFaceDescriptorOptional', async () => {
+      const fakeDescriptor = new Float32Array(128).fill(0.2);
+      const fakeFaceApi = {
+        nets: {
+          tinyFaceDetector: { loadFromUri: vi.fn().mockResolvedValue(undefined) },
+          faceLandmark68Net: { loadFromUri: vi.fn().mockResolvedValue(undefined) },
+          faceRecognitionNet: { loadFromUri: vi.fn().mockResolvedValue(undefined) },
+        },
+        TinyFaceDetectorOptions: class {},
+        detectSingleFace: vi.fn().mockReturnValue({
+          withFaceLandmarks: vi.fn().mockReturnValue({
+            withFaceDescriptor: vi.fn().mockResolvedValue({
+              descriptor: fakeDescriptor,
+              detection: {
+                score: 0.95,
+                box: { x: 10, y: 15, width: 120, height: 160 },
+              },
+            }),
+          }),
+        }),
+      };
+
+      vi.spyOn(service, 'getFaceApi').mockResolvedValue(fakeFaceApi as any);
+
+      const video = document.createElement('video');
+      Object.defineProperty(video, 'readyState', { value: 4 });
+      Object.defineProperty(video, 'paused', { value: false });
+
+      const result = await service.detectFaceDescriptorOptional(video);
+      expect(result).not.toBeNull();
+      expect(result?.descriptor.length).toBe(128);
+      expect(result?.score).toBe(0.95);
+      expect(result?.box.width).toBe(120);
+    });
   });
 });

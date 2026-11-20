@@ -276,13 +276,13 @@ export class EventsController {
     @CurrentUser() user: UserSummaryDto,
     @Param('eventId') eventId: string,
     @Param('checkpointId') checkpointId: string,
-    @Body('ticketCode') ticketCode: string,
+    @Body() body: { ticketCode?: string; faceDescriptor?: number[] } | string,
   ): Promise<{ success: boolean; data: ScanResultDto }> {
     const data = await this.eventsService.recordScan(
       user,
       eventId,
       checkpointId,
-      ticketCode,
+      body,
     );
     return {
       success: true,

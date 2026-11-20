@@ -157,6 +157,14 @@
               {{ res.firstScannedAt | date: 'MMM d, h:mm:ss a' }}
             </span>
           }
+          @if (res.verificationMethod) {
+            <span class="detail-badge" [class.is-face]="res.verificationMethod === 'FACE_ID'">
+              {{ res.verificationMethod === 'FACE_ID' ? 'Verified via Face ID' : 'Verified via QR Pass' }}
+              @if (res.faceConfidence) {
+                ({{ res.faceConfidence }}%)
+              }
+            </span>
+          }
         </div>
       </div>
 
@@ -175,6 +183,34 @@
   <div class="scanner-grid">
     <!-- Left Column: Camera Viewfinder & Manual Entry -->
     <div class="scanner-main-col">
+      <!-- Scan mode switcher -->
+      <div class="scan-mode-nav" role="group" aria-label="Scanning method">
+        <button
+          type="button"
+          class="mode-pill"
+          [class.is-active]="scanMode() === 'hybrid'"
+          (click)="setScanMode('hybrid')"
+        >
+          Auto (QR + Face)
+        </button>
+        <button
+          type="button"
+          class="mode-pill"
+          [class.is-active]="scanMode() === 'qr'"
+          (click)="setScanMode('qr')"
+        >
+          QR Pass
+        </button>
+        <button
+          type="button"
+          class="mode-pill"
+          [class.is-active]="scanMode() === 'face'"
+          (click)="setScanMode('face')"
+        >
+          Face ID
+        </button>
+      </div>
+
       <!-- Camera Card -->
       <section class="camera-card">
         <div class="viewfinder-container">
@@ -242,13 +278,28 @@
               }
             </div>
           } @else {
-            <div class="targeting-reticle" aria-hidden="true">
-              <div class="reticle-corner corner-tl"></div>
-              <div class="reticle-corner corner-tr"></div>
-              <div class="reticle-corner corner-bl"></div>
-              <div class="reticle-corner corner-br"></div>
-              <div class="reticle-laser"></div>
-            </div>
+            @if (scanMode() === 'face') {
+              <div class="face-frame" [class.is-detecting]="isFaceDetected()" aria-hidden="true">
+                <div class="face-oval-guide"></div>
+              </div>
+            } @else if (scanMode() === 'hybrid') {
+              <div class="targeting-reticle reticle-hybrid" [class.is-detecting]="isFaceDetected()" aria-hidden="true">
+                <div class="reticle-corner corner-tl"></div>
+                <div class="reticle-corner corner-tr"></div>
+                <div class="reticle-corner corner-bl"></div>
+                <div class="reticle-corner corner-br"></div>
+                <div class="hybrid-face-guide"></div>
+              </div>
+            } @else {
+              <div class="targeting-reticle" aria-hidden="true">
+                <div class="reticle-corner corner-tl"></div>
+                <div class="reticle-corner corner-tr"></div>
+                <div class="reticle-corner corner-bl"></div>
+                <div class="reticle-corner corner-br"></div>
+                <div class="reticle-laser"></div>
+              </div>
+            }
+            <p class="viewfinder-hint">{{ viewfinderHint() }}</p>
           }
         </div>
 

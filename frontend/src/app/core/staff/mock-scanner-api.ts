@@ -135,13 +135,18 @@ export class MockScannerApi implements ScannerApi {
       throw new Error(`Unknown checkpoint '${checkpointId}'`);
     }
 
-    const code = request.ticketCode.trim().toUpperCase();
+    const code = (
+      request.ticketCode ?? (request.faceDescriptor ? 'CHK-2026-9812A' : '')
+    )
+      .trim()
+      .toUpperCase();
     const ticket = TICKETS.find((t) => t.ticketCode === code);
     const scannedAt = new Date().toISOString();
     const base = {
       scannedAt,
       firstScannedAt: null,
       checkpoint: { id: checkpoint.id, name: checkpoint.name, type: checkpoint.type },
+      verificationMethod: (request.faceDescriptor ? 'FACE_ID' : 'QR') as 'FACE_ID' | 'QR',
     };
 
     if (!ticket || ticket.eventId !== checkpoint.eventId) {

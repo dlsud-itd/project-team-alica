@@ -125,6 +125,8 @@ export interface EvaluatedScanOutcome {
   cooldownActive?: boolean;
   cooldownSeconds?: number;
   cooldownRemainingSeconds?: number;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }
 
 export interface EvaluateScanResult {
@@ -144,6 +146,8 @@ export interface EvaluateScanInput {
   deviceInfo?: string;
   notes?: string;
   cooldownSeconds?: number;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }
 
 export async function evaluateCheckpointScan(
@@ -229,6 +233,8 @@ export async function evaluateCheckpointScan(
         firstScannedAt: null,
         checkpoint: checkpointMeta,
         attendee: null,
+        verificationMethod: input.verificationMethod ?? 'QR',
+        ...(input.faceConfidence !== undefined ? { faceConfidence: input.faceConfidence } : {}),
       },
     };
   }
@@ -266,6 +272,8 @@ export async function evaluateCheckpointScan(
         checkpoint: checkpointMeta,
         attendee,
         affiliation,
+        verificationMethod: input.verificationMethod ?? 'QR',
+        ...(input.faceConfidence !== undefined ? { faceConfidence: input.faceConfidence } : {}),
       },
     };
   }
@@ -304,6 +312,8 @@ export async function evaluateCheckpointScan(
           attendee,
           affiliation,
           cooldownSeconds,
+          verificationMethod: input.verificationMethod ?? 'QR',
+          ...(input.faceConfidence !== undefined ? { faceConfidence: input.faceConfidence } : {}),
         },
       };
     }
@@ -346,6 +356,8 @@ export async function evaluateCheckpointScan(
           attendee,
           affiliation,
           cooldownSeconds: 0,
+          verificationMethod: input.verificationMethod ?? 'QR',
+          ...(input.faceConfidence !== undefined ? { faceConfidence: input.faceConfidence } : {}),
         },
       };
     }
@@ -397,6 +409,8 @@ export async function evaluateCheckpointScan(
             cooldownActive: true,
             cooldownSeconds,
             cooldownRemainingSeconds: remainingSeconds,
+            verificationMethod: input.verificationMethod ?? 'QR',
+            ...(input.faceConfidence !== undefined ? { faceConfidence: input.faceConfidence } : {}),
           },
         };
       }
@@ -446,6 +460,8 @@ export async function evaluateCheckpointScan(
       attendee,
       affiliation,
       cooldownSeconds,
+      verificationMethod: input.verificationMethod ?? 'QR',
+      ...(input.faceConfidence !== undefined ? { faceConfidence: input.faceConfidence } : {}),
     },
   };
 }

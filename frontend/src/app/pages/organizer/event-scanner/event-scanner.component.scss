@@ -188,6 +188,21 @@
     border-radius: 4px;
     font-weight: 700;
   }
+
+  .detail-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background-color: rgba(0, 0, 0, 0.06);
+    font-size: 11px;
+    font-weight: 600;
+
+    &.is-face {
+      background-color: rgba(15, 110, 86, 0.15);
+      color: var(--color-forest-green, #0f6e56);
+    }
+  }
 }
 
 .btn-dismiss-feedback {
@@ -218,6 +233,45 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* Scan Mode Selector */
+.scan-mode-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background-color: var(--color-mint-subtle, #f1f5f3);
+  border: 1px solid var(--color-border-light, #e2e5e9);
+  border-radius: 10px;
+}
+
+.mode-pill {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background-color: transparent;
+  color: var(--color-slate-dark, #5f5e5a);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--color-charcoal-dark, #1a1a1a);
+    background-color: rgba(255, 255, 255, 0.7);
+  }
+
+  &.is-active {
+    background-color: #ffffff;
+    color: var(--color-forest-green, #0f6e56);
+    border-color: var(--color-border-light, #d0d7d3);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
 }
 
 /* Camera Card */
@@ -362,6 +416,59 @@
     top: 0%;
     opacity: 0.2;
   }
+}
+
+.targeting-reticle.reticle-hybrid {
+  .hybrid-face-guide {
+    position: absolute;
+    inset: 12%;
+    border: 2px dashed rgba(255, 255, 255, 0.4);
+    border-radius: 50% / 45%;
+    transition: all 0.25s ease;
+  }
+
+  &.is-detecting .hybrid-face-guide {
+    border-color: var(--color-emerald-accent, #1d9e75);
+    border-style: solid;
+    box-shadow: 0 0 12px rgba(29, 158, 117, 0.4);
+  }
+}
+
+.face-frame {
+  position: absolute;
+  width: 170px;
+  height: 220px;
+  pointer-events: none;
+
+  .face-oval-guide {
+    width: 100%;
+    height: 100%;
+    border: 3px dashed rgba(255, 255, 255, 0.65);
+    border-radius: 50% / 45%;
+    transition: all 0.25s ease;
+  }
+
+  &.is-detecting .face-oval-guide {
+    border-color: var(--color-emerald-accent, #1d9e75);
+    border-style: solid;
+    box-shadow: 0 0 16px rgba(29, 158, 117, 0.45);
+    transform: scale(1.02);
+  }
+}
+
+.viewfinder-hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 18px 12px 10px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  z-index: 3;
 }
 
 .camera-controls-bar {

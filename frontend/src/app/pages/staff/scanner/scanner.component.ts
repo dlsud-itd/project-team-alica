@@ -16,6 +16,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { combineLatest } from 'rxjs';
+import { FaceIdService } from '../../../core/face-id/face-id.service';
 import { safeGetStorageItem, safeSetStorageItem } from '../../../core/staff/safe-storage';
 import { ScannerApi } from '../../../core/staff/scanner-api';
 import { ScannerCameraController } from '../../../core/staff/scanner-camera.service';
@@ -25,6 +26,7 @@ import {
   CheckpointType,
   ScanOutcome,
   ScanResult,
+  ScannerMode,
   StaffCheckpoint,
 } from '../../../core/staff/scanner.models';
 
@@ -86,8 +88,13 @@ export class Scanner implements OnInit, OnDestroy {
   private readonly router = inject(Router, { optional: true });
   readonly camera = inject(ScannerCameraController);
   readonly diagnostics = inject(ScannerDiagnosticsService);
+  readonly faceId = inject(FaceIdService);
 
   private readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
+
+  // Scanner Mode: 'hybrid' (QR + Face), 'qr' (QR Only), 'face' (Face Only)
+  readonly scanMode = signal<ScannerMode>('hybrid');
+  readonly isFaceDetected = signal(false);
 
   // Station & Routing
   readonly checkpoints = signal<StaffCheckpoint[]>([]);
@@ -151,6 +158,12 @@ export class Scanner implements OnInit, OnDestroy {
   private resultTimer: ReturnType<typeof setTimeout> | undefined;
   private debounceNoticeTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Face scanning state & loop
+  private faceScanInterval: ReturnType<typeof setInterval> | undefined;
+  private faceScanningBusy = false;
+  private lastFaceScanAt = 0;
+  private readonly FACE_SCAN_DEBOUNCE_MS = 2500;
+
   // Relative timestamps in the recent feed
   readonly now = signal(Date.now());
   private clock: ReturnType<typeof setInterval> | undefined;
@@ -172,6 +185,7 @@ export class Scanner implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.stopFaceScanningLoop();
     this.camera.stop();
     clearTimeout(this.resultTimer);
     clearTimeout(this.debounceNoticeTimer);
@@ -273,12 +287,89 @@ export class Scanner implements OnInit, OnDestroy {
     }
   }
 
+  setScanMode(mode: ScannerMode): void {
+    if (this.scanMode() === mode) return;
+    this.scanMode.set(mode);
+    this.diagnostics.info('routing', `Switched scanner mode to ${mode}`);
+    if (mode === 'qr') {
+      this.stopFaceScanningLoop();
+    } else if (this.cameraState() === 'active') {
+      this.startFaceScanningLoop();
+    }
+  }
+
+  viewfinderHint(): string {
+    if (this.processing()) return 'Verifying attendee…';
+    switch (this.scanMode()) {
+      case 'qr':
+        return 'Point the camera at the attendee’s QR pass';
+      case 'face':
+        return 'Position face within the guide for Face ID';
+      case 'hybrid':
+      default:
+        return 'Scan QR pass or look into camera for Face ID';
+    }
+  }
+
   async startCamera(): Promise<void> {
     await this.camera.start(this.video()?.nativeElement, (code) => this.onDecoded(code));
+    if (this.camera.cameraState() === 'active' && this.scanMode() !== 'qr') {
+      this.startFaceScanningLoop();
+    }
   }
 
   stopCamera(): void {
+    this.stopFaceScanningLoop();
     this.camera.stop();
+  }
+
+  private startFaceScanningLoop(): void {
+    this.stopFaceScanningLoop();
+    this.faceId.loadModels().catch(() => {
+      // Models will retry on next scan attempt if offline/test environment
+    });
+
+    this.faceScanInterval = setInterval(() => {
+      void this.checkFaceInFrame();
+    }, 450);
+  }
+
+  private stopFaceScanningLoop(): void {
+    if (this.faceScanInterval) {
+      clearInterval(this.faceScanInterval);
+      this.faceScanInterval = undefined;
+    }
+    this.isFaceDetected.set(false);
+  }
+
+  private async checkFaceInFrame(): Promise<void> {
+    if (this.scanMode() === 'qr') return;
+    if (this.processing() || this.result() || this.faceScanningBusy) return;
+
+    const now = Date.now();
+    if (now - this.lastFaceScanAt < this.FACE_SCAN_DEBOUNCE_MS) return;
+
+    const videoEl = this.video()?.nativeElement;
+    if (!videoEl || videoEl.readyState < 2 || videoEl.paused || videoEl.ended) {
+      this.isFaceDetected.set(false);
+      return;
+    }
+
+    this.faceScanningBusy = true;
+    try {
+      const match = await this.faceId.detectFaceDescriptorOptional(videoEl, 0.55);
+      if (match && !this.processing() && !this.result()) {
+        this.isFaceDetected.set(true);
+        this.lastFaceScanAt = Date.now();
+        this.submitFace(match.descriptor);
+      } else {
+        this.isFaceDetected.set(false);
+      }
+    } catch {
+      this.isFaceDetected.set(false);
+    } finally {
+      this.faceScanningBusy = false;
+    }
   }
 
   async switchCamera(deviceId: string): Promise<void> {
@@ -299,6 +390,7 @@ export class Scanner implements OnInit, OnDestroy {
   dismissResult(): void {
     clearTimeout(this.resultTimer);
     this.result.set(null);
+    this.isFaceDetected.set(false);
   }
 
   toggleDiagnostics(): void {
@@ -306,6 +398,7 @@ export class Scanner implements OnInit, OnDestroy {
   }
 
   private onDecoded(text: string): void {
+    if (this.scanMode() === 'face') return;
     // Pause decoding while a scan is in flight or its result is on screen.
     if (this.processing() || this.result()) return;
 
@@ -329,6 +422,52 @@ export class Scanner implements OnInit, OnDestroy {
     this.lastCodeAt = now;
     this.debounceNotice.set('');
     this.submit(code);
+  }
+
+  submitFace(descriptor: number[]): void {
+    const station = this.station();
+    if (!station) {
+      this.scanError.set('No station assigned or selected.');
+      return;
+    }
+    if (this.processing()) return;
+
+    this.dismissResult();
+    this.scanError.set('');
+    this.processing.set(true);
+
+    this.api
+      .scan(station.id, {
+        faceDescriptor: descriptor,
+        deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : 'Staff Scanner',
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (outcome) => {
+          this.processing.set(false);
+          this.manualCode.reset();
+          this.diagnostics.info('api', 'Face ID scan evaluated', {
+            boothId: station.id,
+            scanResult: outcome.scanResult,
+            attendee: outcome.attendee?.fullName,
+            verificationMethod: outcome.verificationMethod,
+          });
+          this.showResult({
+            ...outcome,
+            ticketCode: outcome.attendee?.ticketCode ?? 'FACE_ID',
+          });
+        },
+        error: (err: unknown) => {
+          this.processing.set(false);
+          this.scanError.set(
+            'Face verification failed. Please try again or scan the attendee’s QR pass.',
+          );
+          this.diagnostics.error('api', 'Face scan request errored', {
+            boothId: station.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        },
+      });
   }
 
   private submit(rawCode: string): void {
@@ -377,7 +516,10 @@ export class Scanner implements OnInit, OnDestroy {
     this.now.set(Date.now());
     navigator.vibrate?.(outcome.scanResult === 'SUCCESS' ? 80 : [80, 60, 80]);
     this.resultTimer = setTimeout(
-      () => this.result.set(null),
+      () => {
+        this.result.set(null);
+        this.isFaceDetected.set(false);
+      },
       RESULT_DISMISS_MS[outcome.scanResult],
     );
   }

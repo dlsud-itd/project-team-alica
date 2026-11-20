@@ -64,6 +64,34 @@
 
     <div class="scanner-grid">
       <div class="scanner-main">
+        <!-- Scan mode switcher -->
+        <div class="scan-mode-nav" role="group" aria-label="Scanning method">
+          <button
+            type="button"
+            class="mode-pill"
+            [class.is-active]="scanMode() === 'hybrid'"
+            (click)="setScanMode('hybrid')"
+          >
+            Auto (QR + Face)
+          </button>
+          <button
+            type="button"
+            class="mode-pill"
+            [class.is-active]="scanMode() === 'qr'"
+            (click)="setScanMode('qr')"
+          >
+            QR Pass
+          </button>
+          <button
+            type="button"
+            class="mode-pill"
+            [class.is-active]="scanMode() === 'face'"
+            (click)="setScanMode('face')"
+          >
+            Face ID
+          </button>
+        </div>
+
         <!-- Viewfinder -->
         <section class="viewfinder" [class.is-live]="cameraState() === 'active'">
           <video
@@ -75,11 +103,22 @@
           ></video>
 
           @if (cameraState() === 'active' && !result()) {
-            <div class="frame" aria-hidden="true">
-              <span></span><span></span><span></span><span></span>
-            </div>
+            @if (scanMode() === 'face') {
+              <div class="face-frame" [class.is-detecting]="isFaceDetected()" aria-hidden="true">
+                <div class="face-oval-guide"></div>
+              </div>
+            } @else if (scanMode() === 'hybrid') {
+              <div class="frame frame-hybrid" [class.is-detecting]="isFaceDetected()" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+                <div class="hybrid-face-guide"></div>
+              </div>
+            } @else {
+              <div class="frame" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            }
             <p class="viewfinder-hint">
-              {{ processing() ? 'Checking ticket…' : 'Point the camera at the attendee’s QR pass' }}
+              {{ viewfinderHint() }}
             </p>
           }
 
@@ -169,6 +208,16 @@
               </div>
               <h2>{{ resultTitle(r) }}</h2>
               <p class="result-message">{{ r.message }}</p>
+
+              @if (r.verificationMethod) {
+                <div class="verification-badge" [class.is-face]="r.verificationMethod === 'FACE_ID'">
+                  <span class="badge-dot" aria-hidden="true"></span>
+                  <span>{{ r.verificationMethod === 'FACE_ID' ? 'Verified via Face ID' : 'Verified via QR Pass' }}</span>
+                  @if (r.faceConfidence) {
+                    <span class="badge-confidence">({{ r.faceConfidence }}% match)</span>
+                  }
+                </div>
+              }
 
               @if (r.attendee; as a) {
                 <dl class="attendee">

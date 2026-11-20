@@ -139,6 +139,65 @@ export class FaceIdService {
     }
   }
 
+  areModelsLoaded(): boolean {
+    return this.modelsLoaded;
+  }
+
+  /**
+   * Safe optional face detection on a live video stream.
+   * Returns null if no face is detected or if video is not ready, without throwing errors.
+   */
+  async detectFaceDescriptorOptional(
+    videoElement: HTMLVideoElement,
+    scoreThreshold = 0.5,
+  ): Promise<{
+    descriptor: number[];
+    score: number;
+    box: { x: number; y: number; width: number; height: number };
+  } | null> {
+    if (
+      !videoElement ||
+      videoElement.readyState < 2 ||
+      videoElement.paused ||
+      videoElement.ended
+    ) {
+      return null;
+    }
+
+    try {
+      await this.loadModels();
+      const faceapi = await this.getFaceApi();
+
+      const options = new faceapi.TinyFaceDetectorOptions({
+        inputSize: 224,
+        scoreThreshold,
+      });
+
+      const detection = await faceapi
+        .detectSingleFace(videoElement, options)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection || !detection.descriptor) {
+        return null;
+      }
+
+      const { box } = detection.detection;
+      return {
+        descriptor: Array.from(detection.descriptor),
+        score: detection.detection.score,
+        box: {
+          x: Math.round(box.x),
+          y: Math.round(box.y),
+          width: Math.round(box.width),
+          height: Math.round(box.height),
+        },
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Detects a single face in the live video element and extracts a 128-number descriptor.
    * Never stores or uploads raw photos.

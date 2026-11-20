@@ -254,11 +254,19 @@ export class OrganizerEventsService {
       .pipe(map((res) => res.data));
   }
 
-  recordScan(eventId: UUID, checkpointId: string, ticketCode: string): Observable<RecordScanResponse> {
+  recordScan(
+    eventId: UUID,
+    checkpointId: string,
+    ticketCodeOrPayload: string | { ticketCode?: string; faceDescriptor?: number[] },
+  ): Observable<RecordScanResponse> {
+    const body =
+      typeof ticketCodeOrPayload === 'string'
+        ? { ticketCode: ticketCodeOrPayload }
+        : ticketCodeOrPayload;
     return this.http
       .post<ApiResponse<RecordScanResponse>>(
         `${this.api}/${eventId}/checkpoints/${checkpointId}/scan`,
-        { ticketCode },
+        body,
       )
       .pipe(map((res) => res.data));
   }

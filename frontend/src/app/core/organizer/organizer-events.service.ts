@@ -186,11 +186,16 @@ export class OrganizerEventsService {
     );
   }
 
-  // Local only for now: there is no delete endpoint yet, so the event returns on the next load.
-  deleteEvent(eventId: UUID): void {
-    this.eventState.update((events) => events.filter((event) => event.id !== eventId));
-    this.registrantState.update((registrants) =>
-      registrants.filter((registrant) => registrant.event_id !== eventId),
+   /** Soft-deletes the event on the server, then removes it from the local lists. */
+  deleteEvent(eventId: UUID): Observable<void> {
+    return this.http.delete<ApiResponse<unknown>>(`${this.api}/${eventId}`).pipe(
+      tap(() => {
+        this.eventState.update((events) => events.filter((event) => event.id !== eventId));
+        this.registrantState.update((registrants) =>
+          registrants.filter((registrant) => registrant.event_id !== eventId),
+        );
+      }),
+      map(() => undefined),
     );
   }
 

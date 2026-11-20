@@ -124,6 +124,7 @@ describe('EventOverviewComponent', () => {
           name: 'AWS Workshop Desk',
         }),
       ),
+      remove: vi.fn().mockReturnValue(of({ success: true, message: 'Booth removed successfully' })),
     };
 
     await TestBed.configureTestingModule({

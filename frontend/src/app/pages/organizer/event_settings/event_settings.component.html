@@ -254,7 +254,7 @@
           <div>
             <h2 id="danger-heading" class="card-title text-danger">Delete Event</h2>
             <p class="card-subtitle">
-              Permanently remove this event and archive all associated checkpoint logs and ticket records.
+              Hide this event from attendees and organizers. Tickets and scan history are kept.
             </p>
           </div>
           <button type="button" class="btn-danger-confirm" (click)="openDelete()">
@@ -287,15 +287,22 @@
         </button>
       </header>
 
-      <div class="dialog-body">
+                 <div class="dialog-body">
         <p class="delete-warning">
-          This action will remove the event from active operations and archive attendee tickets.
+          This event will be hidden from attendees and organizers. Its tickets and scan history are kept.
         </p>
+        @if (deleteError()) {
+          <div class="alert-error" role="alert">
+            <span>{{ deleteError() }}</span>
+          </div>
+        }
       </div>
 
       <footer class="dialog-footer">
-        <button type="button" class="btn-cancel" (click)="closeDelete()">Cancel</button>
-        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()">Delete Event</button>
+        <button type="button" class="btn-cancel" (click)="closeDelete()" [disabled]="isDeleting()">Cancel</button>
+        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()" [disabled]="isDeleting()">
+          {{ isDeleting() ? 'Deleting…' : 'Delete Event' }}
+        </button>
       </footer>
     </section>
   </div>

@@ -1603,7 +1603,7 @@ export class EventsService {
       throw new BadRequestException('Start date & time must be in the future');
     }
     const capacity = this.parseCapacity(dto.capacity);
-    const isPrivate = user.role === 'ATTENDEE' ? false : dto.is_private === true;
+    const isPrivate = dto.is_private === true;
     const approvalStatus =
       isPrivate || user.role === 'ADMIN'
         ? EventApprovalStatus.APPROVED
@@ -1671,6 +1671,19 @@ export class EventsService {
 
     this.logger.log(`Event '${event.id}' created by ${user.id} (private: ${isPrivate}, approval: ${approvalStatus})`);
     return this.toOrganizerEvent(fullEvent ?? event, 0);
+  }
+
+    /** Soft delete: hides the event everywhere but keeps tickets and scan history. */
+  async remove(user: UserSummaryDto, eventId: string): Promise<void> {
+    const event = await this.findManageableEvent(user, eventId);
+    if (user.role !== 'ADMIN' && event.organizerId !== user.id) {
+      throw new ForbiddenException('Only the primary organizer can delete this event');
+    }
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+    this.logger.log(`Event '${eventId}' soft-deleted by ${user.id}`);
   }
 
   async update(

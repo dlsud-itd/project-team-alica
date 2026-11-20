@@ -130,6 +130,16 @@ export class EventsController {
     };
   }
 
+  @Delete(':eventId')
+  @UseGuards(JwtAuthGuard)
+  async deleteEvent(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.eventsService.remove(user, eventId);
+    return { success: true, message: 'Event deleted successfully' };
+  }
+
   @Get(':eventId/registrants')
   @UseGuards(JwtAuthGuard)
   async getRegistrants(

@@ -86,6 +86,8 @@ export class EventShellComponent {
   // Edit / Delete Dialog State
   readonly editing = signal(false);
   readonly deleting = signal(false);
+  readonly isDeleting = signal(false);
+  readonly deleteError = signal('');
   readonly isSaving = signal(false);
   readonly editErrorMessage = signal('');
 
@@ -196,14 +198,26 @@ export class EventShellComponent {
 
   closeDelete(): void {
     this.deleting.set(false);
+    this.deleteError.set('');
   }
 
-  confirmDelete(): void {
+    confirmDelete(): void {
     const ev = this.event();
-    if (!ev) return;
-    this.organizerEvents.deleteEvent(ev.id);
-    this.closeDelete();
-    this.router.navigate(['/hub']);
+    if (!ev || this.isDeleting()) return;
+
+    this.isDeleting.set(true);
+    this.deleteError.set('');
+    this.organizerEvents.deleteEvent(ev.id).subscribe({
+      next: () => {
+        this.isDeleting.set(false);
+        this.closeDelete();
+        this.router.navigate(['/hub']);
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.isDeleting.set(false);
+        this.deleteError.set(err.error?.message ?? 'Could not delete the event. Please try again.');
+      },
+    });
   }
 }
 

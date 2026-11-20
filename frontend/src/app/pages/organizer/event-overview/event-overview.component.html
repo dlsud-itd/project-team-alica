@@ -157,8 +157,11 @@
                         {{ station.name }}
                       </button>
                       <span class="sub-tag">Sub-booth</span>
-                    } @else {
+                     } @else {
                       {{ station.name }}
+                    }
+                    @if (station.type === 'Booth' || station.type === 'Session') {
+                      <span class="pass-tag" title="Visits here count as stamps on the attendee passport">Counts toward passport</span>
                     }
                   </span>
                   <span class="station-actions">
@@ -170,6 +173,9 @@
                       >
                         + Sub-booth
                       </button>
+                    }
+                                        @if (canRemoveStation(station.id)) {
+                      <button type="button" class="btn-remove-booth" (click)="openRemove(station.id)">Remove</button>
                     }
                     <strong class="station-scans">{{ station.scans }} {{ station.scans === 1 ? 'scan' : 'scans' }}</strong>
                   </span>
@@ -186,7 +192,24 @@
                 <div class="station-track" aria-hidden="true">
                   <div class="station-fill" [style.width.%]="station.percentage"></div>
                 </div>
-
+                                @if (removingId() === station.id) {
+                  <div class="remove-confirm" role="alertdialog">
+                    <p>
+                      Remove "{{ station.name }}"?
+                      @if (!isSubBooth(station.id)) { Its sub-booths are removed too. }
+                      Scan history is kept.
+                    </p>
+                    @if (removeError()) {
+                      <p class="sub-error" role="alert">{{ removeError() }}</p>
+                    }
+                    <div class="sub-actions">
+                      <button type="button" class="btn-sub-cancel" (click)="cancelRemove()" [disabled]="isRemoving()">Cancel</button>
+                      <button type="button" class="btn-remove-confirm" (click)="confirmRemove()" [disabled]="isRemoving()">
+                        {{ isRemoving() ? 'Removing…' : 'Remove' }}
+                      </button>
+                    </div>
+                  </div>
+                }
                 @if (addingFor() === station.id) {
                   <form class="sub-form" (submit)="submitSubBooth($event)">
                     <p class="sub-form-title">Add a sub-booth to {{ station.name }}</p>

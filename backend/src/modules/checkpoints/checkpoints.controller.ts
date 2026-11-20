@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -110,5 +111,14 @@ export class CheckpointsController {
       success: true,
       data,
     };
+  }
+
+  @Delete(':boothId')
+  async removeCheckpoint(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('boothId') boothId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.checkpointsService.removeCheckpoint(user, boothId);
+    return { success: true, message: 'Booth removed successfully' };
   }
 }

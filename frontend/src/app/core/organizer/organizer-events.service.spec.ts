@@ -195,13 +195,16 @@ describe('OrganizerEventsService', () => {
     expect(service.error()).toBe('Organizer access is required');
   });
 
-  it('should remove a deleted event and its registrants', () => {
+    it('should soft-delete an event on the server and remove it with its registrants', () => {
     service.loadEvents().subscribe();
     httpMock.expectOne(`${API}/mine`).flush({ success: true, data: [EVENT] });
     service.loadRegistrants('evt-1').subscribe();
     httpMock.expectOne(`${API}/evt-1/registrants`).flush({ success: true, data: [REGISTRANT] });
 
-    service.deleteEvent('evt-1');
+    service.deleteEvent('evt-1').subscribe();
+    const req = httpMock.expectOne(`${API}/evt-1`);
+    expect(req.request.method).toBe('DELETE');
+    req.flush({ success: true, data: null });
 
     expect(service.events()).toEqual([]);
     expect(service.registrants()).toEqual([]);

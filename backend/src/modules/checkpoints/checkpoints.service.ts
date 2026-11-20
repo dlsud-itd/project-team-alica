@@ -397,6 +397,44 @@ export class CheckpointsService {
     return this.toStaffDto(created);
   }
 
+    /**
+   * Soft delete: hides the booth (and its sub-booths) from stamp cards and lists
+   * but keeps every scan log. Never a hard delete, because attendance logs
+   * cascade on checkpoint deletion.
+   */
+  async removeCheckpoint(user: UserSummaryDto, checkpointId: string): Promise<void> {
+    const checkpoint = await this.prisma.checkpoint.findFirst({
+      where: { id: checkpointId, deletedAt: null },
+      include: { event: { select: { organizerId: true } } },
+    });
+    if (!checkpoint) {
+      throw new NotFoundException(`Checkpoint '${checkpointId}' not found.`);
+    }
+    if (checkpoint.type === 'MAIN_ENTRY') {
+      throw new BadRequestException('The main entry gate cannot be removed.');
+    }
+
+    if (user.role !== 'ADMIN' && checkpoint.event?.organizerId !== user.id) {
+      let isCoOrganizer = false;
+      if (this.prisma.eventOrganizer?.findFirst) {
+        const coOrg = await this.prisma.eventOrganizer.findFirst({
+          where: { eventId: checkpoint.eventId, userId: user.id },
+        });
+        if (coOrg) isCoOrganizer = true;
+      }
+      if (!isCoOrganizer) {
+        throw new ForbiddenException('Only organizers can remove booths.');
+      }
+    }
+
+    await this.prisma.checkpoint.updateMany({
+      where: { OR: [{ id: checkpointId }, { parentId: checkpointId }], deletedAt: null },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+
+    this.logger.log(`Checkpoint '${checkpointId}' soft-deleted by user '${user.id}'`);
+  }
+
   async scan(
     user: UserSummaryDto,
     checkpointId: string,

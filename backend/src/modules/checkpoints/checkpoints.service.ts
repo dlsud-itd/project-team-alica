@@ -102,7 +102,12 @@ export function euclideanDistance(a: number[], b: number[]): number {
   return Math.sqrt(sum);
 }
 
-export const FACE_MATCH_THRESHOLD = 0.6;
+/**
+ * Euclidean distance threshold for 128-d face recognition embeddings.
+ * 0.45 provides high accuracy for 1:N attendee verification on webcam streams
+ * while preventing false matches to other faces.
+ */
+export const FACE_MATCH_THRESHOLD = 0.45;
 
 @Injectable()
 export class CheckpointsService {

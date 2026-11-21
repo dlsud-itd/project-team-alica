@@ -11,7 +11,7 @@ The repository features two site setups:
 - [Development](https://dev-checkpoint.dlsud-ilt.workers.dev/)
 
 ## Demo Accounts
-Checkpoint ships with five seeded demo accounts, one for each user role, so reviewers and testers can see the system from every perspective without having to manually create accounts first. In production, every new sign-up defaults to the `attendee` role; the other roles (`organizer`, `staff`, and `admin`) are granted manually and are not something a regular user can self-assign. The demo set below exists purely to showcase those elevated views.
+Checkpoint ships with four seeded demo accounts, one for each user role, so reviewers and testers can see the system from every perspective without having to manually create accounts first. Every new sign-up defaults to the `attendee` role; the other roles (`organizer`, `staff`, and `admin`) are granted manually and are not something a regular user can self-assign. The demo set below exists purely to showcase those elevated views.
 
 | Role | Email | Password |
 |---|---|---|

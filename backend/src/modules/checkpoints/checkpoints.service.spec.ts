@@ -392,6 +392,82 @@ describe('CheckpointsService', () => {
     });
   });
 
+  describe('updateCheckpoint', () => {
+    beforeEach(() => {
+      mockPrisma.checkpoint.update = vi.fn().mockImplementation(({ where, data }) => {
+        const base =
+          where.id === 'chk-booth-1'
+            ? mockBooth
+            : where.id === 'chk-sub-existing'
+              ? mockSubBooth
+              : mockMainGate;
+        return Promise.resolve({ ...base, ...data, event: { title: 'DevCon Manila 2026' } });
+      });
+      mockPrisma.checkpoint.updateMany = vi.fn().mockResolvedValue({ count: 1 });
+      mockPrisma.checkpoint.count = vi.fn().mockResolvedValue(0);
+      mockPrisma.eventOrganizer = { findFirst: vi.fn().mockResolvedValue(null) };
+    });
+
+    it('updates name, location and scan settings of a booth', async () => {
+      const result = await service.updateCheckpoint(mockOrganizer, 'chk-booth-1', {
+        name: '  AWS Booth ',
+        location: '',
+        allowMultipleScans: false,
+      });
+      expect(result).toMatchObject({ name: 'AWS Booth', location: null, allowMultipleScans: false });
+    });
+
+    it('pushes a changed requireMainEntry down to sub-booths', async () => {
+      await service.updateCheckpoint(mockOrganizer, 'chk-booth-1', { requireMainEntry: true });
+      expect(mockPrisma.checkpoint.updateMany).toHaveBeenCalledWith({
+        where: { parentId: 'chk-booth-1', deletedAt: null },
+        data: { requireMainEntry: true },
+      });
+    });
+
+    it('ignores requireMainEntry on a sub-booth and forbids changing its type', async () => {
+      await service.updateCheckpoint(mockOrganizer, 'chk-sub-existing', { requireMainEntry: true });
+      expect(mockPrisma.checkpoint.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: {} }),
+      );
+      await expect(
+        service.updateCheckpoint(mockOrganizer, 'chk-sub-existing', { type: 'SESSION' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('refuses to change the type of a booth that still has sub-booths', async () => {
+      mockPrisma.checkpoint.count.mockResolvedValue(2);
+      await expect(
+        service.updateCheckpoint(mockOrganizer, 'chk-booth-1', { type: 'SESSION' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('forces requireMainEntry off when a station becomes a main entry gate', async () => {
+      const result = await service.updateCheckpoint(mockOrganizer, 'chk-booth-1', {
+        type: 'MAIN_ENTRY',
+        requireMainEntry: true,
+      });
+      expect(result.type).toBe('MAIN_ENTRY');
+      expect(result.requireMainEntry).toBe(false);
+    });
+
+    it('rejects blank names, unknown stations and non-organizers', async () => {
+      await expect(
+        service.updateCheckpoint(mockOrganizer, 'chk-booth-1', { name: ' ' }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateCheckpoint(mockOrganizer, 'nope', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
+      await expect(
+        service.updateCheckpoint(
+          { id: 'usr-other', email: 'o@alica.ph', fullName: 'Other', role: 'USER' },
+          'chk-booth-1',
+          { name: 'X' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
   describe('createSubBooth', () => {
     it('should create a sub-booth under a booth for a dynamic USER event organizer', async () => {
       const result = await service.createSubBooth(

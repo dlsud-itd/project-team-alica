@@ -135,76 +135,26 @@
         </div>
       </article>
 
-      <!-- Station Traffic Breakdown -->
+      <!-- Station Traffic Breakdown (read-only; manage in the Stations tab) -->
       <article class="telemetry-card traffic-card">
         <header class="telemetry-header">
           <div>
             <h2 class="telemetry-title">STATION TRAFFIC BREAKDOWN</h2>
             <p class="telemetry-subtitle">Volume per gate &amp; booth</p>
           </div>
-          @if (canManageSubBooths() && !addingBooth()) {
-            <button type="button" class="btn-add-sub btn-add-booth" (click)="openBoothForm()">
-              + Add booth
-            </button>
+          @if (canManageStations()) {
+            <a class="btn-add-sub btn-add-booth" routerLink="../stations">Manage stations</a>
           }
         </header>
 
-        @if (addingBooth()) {
-          <form class="sub-form booth-form" (submit)="submitBooth($event)">
-            <p class="sub-form-title">Add a booth or gate</p>
-            <input
-              type="text"
-              class="sub-input"
-              placeholder="Name (e.g. Google Cloud Booth)"
-              maxlength="80"
-              aria-label="Booth name"
-              [value]="boothName()"
-              (input)="boothName.set($any($event.target).value)"
-            />
-            <input
-              type="text"
-              class="sub-input"
-              placeholder="Location (optional)"
-              maxlength="120"
-              aria-label="Booth location"
-              [value]="boothLocation()"
-              (input)="boothLocation.set($any($event.target).value)"
-            />
-            <select
-              class="sub-input"
-              aria-label="Checkpoint type"
-              [value]="boothType()"
-              (change)="boothType.set($any($event.target).value)"
-            >
-              @for (opt of boothTypes; track opt.value) {
-                <option [value]="opt.value">{{ opt.label }}</option>
-              }
-            </select>
-            @if (boothType() !== 'MAIN_ENTRY') {
-              <label class="booth-check">
-                <input
-                  type="checkbox"
-                  [checked]="boothRequireMainEntry()"
-                  (change)="boothRequireMainEntry.set($any($event.target).checked)"
-                />
-                Attendees must scan in at a main entry gate first
-              </label>
-            }
-            @if (boothError()) {
-              <p class="sub-error" role="alert">{{ boothError() }}</p>
-            }
-            <div class="sub-actions">
-              <button type="button" class="btn-sub-cancel" (click)="cancelBooth()">Cancel</button>
-              <button type="submit" class="btn-sub-save" [disabled]="savingBooth()">
-                {{ savingBooth() ? 'Saving…' : 'Add booth' }}
-              </button>
-            </div>
-          </form>
-        }
-
         <div class="station-list">
           @if (stationTraffic().length === 0) {
-            <p class="no-stations">No station traffic recorded yet.</p>
+            <p class="no-stations">
+              No stations yet.
+              @if (canManageStations()) {
+                <a routerLink="../stations">Add entry gates, sessions and booths</a> to start scanning.
+              }
+            </p>
           } @else {
             @for (station of orderedStations(); track station.id) {
               <div class="station-row" [class.station-row--sub]="isSubBooth(station.id)">
@@ -215,28 +165,14 @@
                         {{ station.name }}
                       </button>
                       <span class="sub-tag">Sub-booth</span>
-                     } @else {
+                    } @else {
                       {{ station.name }}
                     }
                     @if (station.type === 'Booth' || station.type === 'Session') {
                       <span class="pass-tag" title="Visits here count as stamps on the attendee passport">Counts toward passport</span>
                     }
                   </span>
-                  <span class="station-actions">
-                    @if (canAddSubBooth(station.id)) {
-                      <button
-                        type="button"
-                        class="btn-add-sub"
-                        (click)="openSubBoothForm(station.id)"
-                      >
-                        + Sub-booth
-                      </button>
-                    }
-                                        @if (canRemoveStation(station.id)) {
-                      <button type="button" class="btn-remove-booth" (click)="openRemove(station.id)">Remove</button>
-                    }
-                    <strong class="station-scans">{{ station.scans }} {{ station.scans === 1 ? 'scan' : 'scans' }}</strong>
-                  </span>
+                  <strong class="station-scans">{{ station.scans }} {{ station.scans === 1 ? 'scan' : 'scans' }}</strong>
                 </div>
 
                 @if (subTotalFor(station.id); as sub) {
@@ -250,54 +186,6 @@
                 <div class="station-track" aria-hidden="true">
                   <div class="station-fill" [style.width.%]="station.percentage"></div>
                 </div>
-                                @if (removingId() === station.id) {
-                  <div class="remove-confirm" role="alertdialog">
-                    <p>
-                      Remove "{{ station.name }}"?
-                      @if (!isSubBooth(station.id)) { Its sub-booths are removed too. }
-                      Scan history is kept.
-                    </p>
-                    @if (removeError()) {
-                      <p class="sub-error" role="alert">{{ removeError() }}</p>
-                    }
-                    <div class="sub-actions">
-                      <button type="button" class="btn-sub-cancel" (click)="cancelRemove()" [disabled]="isRemoving()">Cancel</button>
-                      <button type="button" class="btn-remove-confirm" (click)="confirmRemove()" [disabled]="isRemoving()">
-                        {{ isRemoving() ? 'Removing…' : 'Remove' }}
-                      </button>
-                    </div>
-                  </div>
-                }
-                @if (addingFor() === station.id) {
-                  <form class="sub-form" (submit)="submitSubBooth($event)">
-                    <p class="sub-form-title">Add a sub-booth to {{ station.name }}</p>
-                    <input
-                      type="text"
-                      class="sub-input"
-                      placeholder="Sub-booth name (e.g. Demo Station 1)"
-                      maxlength="80"
-                      [value]="subName()"
-                      (input)="subName.set($any($event.target).value)"
-                    />
-                    <input
-                      type="text"
-                      class="sub-input"
-                      placeholder="Location (optional, defaults to the booth's location)"
-                      maxlength="120"
-                      [value]="subLocation()"
-                      (input)="subLocation.set($any($event.target).value)"
-                    />
-                    @if (subError()) {
-                      <p class="sub-error" role="alert">{{ subError() }}</p>
-                    }
-                    <div class="sub-actions">
-                      <button type="button" class="btn-sub-cancel" (click)="cancelSubBooth()">Cancel</button>
-                      <button type="submit" class="btn-sub-save" [disabled]="savingSub()">
-                        {{ savingSub() ? 'Saving…' : 'Add sub-booth' }}
-                      </button>
-                    </div>
-                  </form>
-                }
               </div>
             }
           }
@@ -368,170 +256,40 @@
       </article>
     }
 
-    <!-- 3. Bottom Row: Recent Check-In Activity Stream -->
+    <!-- 3. Latest scans preview (full log in the Stream tab) -->
     <article class="telemetry-card activity-card">
       <header class="telemetry-header activity-header">
         <div>
-          <h2 class="telemetry-title">RECENT CHECK-IN ACTIVITY STREAM</h2>
-          <p class="telemetry-subtitle">Real-time scan logs across all gates</p>
+          <h2 class="telemetry-title">LATEST SCANS</h2>
+          <p class="telemetry-subtitle">The most recent check-ins across all stations</p>
         </div>
-        <button
-          type="button"
-          class="btn-export-csv"
-          (click)="exportCsv()"
-          [disabled]="exporting()"
-        >
-          <svg class="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>{{ exporting() ? 'Exporting…' : 'Export Scans CSV' }}</span>
-        </button>
+        <a class="btn-export-csv" routerLink="../stream">View full stream</a>
       </header>
 
-      <div class="stream-table-wrapper">
-        <table class="stream-table">
-          <thead>
-            <tr>
-              <th scope="col">ATTENDEE</th>
-              <th scope="col">PASS CODE</th>
-              <th scope="col">STATION</th>
-              <th scope="col">TIME</th>
-              <th scope="col">STATUS</th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (recentScans().length === 0) {
-              <tr>
-                <td colspan="5" class="empty-stream-cell">
-                  <span>No check-in activity recorded yet for this event.</span>
-                </td>
-              </tr>
-            } @else {
-              @for (scan of recentScans(); track scan.id) {
-                <tr class="stream-row">
-                  <td class="td-attendee">
-                    <strong class="attendee-name">{{ scan.attendeeName }}</strong>
-                    <span class="attendee-org">{{ scan.affiliation }}</span>
-                  </td>
-                  <td class="td-code">
-                    <code class="pass-code">{{ scan.ticketCode }}</code>
-                  </td>
-                  <td class="td-station">
-                    <span class="station-text">{{ scan.stationName }}</span>
-                  </td>
-                  <td class="td-time">
-                    <span class="time-text">{{ scan.scannedAt | date: 'hh:mm:ss a' }}</span>
-                  </td>
-                  <td class="td-status">
-                    <span
-                      class="stream-status-badge"
-                      [class.status-duplicate]="scan.status === 'DUPLICATE'"
-                      [class.status-success]="scan.status === 'SUCCESS'"
-                      [class.status-invalid]="scan.status === 'INVALID_TICKET'"
-                      [class.status-warning]="scan.status === 'WARNING_NO_MAIN_ENTRY'"
-                    >
-                      {{ scan.statusLabel }}
-                    </span>
-                  </td>
-                </tr>
-              }
-            }
-          </tbody>
-        </table>
-      </div>
-    </article>
-
-    <!-- 4. Event Staff & Checkpoint Operators -->
-    <article class="telemetry-card staff-card">
-      <header class="telemetry-header staff-header">
-        <div>
-          <h2 class="telemetry-title">EVENT STAFF &amp; CHECKPOINT OPERATORS</h2>
-          <p class="telemetry-subtitle">Authorize team members to scan tickets and manage checkpoints for this event</p>
-        </div>
-      </header>
-
-      <div class="staff-card-content">
-        <!-- Add Staff Form -->
-        <div class="add-staff-bar">
-          <div class="input-wrapper">
-            <input
-              #staffEmailInput
-              type="email"
-              class="form-input"
-              placeholder="Enter user email (e.g. staff@dlsud.edu.ph)"
-              (keydown.enter)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
-            />
-          </div>
-          <button
-            type="button"
-            class="btn-add-staff"
-            [disabled]="addingStaff()"
-            (click)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
-          >
-            @if (addingStaff()) {
-              <span>Adding...</span>
-            } @else {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-plus" aria-hidden="true">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>Add Staff</span>
-            }
-          </button>
-        </div>
-
-        @if (staffError()) {
-          <div class="staff-error-banner" role="alert">
-            <span>{{ staffError() }}</span>
-          </div>
-        }
-
-        <!-- Staff Members Table -->
-        <div class="staff-table-wrapper">
-          @if (staffLoading()) {
-            <div class="staff-loading">Loading event staff roster...</div>
-          } @else if (staffList().length === 0) {
-            <div class="staff-empty">
-              <p>No staff assigned yet. As the organizer, you have scanner access automatically.</p>
-            </div>
-          } @else {
-            <table class="stream-table">
-              <thead>
-                <tr>
-                  <th scope="col">NAME</th>
-                  <th scope="col">EMAIL</th>
-                  <th scope="col">AFFILIATION</th>
-                  <th scope="col">ASSIGNED</th>
-                  <th scope="col">ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (member of staffList(); track member.id) {
-                  <tr class="stream-row">
-                    <td><strong class="attendee-name">{{ member.fullName }}</strong></td>
-                    <td><span class="member-email">{{ member.email }}</span></td>
-                    <td><span class="member-org">{{ member.affiliation || 'Staff Member' }}</span></td>
-                    <td><span class="time-text">{{ member.assignedAt | date: 'MMM d, y' }}</span></td>
-                    <td>
-                      <button
-                        type="button"
-                        class="btn-remove-staff"
-                        (click)="removeStaffMember(member.userId)"
-                        aria-label="Remove staff member"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+      @if (recentPreview().length === 0) {
+        <p class="no-stations">No check-in activity recorded yet for this event.</p>
+      } @else {
+        <ul class="latest-scans">
+          @for (scan of recentPreview(); track scan.id) {
+            <li class="latest-scan">
+              <span class="latest-scan-who td-attendee">
+                <strong class="attendee-name">{{ scan.attendeeName }}</strong>
+                <span class="attendee-org">{{ scan.stationName }}</span>
+              </span>
+              <span class="td-time"><span class="time-text">{{ scan.scannedAt | date: 'hh:mm a' }}</span></span>
+              <span class="td-status"><span
+                class="stream-status-badge"
+                [class.status-duplicate]="scan.status === 'DUPLICATE'"
+                [class.status-success]="scan.status === 'SUCCESS'"
+                [class.status-invalid]="scan.status === 'INVALID_TICKET'"
+                [class.status-warning]="scan.status === 'WARNING_NO_MAIN_ENTRY'"
+              >
+                {{ scan.statusLabel }}
+              </span></span>
+            </li>
           }
-        </div>
-      </div>
+        </ul>
+      }
     </article>
-
   }
 </div>

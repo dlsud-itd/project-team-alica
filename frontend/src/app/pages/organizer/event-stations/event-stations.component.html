@@ -1,0 +1,294 @@
+<ng-template #stationForm>
+  <form class="sub-form station-form" (submit)="submitForm($event)">
+    <p class="sub-form-title">{{ formTitle() }}</p>
+    <div class="station-form-grid">
+      <label class="station-field">
+        <span>Name</span>
+        <input
+          type="text"
+          class="sub-input"
+          maxlength="80"
+          placeholder="e.g. Google Cloud Booth"
+          [value]="formName()"
+          (input)="formName.set($any($event.target).value)"
+        />
+      </label>
+      <label class="station-field">
+        <span>Location <em>(optional)</em></span>
+        <input
+          type="text"
+          class="sub-input"
+          maxlength="120"
+          placeholder="e.g. Hall B-02"
+          [value]="formLocation()"
+          (input)="formLocation.set($any($event.target).value)"
+        />
+      </label>
+      @if (formTypeEditable()) {
+        <label class="station-field">
+          <span>Type</span>
+          <select
+            class="sub-input"
+            [value]="formType()"
+            (change)="formType.set($any($event.target).value)"
+          >
+            @for (opt of typeOptions; track opt.value) {
+              <option [value]="opt.value" [selected]="opt.value === formType()">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
+    </div>
+
+    <fieldset class="station-rules">
+      <legend>Scan rules</legend>
+      <label class="booth-check">
+        <input
+          type="checkbox"
+          [checked]="formMultiScan()"
+          (change)="formMultiScan.set($any($event.target).checked)"
+        />
+        Allow repeat scans (with a short cooldown)
+      </label>
+      @if (formShowsEntryRule()) {
+        <label class="booth-check">
+          <input
+            type="checkbox"
+            [checked]="formRequireEntry()"
+            (change)="formRequireEntry.set($any($event.target).checked)"
+          />
+          Attendees must scan in at an entry gate first
+        </label>
+      } @else if (form()?.mode !== 'create' && formType() !== 'MAIN_ENTRY') {
+        <p class="station-note">Entry rule follows the parent booth.</p>
+      }
+    </fieldset>
+
+    @if (formError()) {
+      <p class="sub-error" role="alert">{{ formError() }}</p>
+    }
+    <div class="sub-actions">
+      <button type="button" class="btn-sub-cancel" (click)="closeForm()">Cancel</button>
+      <button type="submit" class="btn-sub-save" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : form()?.mode === 'edit' ? 'Save changes' : 'Add' }}
+      </button>
+    </div>
+  </form>
+</ng-template>
+
+<ng-template #removeConfirm let-station>
+  <div class="remove-confirm" role="alertdialog">
+    <p>
+      Remove "{{ station.name }}"?
+      @if (station.type === 'BOOTH' && !station.parentId) { Its sub-booths are removed too. }
+      Scan history is kept.
+    </p>
+    @if (removeError()) {
+      <p class="sub-error" role="alert">{{ removeError() }}</p>
+    }
+    <div class="sub-actions">
+      <button type="button" class="btn-sub-cancel" (click)="cancelRemove()" [disabled]="isRemoving()">Cancel</button>
+      <button type="button" class="btn-remove-confirm" (click)="confirmRemove()" [disabled]="isRemoving()">
+        {{ isRemoving() ? 'Removing…' : 'Remove' }}
+      </button>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #ruleTags let-station>
+  <span class="station-tags">
+    @if (station.type === 'BOOTH' || station.type === 'SESSION') {
+      <span class="pass-tag">Passport stamp</span>
+    }
+    <span class="rule-tag">{{ station.allowMultipleScans ? 'Repeat scans' : 'One scan' }}</span>
+    @if (station.requireMainEntry) {
+      <span class="rule-tag rule-tag--entry">Needs entry</span>
+    }
+  </span>
+</ng-template>
+
+<div class="overview-dashboard stations-page">
+  @if (loading()) {
+    <div class="overview-loading" role="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading stations…</p>
+    </div>
+  } @else if (loadError()) {
+    <div class="overview-error" role="alert">
+      <h3>Unable to load stations</h3>
+      <p>{{ loadError() }}</p>
+      <button type="button" class="btn-retry" (click)="loadStations()">Retry</button>
+    </div>
+  } @else {
+    @if (blockedByMissingGate().length > 0) {
+      <div class="station-warning" role="alert">
+        <strong>No entry gate yet.</strong>
+        {{ blockedByMissingGate().length }}
+        {{ blockedByMissingGate().length === 1 ? 'station requires' : 'stations require' }}
+        an entry scan, so every scan there will warn until you add an entry gate.
+      </div>
+    }
+
+    @for (section of sections(); track section.type) {
+      <article class="telemetry-card station-section">
+        <header class="telemetry-header">
+          <div>
+            <h2 class="telemetry-title">{{ section.title }} ({{ section.stations.length }})</h2>
+            <p class="telemetry-subtitle">{{ section.hint }}</p>
+          </div>
+          @if (canManage()) {
+            <button type="button" class="btn-add-sub btn-add-booth" (click)="openCreate(section.type)">
+              + {{ section.addLabel }}
+            </button>
+          }
+        </header>
+
+        @if (isFormFor('section:' + section.type)) {
+          <ng-container *ngTemplateOutlet="stationForm" />
+        }
+
+        @if (section.stations.length === 0) {
+          <p class="no-stations">None yet.</p>
+        } @else {
+          <ul class="station-crud-list">
+            @for (item of section.stations; track item.station.id) {
+              <li class="station-crud-row">
+                <div class="station-crud-main">
+                  <div class="station-crud-text">
+                    <strong class="station-name">{{ item.station.name }}</strong>
+                    <span class="station-location">{{ item.station.location || 'No location set' }}</span>
+                  </div>
+                  <ng-container *ngTemplateOutlet="ruleTags; context: { $implicit: item.station }" />
+                  @if (canManage()) {
+                    <span class="station-actions">
+                      <button type="button" class="btn-add-sub" (click)="openEdit(item.station)">Edit</button>
+                      @if (item.station.type === 'BOOTH') {
+                        <button type="button" class="btn-add-sub" (click)="openSub(item.station)">+ Sub-booth</button>
+                      }
+                      @if (canRemove(item.station)) {
+                        <button type="button" class="btn-remove-booth" (click)="openRemove(item.station.id)">Remove</button>
+                      }
+                    </span>
+                  }
+                </div>
+                @if (isFormFor('row:' + item.station.id)) {
+                  <ng-container *ngTemplateOutlet="stationForm" />
+                }
+                @if (removingId() === item.station.id) {
+                  <ng-container *ngTemplateOutlet="removeConfirm; context: { $implicit: item.station }" />
+                }
+
+                @if (item.children.length > 0) {
+                  <ul class="station-crud-children">
+                    @for (child of item.children; track child.id) {
+                      <li class="station-crud-row station-crud-row--sub">
+                        <div class="station-crud-main">
+                          <div class="station-crud-text">
+                            <strong class="station-name">↳ {{ child.name }} <span class="sub-tag">Sub-booth</span></strong>
+                            <span class="station-location">{{ child.location || 'No location set' }}</span>
+                          </div>
+                          <ng-container *ngTemplateOutlet="ruleTags; context: { $implicit: child }" />
+                          @if (canManage()) {
+                            <span class="station-actions">
+                              <button type="button" class="btn-add-sub" (click)="openEdit(child)">Edit</button>
+                              <button type="button" class="btn-remove-booth" (click)="openRemove(child.id)">Remove</button>
+                            </span>
+                          }
+                        </div>
+                        @if (isFormFor('row:' + child.id)) {
+                          <ng-container *ngTemplateOutlet="stationForm" />
+                        }
+                        @if (removingId() === child.id) {
+                          <ng-container *ngTemplateOutlet="removeConfirm; context: { $implicit: child }" />
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </article>
+    }
+
+    <article class="telemetry-card staff-card">
+      <header class="telemetry-header staff-header">
+        <div>
+          <h2 class="telemetry-title">Station staff</h2>
+          <p class="telemetry-subtitle">Event staff can scan at every station of this event.</p>
+        </div>
+      </header>
+
+      <div class="staff-card-content">
+        @if (canManage()) {
+          <div class="add-staff-bar">
+            <div class="input-wrapper">
+              <input
+                #staffEmailInput
+                type="email"
+                class="form-input"
+                placeholder="Enter user email (e.g. staff@dlsud.edu.ph)"
+                aria-label="Staff email"
+                (keydown.enter)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+              />
+            </div>
+            <button
+              type="button"
+              class="btn-add-staff"
+              [disabled]="addingStaff()"
+              (click)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+            >
+              {{ addingStaff() ? 'Adding...' : '+ Add staff' }}
+            </button>
+          </div>
+        }
+
+        @if (staffError()) {
+          <div class="staff-error-banner" role="alert"><span>{{ staffError() }}</span></div>
+        }
+
+        <div class="staff-table-wrapper">
+          @if (staffLoading()) {
+            <div class="staff-loading">Loading event staff roster...</div>
+          } @else if (staffList().length === 0) {
+            <div class="staff-empty">
+              <p>No staff assigned yet. Organizers can scan at every station automatically.</p>
+            </div>
+          } @else {
+            <table class="stream-table">
+              <thead>
+                <tr>
+                  <th scope="col">NAME</th>
+                  <th scope="col">EMAIL</th>
+                  <th scope="col">AFFILIATION</th>
+                  <th scope="col">ASSIGNED</th>
+                  @if (canManage()) {
+                    <th scope="col">ACTIONS</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (member of staffList(); track member.id) {
+                  <tr class="stream-row">
+                    <td><strong class="attendee-name">{{ member.fullName }}</strong></td>
+                    <td><span class="member-email">{{ member.email }}</span></td>
+                    <td><span class="member-org">{{ member.affiliation || 'Staff Member' }}</span></td>
+                    <td><span class="time-text">{{ member.assignedAt | date: 'MMM d, y' }}</span></td>
+                    @if (canManage()) {
+                      <td>
+                        <button type="button" class="btn-remove-staff" (click)="removeStaffMember(member.userId)">
+                          Remove
+                        </button>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+    </article>
+  }
+</div>

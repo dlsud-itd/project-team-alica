@@ -672,6 +672,50 @@ describe('EventsService', () => {
       expect(checkpoints[1].parentId).toBe('chk-booth-1');
     });
 
+    it('lists scans with station/status filters and a capped limit', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent({ staff: [] }));
+      prisma.attendanceLog.findMany.mockResolvedValue([
+        {
+          id: 'log-1',
+          ticketCode: 'CHK-1',
+          checkpointId: 'chk-booth-1',
+          scannedAt: new Date('2026-09-24T08:00:00Z'),
+          scanResult: 'DUPLICATE',
+          checkpoint: { name: 'AWS Booth' },
+          ticket: { firstName: 'Alex', lastName: 'Martin', affiliation: null },
+        },
+      ]);
+
+      const scans = await service.listScans(dynamicOrganizer, 'evt-1', {
+        checkpointId: 'chk-booth-1',
+        status: 'DUPLICATE',
+        limit: 9999,
+      });
+
+      expect(prisma.attendanceLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            checkpoint: { eventId: 'evt-1' },
+            checkpointId: 'chk-booth-1',
+            scanResult: 'DUPLICATE',
+          },
+          take: 500,
+        }),
+      );
+      expect(scans[0]).toMatchObject({
+        stationId: 'chk-booth-1',
+        stationName: 'AWS Booth',
+        attendeeName: 'Alex Martin',
+        statusLabel: 'Duplicate',
+      });
+
+      await service.listScans(dynamicOrganizer, 'evt-1', { status: 'BOGUS' });
+      expect(prisma.attendanceLog.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({ where: { checkpoint: { eventId: 'evt-1' } }, take: 100 }),
+      );
+      await expect(service.listScans(unrelatedUser, 'evt-1')).rejects.toThrow(ForbiddenException);
+    });
+
     it('allows assigned USER-role staff and rejects unrelated USERs', async () => {
       prisma.event.findFirst.mockResolvedValue(
         dbEvent({ staff: [{ userId: 'usr-staff', isActive: true }] }),

@@ -8,6 +8,7 @@ import { StaffCheckpoint } from './scanner.models';
 export interface CreateSubBoothPayload {
   name: string;
   location?: string;
+  allowMultipleScans?: boolean;
 }
 
 export interface CreateCheckpointPayload {
@@ -18,6 +19,8 @@ export interface CreateCheckpointPayload {
   allowMultipleScans?: boolean;
   requireMainEntry?: boolean;
 }
+
+export type UpdateCheckpointPayload = Partial<Omit<CreateCheckpointPayload, 'eventId'>>;
 
 @Injectable({ providedIn: 'root' })
 export class SubBoothApi {
@@ -50,6 +53,17 @@ export class SubBoothApi {
       .post<{ success: boolean; data: StaffCheckpoint }>(`${this.apiUrl}/checkpoints`, payload, {
         headers: this.buildHeaders(),
       })
+      .pipe(map((res) => res.data));
+  }
+
+  /** Edit a station's name, location, type or scan settings. */
+  update(checkpointId: string, payload: UpdateCheckpointPayload): Observable<StaffCheckpoint> {
+    return this.http
+      .patch<{ success: boolean; data: StaffCheckpoint }>(
+        `${this.apiUrl}/checkpoints/${checkpointId}`,
+        payload,
+        { headers: this.buildHeaders() },
+      )
       .pipe(map((res) => res.data));
   }
 

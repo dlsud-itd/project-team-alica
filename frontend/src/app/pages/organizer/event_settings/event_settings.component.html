@@ -199,19 +199,22 @@
       </div>
     </section>
 
-    <!-- 3. Schedule Timeline -->
+    <!-- 3. Program schedule (separate from stations; items may link to one) -->
     <section class="settings-card" aria-labelledby="schedule-heading">
       <header class="card-header">
         <div>
-          <h2 id="schedule-heading" class="card-title">Schedule Timeline</h2>
-          <p class="card-subtitle">Configure session tracks, keynotes, and activities displayed on the attendee event page.</p>
+          <h2 id="schedule-heading" class="card-title">Program Schedule</h2>
+          <p class="card-subtitle">
+            The agenda shown on the public event page. Scan points (gates, sessions, booths) are managed in the
+            Stations tab; a program item can optionally link to one.
+          </p>
         </div>
         <button type="button" class="btn-primary btn-sm" (click)="openAddScheduleItem()">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          <span>Add Session</span>
+          <span>Add Program Item</span>
         </button>
       </header>
 
@@ -222,10 +225,10 @@
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            <p class="empty-title">No schedule sessions added yet</p>
-            <p class="empty-subtitle">Add sessions like Keynote, Breakouts, or Workshops to structure your event's agenda.</p>
+            <p class="empty-title">No program items yet</p>
+            <p class="empty-subtitle">Add keynotes, talks, workshops or breaks to show attendees the event's agenda.</p>
             <button type="button" class="btn-secondary btn-sm" (click)="openAddScheduleItem()">
-              + Add First Session
+              + Add First Item
             </button>
           </div>
         } @else {
@@ -238,7 +241,7 @@
                 <div class="schedule-item-content">
                   <div class="schedule-item-header">
                     <h3 class="schedule-item-title">{{ item.title }}</h3>
-                    <span class="session-type-pill" [attr.data-type]="item.type">{{ item.type }}</span>
+                    <span class="session-type-pill" [attr.data-type]="item.type">{{ programTypeLabels[item.type] || item.type }}</span>
                   </div>
                   @if (item.location) {
                     <p class="schedule-item-location">
@@ -251,6 +254,11 @@
                   }
                   @if (item.description) {
                     <p class="schedule-item-desc">{{ item.description }}</p>
+                  }
+                  @if (item.checkpointId) {
+                    <p class="schedule-item-location">
+                      Scanned at: {{ stationName(item.checkpointId) || 'a removed station' }}
+                    </p>
                   }
                 </div>
                 <div class="schedule-item-actions">
@@ -479,7 +487,7 @@
       <header class="dialog-header">
         <div>
           <h2 id="dialog-schedule-title">
-            {{ editingScheduleIndex() !== null ? 'Edit Schedule Session' : 'Add Schedule Session' }}
+            {{ editingScheduleIndex() !== null ? 'Edit Program Item' : 'Add Program Item' }}
           </h2>
           <p class="dialog-subtitle">Set the timing, title, and session format for this agenda entry.</p>
         </div>
@@ -512,19 +520,16 @@
             </div>
 
             <div class="form-group">
-              <label for="sched-type">Session Type *</label>
+              <label for="sched-type">Type *</label>
               <select id="sched-type" class="form-control" formControlName="type">
-                <option value="KEYNOTE">Keynote</option>
-                <option value="SESSION">Session / Talk</option>
-                <option value="WORKSHOP">Workshop</option>
-                <option value="PANEL">Panel Discussion</option>
-                <option value="BOOTH">Booth Activity</option>
-                <option value="GATE">Gate / Check-in</option>
+                @for (t of programTypeOptions(); track t) {
+                  <option [value]="t">{{ programTypeLabels[t] || t }}</option>
+                }
               </select>
             </div>
 
             <div class="form-group span-full">
-              <label for="sched-title">Session Title *</label>
+              <label for="sched-title">Title *</label>
               <input
                 id="sched-title"
                 type="text"
@@ -545,6 +550,15 @@
               />
             </div>
 
+            <div class="form-group span-full">
+              <label for="sched-station">Scan point (optional)</label>
+              <select id="sched-station" class="form-control" formControlName="checkpointId">
+                <option value="">None</option>
+                @for (opt of stationOptions(); track opt.id) {
+                  <option [value]="opt.id">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
             <div class="form-group span-full">
               <label for="sched-desc">Description</label>
               <textarea
@@ -567,7 +581,7 @@
           (click)="saveScheduleItem()"
           [disabled]="scheduleItemForm.invalid"
         >
-          {{ editingScheduleIndex() !== null ? 'Save Changes' : 'Add Session' }}
+          {{ editingScheduleIndex() !== null ? 'Save Changes' : 'Add Item' }}
         </button>
       </footer>
     </section>

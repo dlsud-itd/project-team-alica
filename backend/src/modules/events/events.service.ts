@@ -121,8 +121,18 @@ export interface EventScheduleItemDto {
   time: string;
   title: string;
   description: string;
-  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BOOTH' | 'GATE';
+  /** BOOTH and GATE are legacy values kept so older saved programs still load. */
+  type:
+    | 'KEYNOTE'
+    | 'SESSION'
+    | 'WORKSHOP'
+    | 'PANEL'
+    | 'BREAK'
+    | 'OTHER'
+    | 'BOOTH'
+    | 'GATE';
   location?: string;
+  /** Optional station (checkpoint) where attendance for this item is scanned. */
   checkpointId?: string;
 }
 
@@ -213,6 +223,7 @@ export interface RecentScanItemDto {
   attendeeName: string;
   affiliation: string;
   ticketCode: string;
+  stationId: string;
   stationName: string;
   scannedAt: string;
   status: string;
@@ -1318,61 +1329,9 @@ export class EventsService {
       ];
     }
 
-    // Default timeline derived from checkpoints or standard blocks
-    if (ev.checkpoints && ev.checkpoints.length > 0) {
-      return ev.checkpoints.map((cp, idx) => {
-        const hours = 9 + idx * 2;
-        const time = `${hours.toString().padStart(2, '0')}:00 AM`;
-        const type: EventScheduleItemDto['type'] =
-          cp.type === 'MAIN_ENTRY'
-            ? 'GATE'
-            : cp.type === 'SESSION'
-              ? 'SESSION'
-              : 'BOOTH';
-        return {
-          id: `sch-dyn-${cp.id}`,
-          time,
-          title: cp.name,
-          description: cp.location
-            ? `Checkpoint session at ${cp.location}`
-            : 'Scheduled event activity and checkpoint verification',
-          type,
-          location: cp.location ?? undefined,
-          checkpointId: cp.id,
-        };
-      });
-    }
-
-    return [
-      {
-        id: 'sch-def-1',
-        time: '09:00 AM',
-        title: 'Gate Check-in & Registration',
-        description: 'Badge issuance and entry credential verification',
-        type: 'GATE',
-      },
-      {
-        id: 'sch-def-2',
-        time: '10:30 AM',
-        title: 'Opening Plenary & Welcome Keynote',
-        description: 'Welcome address, event overview, and program kickoff',
-        type: 'KEYNOTE',
-      },
-      {
-        id: 'sch-def-3',
-        time: '01:30 PM',
-        title: 'Breakout Sessions & Showcase',
-        description: 'Interactive workshops, partner booths, and exhibits',
-        type: 'WORKSHOP',
-      },
-      {
-        id: 'sch-def-4',
-        time: '04:00 PM',
-        title: 'Closing Remarks & Certification',
-        description: 'Event wrap-up and certificate eligibility claiming',
-        type: 'PANEL',
-      },
-    ];
+    // Events without a saved program show none. The program is separate from
+    // stations: it is never derived from checkpoints.
+    return [];
   }
 
   private buildFeaturedSpeakers(ev: { slug: string; organizer?: { fullName: string; affiliation: string | null } }): EventSpeakerDto[] {
@@ -2350,25 +2309,9 @@ export class EventsService {
       percentage: Math.round((c._count.attendanceLogs / maxStationScans) * 100),
     }));
 
-    const recentScans: RecentScanItemDto[] = recentLogs.map((log) => ({
-      id: log.id,
-      attendeeName: log.ticket
-        ? `${log.ticket.firstName} ${log.ticket.lastName}`.trim()
-        : 'Guest Attendee',
-      affiliation: log.ticket?.affiliation || 'General Attendee',
-      ticketCode: log.ticketCode,
-      stationName: log.checkpoint.name,
-      scannedAt: log.scannedAt.toISOString(),
-      status: log.scanResult,
-      statusLabel:
-        log.scanResult === 'SUCCESS'
-          ? 'Checked In'
-          : log.scanResult === 'DUPLICATE'
-            ? 'Duplicate'
-            : log.scanResult === 'WARNING_NO_MAIN_ENTRY'
-              ? 'Warning: No Main Entry'
-              : 'Invalid Ticket',
-    }));
+    const recentScans: RecentScanItemDto[] = recentLogs.map((log) =>
+      this.toRecentScanItem(log),
+    );
 
     const attendanceRate =
       totalRsvps > 0 ? Math.round((checkedInAttendees / totalRsvps) * 100) : 0;
@@ -2416,6 +2359,69 @@ export class EventsService {
       recentScans,
       organizers: await this.getOrganizers(user, eventId),
     };
+  }
+
+  private toRecentScanItem(log: {
+    id: string;
+    ticketCode: string;
+    scannedAt: Date;
+    scanResult: string;
+    checkpointId: string;
+    checkpoint: { name: string };
+    ticket: { firstName: string; lastName: string; affiliation: string | null } | null;
+  }): RecentScanItemDto {
+    return {
+      id: log.id,
+      attendeeName: log.ticket
+        ? `${log.ticket.firstName} ${log.ticket.lastName}`.trim()
+        : 'Guest Attendee',
+      affiliation: log.ticket?.affiliation || 'General Attendee',
+      ticketCode: log.ticketCode,
+      stationId: log.checkpointId,
+      stationName: log.checkpoint.name,
+      scannedAt: log.scannedAt.toISOString(),
+      status: log.scanResult,
+      statusLabel:
+        log.scanResult === 'SUCCESS'
+          ? 'Checked In'
+          : log.scanResult === 'DUPLICATE'
+            ? 'Duplicate'
+            : log.scanResult === 'WARNING_NO_MAIN_ENTRY'
+              ? 'Warning: No Main Entry'
+              : 'Invalid Ticket',
+    };
+  }
+
+  /**
+   * Scan log for the organizer Stream tab, newest first. Optional filters by
+   * station and scan result; limit defaults to 100 (max 500).
+   */
+  async listScans(
+    user: UserSummaryDto,
+    eventId: string,
+    filters: { checkpointId?: string; status?: string; limit?: number } = {},
+  ): Promise<RecentScanItemDto[]> {
+    await this.findAccessibleEvent(user, eventId);
+
+    const validStatuses = ['SUCCESS', 'DUPLICATE', 'WARNING_NO_MAIN_ENTRY', 'INVALID_TICKET'];
+    const status = filters.status && validStatuses.includes(filters.status)
+      ? (filters.status as 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET')
+      : undefined;
+    const rawLimit = Number(filters.limit);
+    const take = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 500) : 100;
+
+    const logs = await this.prisma.attendanceLog.findMany({
+      where: {
+        checkpoint: { eventId },
+        ...(filters.checkpointId ? { checkpointId: filters.checkpointId } : {}),
+        ...(status ? { scanResult: status } : {}),
+      },
+      include: { checkpoint: true, ticket: true },
+      orderBy: { scannedAt: 'desc' },
+      take,
+    });
+
+    return logs.map((log) => this.toRecentScanItem(log));
   }
 
   async getEventCheckpoints(

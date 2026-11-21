@@ -844,3 +844,36 @@
   font-size: 12px;
   color: var(--color-charcoal-dark, #1a1a1a);
 }
+
+a.btn-add-booth,
+a.btn-export-csv {
+  text-decoration: none;
+}
+
+.latest-scans {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.latest-scan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border-light, #e2e5e9);
+
+  &:first-child {
+    border-top: 0;
+  }
+}
+
+.latest-scan-who {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  min-width: 0;
+}

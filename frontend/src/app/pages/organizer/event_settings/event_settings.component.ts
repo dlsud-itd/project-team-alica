@@ -6,6 +6,21 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { EventOrganizer, EventScheduleItem, OrganizerEvent } from '../../../core/organizer/organizer.models';
+import { StaffCheckpoint } from '../../../core/staff/scanner.models';
+import { SubBoothApi } from '../../../core/staff/sub-booth-api';
+
+/** Program item types. BOOTH and GATE are legacy (stations now live in the Stations tab). */
+export const PROGRAM_TYPE_LABELS: Record<string, string> = {
+  KEYNOTE: 'Keynote',
+  SESSION: 'Session / Talk',
+  WORKSHOP: 'Workshop',
+  PANEL: 'Panel discussion',
+  BREAK: 'Break / Meal',
+  OTHER: 'Other',
+  BOOTH: 'Booth activity (legacy)',
+  GATE: 'Gate / Check-in (legacy)',
+};
+const PROGRAM_TYPES = ['KEYNOTE', 'SESSION', 'WORKSHOP', 'PANEL', 'BREAK', 'OTHER'];
 
 function toDateTimeLocalInput(isoString: string): string {
   if (!isoString) return '';
@@ -30,6 +45,7 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly organizerEvents = inject(OrganizerEventsService);
+  private readonly stationsApi = inject(SubBoothApi);
   readonly auth = inject(AuthService);
 
   readonly eventId = signal('');
@@ -43,6 +59,22 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
 
   // Schedule state
   readonly scheduleItems = signal<EventScheduleItem[]>([]);
+  /** Stations an item may optionally link to (where its attendance is scanned). */
+  readonly stations = signal<StaffCheckpoint[]>([]);
+  readonly programTypeLabels = PROGRAM_TYPE_LABELS;
+  /** Type options for the open form; a legacy type stays selectable on items that already use it. */
+  readonly programTypeOptions = signal<string[]>(PROGRAM_TYPES);
+  readonly stationOptions = computed(() => {
+    const list = this.stations();
+    const ids = new Set(list.map((c) => c.id));
+    const roots = list.filter((c) => !c.parentId || !ids.has(c.parentId));
+    return roots.flatMap((root) => [
+      { id: root.id, label: root.name },
+      ...list
+        .filter((c) => c.parentId === root.id)
+        .map((c) => ({ id: c.id, label: '↳ ' + c.name })),
+    ]);
+  });
   readonly scheduleFormOpen = signal(false);
   readonly editingScheduleIndex = signal<number | null>(null);
   readonly scheduleError = signal('');
@@ -105,7 +137,20 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
     type: new FormControl('SESSION', { nonNullable: true, validators: [Validators.required] }),
     location: new FormControl('', { nonNullable: true }),
     description: new FormControl('', { nonNullable: true }),
+    checkpointId: new FormControl('', { nonNullable: true }),
   });
+
+  stationName(id: string | undefined): string | null {
+    if (!id) return null;
+    return this.stations().find((c) => c.id === id)?.name ?? null;
+  }
+
+  private loadStations(eventId: string): void {
+    this.stationsApi.listByEvent(eventId).subscribe({
+      next: (list) => this.stations.set(list),
+      error: () => undefined,
+    });
+  }
 
   ngOnInit(): void {
     const parent = this.route.parent;
@@ -116,6 +161,7 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
           this.eventId.set(id);
           this.syncEventData();
           this.loadOrganizers(id);
+          this.loadStations(id);
         }
       });
     } else {
@@ -124,6 +170,7 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
         this.eventId.set(id);
         this.syncEventData();
         this.loadOrganizers(id);
+        this.loadStations(id);
       }
     }
   }
@@ -206,7 +253,9 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
       type: 'SESSION',
       location: '',
       description: '',
+      checkpointId: '',
     });
+    this.programTypeOptions.set(PROGRAM_TYPES);
     this.scheduleError.set('');
     this.scheduleFormOpen.set(true);
   }
@@ -222,7 +271,11 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
       type: item.type,
       location: item.location ?? '',
       description: item.description ?? '',
+      checkpointId: item.checkpointId ?? '',
     });
+    this.programTypeOptions.set(
+      PROGRAM_TYPES.includes(item.type) ? PROGRAM_TYPES : [...PROGRAM_TYPES, item.type],
+    );
     this.scheduleError.set('');
     this.scheduleFormOpen.set(true);
   }
@@ -235,7 +288,7 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
 
   saveScheduleItem(): void {
     if (this.scheduleItemForm.invalid) {
-      this.scheduleError.set('Please fill in both Time and Title for the session.');
+      this.scheduleError.set('Please fill in both Time and Title for this program item.');
       return;
     }
     const val = this.scheduleItemForm.getRawValue();
@@ -250,6 +303,7 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
       type: val.type,
       location: val.location.trim() || undefined,
       description: val.description.trim(),
+      ...(val.checkpointId ? { checkpointId: val.checkpointId } : {}),
     };
 
     const updated = [...this.scheduleItems()];

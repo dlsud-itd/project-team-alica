@@ -1,15 +1,23 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription, interval } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
-import { EventLiveOverview, EventStaff, HourlyFlowPoint } from '../../../core/organizer/organizer.models';
-import { CheckpointType, StaffCheckpoint } from '../../../core/staff/scanner.models';
+import { EventLiveOverview } from '../../../core/organizer/organizer.models';
+import { StaffCheckpoint } from '../../../core/staff/scanner.models';
 import { SubBoothApi } from '../../../core/staff/sub-booth-api';
 
+/** How many recent scans the overview previews; the Stream tab has the full log. */
+const RECENT_PREVIEW = 5;
+
+/**
+ * Read-only event summary: KPIs, arrival flow, station traffic and a short
+ * preview of recent scans. Station CRUD lives in the Stations tab and the
+ * full scan log in the Stream tab.
+ */
 @Component({
-  imports: [DatePipe, DecimalPipe],
+  imports: [DatePipe, DecimalPipe, RouterLink],
   selector: 'app-event-overview',
   styleUrl: './event-overview.component.scss',
   templateUrl: './event-overview.component.html',
@@ -18,46 +26,16 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly organizerEvents = inject(OrganizerEventsService);
-  private readonly subBoothApi = inject(SubBoothApi);
+  private readonly stationsApi = inject(SubBoothApi);
 
   readonly eventId = signal<string>('');
   readonly overview = signal<EventLiveOverview | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
-  readonly exporting = signal(false);
-
-  // Sub-booth state
   readonly checkpoints = signal<StaffCheckpoint[]>([]);
-  readonly addingFor = signal<string | null>(null);
-  readonly subName = signal('');
-  readonly subLocation = signal('');
-  readonly savingSub = signal(false);
-  readonly subError = signal('');
-
-  // New top-level booth / gate state
-  readonly boothTypes: { value: CheckpointType; label: string }[] = [
-    { value: 'BOOTH', label: 'Booth' },
-    { value: 'SESSION', label: 'Session' },
-    { value: 'MAIN_ENTRY', label: 'Main entry gate' },
-    { value: 'EXIT', label: 'Exit gate' },
-  ];
-  readonly addingBooth = signal(false);
-  readonly boothName = signal('');
-  readonly boothLocation = signal('');
-  readonly boothType = signal<CheckpointType>('BOOTH');
-  readonly boothRequireMainEntry = signal(false);
-  readonly savingBooth = signal(false);
-  readonly boothError = signal('');
-
-  // Staff Management
-  readonly staffList = signal<EventStaff[]>([]);
-  readonly staffLoading = signal(false);
-  readonly staffError = signal('');
-  readonly addingStaff = signal(false);
 
   private pollSub?: Subscription;
 
-  // KPIs
   readonly kpis = computed(() => this.overview()?.kpis ?? {
     totalRsvps: 0,
     checkedInAttendees: 0,
@@ -68,26 +46,16 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     totalVerifiedScans: 0,
   });
 
-  // Flow rate points
   readonly hourlyFlow = computed(() => this.overview()?.hourlyFlow ?? []);
-
-  // Station breakdown
   readonly stationTraffic = computed(() => this.overview()?.stationTraffic ?? []);
+  readonly recentScans = computed(() => this.overview()?.recentScans ?? []);
+  readonly recentPreview = computed(() => this.recentScans().slice(0, RECENT_PREVIEW));
 
-  // Ids of top-level booths (only these can receive sub-booths)
-  readonly boothIds = computed(
-    () =>
-      new Set(
-        this.checkpoints()
-          .filter((c) => c.type === 'BOOTH' && !c.parentId)
-          .map((c) => c.id),
-      ),
-  );
-
-  readonly canManageSubBooths = computed(() => {
+  /** Organizers get shortcuts to manage stations. */
+  readonly canManageStations = computed(() => {
     const user = this.auth.user();
     const organizerId = this.overview()?.organizerId;
-    if (!user) return true;
+    if (!user) return false;
     if (user.role === 'ADMIN') return true;
     if (organizerId) return organizerId === user.id;
     return user.role === 'ORGANIZER';
@@ -144,16 +112,12 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     return this.subTotals().get(stationId) ?? null;
   }
 
-  // Recent scans
-  readonly recentScans = computed(() => this.overview()?.recentScans ?? []);
+  isSubBooth(stationId: string): boolean {
+    return this.parentOf().has(stationId);
+  }
 
   // Sub-booth detail panel
   readonly selectedSubId = signal<string | null>(null);
-
-   // Remove booth / sub-booth (soft delete)
-  readonly removingId = signal<string | null>(null);
-  readonly isRemoving = signal(false);
-  readonly removeError = signal('');
 
   readonly selectedSub = computed(() => {
     const id = this.selectedSubId();
@@ -167,7 +131,9 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     const parentName =
       parentStation?.name ?? this.checkpoints().find((c) => c.id === parentId)?.name ?? 'Booth';
     const parentScans = parentStation?.scans ?? 0;
-    const scans = this.recentScans().filter((scan) => scan.stationName === station.name);
+    const scans = this.recentScans().filter((scan) =>
+      scan.stationId ? scan.stationId === station.id : scan.stationName === station.name,
+    );
     const totalWithParent = parentScans + station.scans;
 
     return {
@@ -185,45 +151,6 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
 
   closeSubDetail(): void {
     this.selectedSubId.set(null);
-  }
-
-    canRemoveStation(stationId: string): boolean {
-    return (
-      this.canManageSubBooths() &&
-      (this.boothIds().has(stationId) || this.isSubBooth(stationId))
-    );
-  }
-
-  openRemove(stationId: string): void {
-    this.removingId.set(stationId);
-    this.removeError.set('');
-  }
-
-  cancelRemove(): void {
-    this.removingId.set(null);
-    this.removeError.set('');
-  }
-
-  confirmRemove(): void {
-    const id = this.removingId();
-    if (!id || this.isRemoving()) return;
-
-    this.isRemoving.set(true);
-    this.removeError.set('');
-
-    this.subBoothApi.remove(id).subscribe({
-      next: () => {
-        this.isRemoving.set(false);
-        this.removingId.set(null);
-        if (this.selectedSubId() === id) this.closeSubDetail();
-        this.loadCheckpoints();
-        this.fetchOverview(true);
-      },
-      error: (err: { error?: { message?: string } }) => {
-        this.isRemoving.set(false);
-        this.removeError.set(err.error?.message || 'Could not remove this station.');
-      },
-    });
   }
 
   // SVG Chart calculation
@@ -259,18 +186,14 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    const parent = this.route.parent;
-    if (parent) {
-      parent.paramMap.subscribe((params) => {
-        const id = params.get('eventId') ?? '';
-        if (id) {
-          this.eventId.set(id);
-          this.fetchOverview();
-          this.loadCheckpoints();
-          this.loadStaff(id);
-        }
-      });
-    }
+    this.route.parent?.paramMap.subscribe((params) => {
+      const id = params.get('eventId') ?? '';
+      if (id) {
+        this.eventId.set(id);
+        this.fetchOverview();
+        this.loadCheckpoints();
+      }
+    });
 
     // Gentle 15-second visibility-aware polling
     this.pollSub = interval(15000).subscribe(() => {
@@ -308,194 +231,13 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ---- Top-level booths ----
-
-  openBoothForm(): void {
-    this.addingBooth.set(true);
-    this.boothName.set('');
-    this.boothLocation.set('');
-    this.boothType.set('BOOTH');
-    this.boothRequireMainEntry.set(false);
-    this.boothError.set('');
-  }
-
-  cancelBooth(): void {
-    this.addingBooth.set(false);
-    this.boothError.set('');
-  }
-
-  submitBooth(event: Event): void {
-    event.preventDefault();
-
-    const eventId = this.eventId();
-    const name = this.boothName().trim();
-    if (!eventId || this.savingBooth()) return;
-
-    if (!name) {
-      this.boothError.set('Please enter a name.');
-      return;
-    }
-
-    const type = this.boothType();
-    this.savingBooth.set(true);
-    this.boothError.set('');
-
-    this.subBoothApi
-      .createCheckpoint({
-        eventId,
-        name,
-        type,
-        location: this.boothLocation().trim() || undefined,
-        requireMainEntry: type === 'MAIN_ENTRY' ? false : this.boothRequireMainEntry(),
-      })
-      .subscribe({
-        next: () => {
-          this.savingBooth.set(false);
-          this.addingBooth.set(false);
-          this.loadCheckpoints();
-          this.fetchOverview(true);
-        },
-        error: (err: { error?: { message?: string } }) => {
-          this.savingBooth.set(false);
-          this.boothError.set(err.error?.message || 'Could not add the booth.');
-        },
-      });
-  }
-
-  // ---- Sub-booths ----
-
   private loadCheckpoints(): void {
     const id = this.eventId();
     if (!id) return;
 
-    this.subBoothApi.listByEvent(id).subscribe({
-      next: (list) => {
-        this.checkpoints.set(list);
-      },
+    this.stationsApi.listByEvent(id).subscribe({
+      next: (list) => this.checkpoints.set(list),
       error: () => undefined,
     });
   }
-
-  canAddSubBooth(stationId: string): boolean {
-    return this.canManageSubBooths() && this.boothIds().has(stationId);
-  }
-
-  isSubBooth(stationId: string): boolean {
-    return this.parentOf().has(stationId);
-  }
-
-  openSubBoothForm(stationId: string): void {
-    this.addingFor.set(stationId);
-    this.subName.set('');
-    this.subLocation.set('');
-    this.subError.set('');
-  }
-
-  cancelSubBooth(): void {
-    this.addingFor.set(null);
-    this.subName.set('');
-    this.subLocation.set('');
-    this.subError.set('');
-  }
-
-  submitSubBooth(event: Event): void {
-    event.preventDefault();
-
-    const parentId = this.addingFor();
-    const name = this.subName().trim();
-    if (!parentId || this.savingSub()) return;
-
-    if (!name) {
-      this.subError.set('Please enter a sub-booth name.');
-      return;
-    }
-
-    this.savingSub.set(true);
-    this.subError.set('');
-
-    this.subBoothApi
-      .create(parentId, { name, location: this.subLocation().trim() || undefined })
-      .subscribe({
-        next: () => {
-          this.savingSub.set(false);
-          this.cancelSubBooth();
-          this.loadCheckpoints();
-          this.fetchOverview(true);
-        },
-        error: (err: { error?: { message?: string } }) => {
-          this.savingSub.set(false);
-          this.subError.set(err.error?.message || 'Could not add the sub-booth.');
-        },
-      });
-  }
-
-  exportCsv(): void {
-    const id = this.eventId();
-    if (!id || this.exporting()) return;
-
-    this.exporting.set(true);
-    this.organizerEvents.exportScansCsv(id).subscribe({
-      next: (csvData) => {
-        this.exporting.set(false);
-        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.setAttribute('href', url);
-        link.setAttribute('download', `checkin-stream-${id}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      },
-      error: () => {
-        this.exporting.set(false);
-      },
-    });
-  }
-
-  loadStaff(id: string): void {
-    this.staffLoading.set(true);
-    this.organizerEvents.loadStaff(id).subscribe({
-      next: (list) => {
-        this.staffList.set(list);
-        this.staffLoading.set(false);
-      },
-      error: () => {
-        this.staffLoading.set(false);
-      },
-    });
-  }
-
-  addStaffMember(email: string): void {
-    const cleanEmail = email?.trim();
-    const id = this.eventId();
-    if (!cleanEmail || !id) return;
-
-    this.addingStaff.set(true);
-    this.staffError.set('');
-    this.organizerEvents.addStaff(id, cleanEmail).subscribe({
-      next: () => {
-        this.addingStaff.set(false);
-        this.loadStaff(id);
-      },
-      error: (err) => {
-        this.addingStaff.set(false);
-        this.staffError.set(err?.error?.message || 'Failed to add staff member.');
-      },
-    });
-  }
-
-  removeStaffMember(userId: string): void {
-    const id = this.eventId();
-    if (!userId || !id) return;
-
-    this.organizerEvents.removeStaff(id, userId).subscribe({
-      next: () => {
-        this.loadStaff(id);
-      },
-      error: () => undefined,
-    });
-  }
-
-
 }

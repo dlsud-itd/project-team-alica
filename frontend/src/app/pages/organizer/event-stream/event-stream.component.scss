@@ -1,0 +1,29 @@
+.stream-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.stream-filter {
+  display: flex;
+  flex: 0 1 220px;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-charcoal-dark, #1a1a1a);
+}
+
+.stream-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-slate-medium, #6b6b6b);
+}
+
+.stream-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import {
   ScanRequestBodyDto,
   StaffCheckpointDto,
   StationDetailsDto,
+  UpdateCheckpointDto,
 } from './checkpoints.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -121,6 +123,16 @@ export class CheckpointsController {
       success: true,
       data,
     };
+  }
+
+  @Patch(':boothId')
+  async updateCheckpoint(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('boothId') boothId: string,
+    @Body() dto: UpdateCheckpointDto,
+  ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
+    const data = await this.checkpointsService.updateCheckpoint(user, boothId, dto);
+    return { success: true, data };
   }
 
   @Delete(':boothId')

@@ -162,8 +162,6 @@ describe('EventOverviewComponent', () => {
 
   it('should group sub-booths under parent booth, compute sub-totals, and open detail card', () => {
     expect(subBoothApiMock.listByEvent).toHaveBeenCalledWith('evt-devcon-manila-2026');
-    expect(component.canAddSubBooth('chk-booth-1')).toBe(true);
-    expect(component.canAddSubBooth('chk-gate-1')).toBe(false);
     expect(component.isSubBooth('chk-sub-1')).toBe(true);
     expect(component.subTotalFor('chk-booth-1')).toEqual({ scans: 1, count: 1 });
 
@@ -182,75 +180,26 @@ describe('EventOverviewComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('SUB-BOOTH: AWS Demo Station');
   });
 
-  it('should hide + Sub-booth for non-organizer staff users and allow creating sub-booth for organizer', () => {
-    userSignal.set({
-      id: 'usr-staff',
-      email: 'staff@checkpoint.ph',
-      fullName: 'Staff User',
-      role: 'USER',
-    });
-    fixture.detectChanges();
-    expect(component.canAddSubBooth('chk-booth-1')).toBe(false);
-
-    userSignal.set({
-      id: 'usr-org',
-      email: 'organizer@alica.ph',
-      fullName: 'Campus Organizer',
-      role: 'USER',
-    });
-    fixture.detectChanges();
-    expect(component.canAddSubBooth('chk-booth-1')).toBe(true);
-
-    component.openSubBoothForm('chk-booth-1');
-    component.subName.set('AWS Workshop Desk');
-    component.submitSubBooth(new Event('submit'));
-    expect(subBoothApiMock.create).toHaveBeenCalledWith('chk-booth-1', {
-      name: 'AWS Workshop Desk',
-      location: undefined,
-    });
-  });
-
-  it('should show + Add booth for organizers and create a top-level booth', () => {
+  it('is read-only: links to the Stations tab for organizers only', () => {
     const el = fixture.nativeElement as HTMLElement;
-    const addBtn = el.querySelector<HTMLButtonElement>('.btn-add-booth');
-    expect(addBtn).toBeTruthy();
+    expect(el.querySelector('a[href$="/stations"]')).toBeTruthy();
+    expect(el.querySelector('.btn-remove-booth')).toBeNull();
+    expect(el.querySelector('form')).toBeNull();
 
-    addBtn!.click();
-    fixture.detectChanges();
-    expect(el.querySelector('.booth-form')).toBeTruthy();
-
-    component.submitBooth(new Event('submit'));
-    expect(component.boothError()).toBe('Please enter a name.');
-    expect(subBoothApiMock.createCheckpoint).not.toHaveBeenCalled();
-
-    component.boothName.set('  Google Cloud Booth ');
-    component.boothLocation.set('Hall B');
-    component.boothRequireMainEntry.set(true);
-    component.submitBooth(new Event('submit'));
-    expect(subBoothApiMock.createCheckpoint).toHaveBeenCalledWith({
-      eventId: 'evt-devcon-manila-2026',
-      name: 'Google Cloud Booth',
-      type: 'BOOTH',
-      location: 'Hall B',
-      requireMainEntry: true,
-    });
-    expect(component.addingBooth()).toBe(false);
-  });
-
-  it('should never send requireMainEntry for a main entry gate', () => {
-    component.openBoothForm();
-    component.boothName.set('North Gate');
-    component.boothType.set('MAIN_ENTRY');
-    component.boothRequireMainEntry.set(true);
-    component.submitBooth(new Event('submit'));
-    expect(subBoothApiMock.createCheckpoint).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'MAIN_ENTRY', requireMainEntry: false }),
-    );
-  });
-
-  it('should hide + Add booth for non-organizer users', () => {
     userSignal.set({ id: 'usr-staff', email: 'staff@checkpoint.ph', fullName: 'Staff User', role: 'USER' });
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).querySelector('.btn-add-booth')).toBeNull();
+    expect(el.querySelector('a[href$="/stations"]')).toBeNull();
+  });
+
+  it('previews at most five latest scans and links to the Stream tab', () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({
+      ...MOCK_OVERVIEW.recentScans[0],
+      id: `log-${i}`,
+    }));
+    component.overview.set({ ...MOCK_OVERVIEW, recentScans: many });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('.latest-scan').length).toBe(5);
+    expect(el.querySelector('a[href$="/stream"]')).toBeTruthy();
   });
 });

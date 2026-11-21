@@ -15,6 +15,7 @@ import {
   OrganizerCandidate,
   OrganizerEvent,
   OrganizerEventChanges,
+  RecentScanItem,
   RecordScanResponse,
   UUID,
 } from './organizer.models';
@@ -273,6 +274,20 @@ export class OrganizerEventsService {
         `${this.api}/${eventId}/checkpoints/${checkpointId}/scan`,
         body,
       )
+      .pipe(map((res) => res.data));
+  }
+
+  /** Scan log for the Stream tab, newest first. */
+  listScans(
+    eventId: UUID,
+    filters: { stationId?: string; status?: string; limit?: number } = {},
+  ): Observable<RecentScanItem[]> {
+    const params: Record<string, string> = {};
+    if (filters.stationId) params['stationId'] = filters.stationId;
+    if (filters.status) params['status'] = filters.status;
+    if (filters.limit) params['limit'] = String(filters.limit);
+    return this.http
+      .get<ApiResponse<RecentScanItem[]>>(`${this.api}/${eventId}/scans`, { params })
       .pipe(map((res) => res.data));
   }
 

@@ -97,6 +97,14 @@ export class CreateCheckpointDto {
   requireMainEntry?: boolean;
 }
 
+export class UpdateCheckpointDto {
+  name?: string;
+  location?: string | null;
+  type?: StaffCheckpointDto['type'];
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+}
+
 type CheckpointWithEvent = {
   id: string;
   name: string;
@@ -394,18 +402,12 @@ export class CheckpointsService {
     if (!event) {
       throw new NotFoundException(`Event '${eventId}' not found.`);
     }
-    if (user.role !== 'ADMIN' && event.organizerId !== user.id) {
-      let isCoOrganizer = false;
-      if (this.prisma.eventOrganizer?.findFirst) {
-        const coOrg = await this.prisma.eventOrganizer.findFirst({
-          where: { eventId: event.id, userId: user.id },
-        });
-        if (coOrg) isCoOrganizer = true;
-      }
-      if (!isCoOrganizer) {
-        throw new ForbiddenException('Only organizers can add booths.');
-      }
-    }
+    await this.assertCanManageEvent(
+      user,
+      event.id,
+      event.organizerId,
+      'Only organizers can add booths.',
+    );
 
     const created = await this.prisma.checkpoint.create({
       data: {
@@ -425,6 +427,119 @@ export class CheckpointsService {
     );
 
     return this.toStaffDto(created);
+  }
+
+  /** Admins, the event owner and co-organizers may manage an event's stations. */
+  private async assertCanManageEvent(
+    user: UserSummaryDto,
+    eventId: string,
+    organizerId: string | undefined,
+    message: string,
+  ): Promise<void> {
+    if (user.role === 'ADMIN' || organizerId === user.id) return;
+    if (this.prisma.eventOrganizer?.findFirst) {
+      const coOrg = await this.prisma.eventOrganizer.findFirst({
+        where: { eventId, userId: user.id },
+      });
+      if (coOrg) return;
+    }
+    throw new ForbiddenException(message);
+  }
+
+  /**
+   * Edits a station. Sub-booths can change name, location and multi-scan;
+   * their main-entry rule always follows the parent, so changing a booth's
+   * requireMainEntry is pushed down to its sub-booths.
+   */
+  async updateCheckpoint(
+    user: UserSummaryDto,
+    checkpointId: string,
+    dto: UpdateCheckpointDto,
+  ): Promise<StaffCheckpointDto> {
+    const checkpoint = await this.prisma.checkpoint.findFirst({
+      where: { id: checkpointId, deletedAt: null },
+      include: { event: { select: { organizerId: true } } },
+    });
+    if (!checkpoint) {
+      throw new NotFoundException(`Checkpoint '${checkpointId}' not found.`);
+    }
+    await this.assertCanManageEvent(
+      user,
+      checkpoint.eventId,
+      checkpoint.event?.organizerId,
+      'Only organizers can edit stations.',
+    );
+
+    const data: {
+      name?: string;
+      location?: string | null;
+      type?: StaffCheckpointDto['type'];
+      allowMultipleScans?: boolean;
+      requireMainEntry?: boolean;
+    } = {};
+
+    if (dto.name !== undefined) {
+      const name = dto.name.trim();
+      if (!name) throw new BadRequestException('Station name is required.');
+      data.name = name;
+    }
+    if (dto.location !== undefined) {
+      data.location = dto.location?.trim() || null;
+    }
+    if (dto.allowMultipleScans !== undefined) {
+      data.allowMultipleScans = Boolean(dto.allowMultipleScans);
+    }
+
+    const isSub = checkpoint.parentId !== null;
+    if (dto.type !== undefined && dto.type !== checkpoint.type) {
+      if (!CHECKPOINT_TYPES.includes(dto.type)) {
+        throw new BadRequestException(
+          `type must be one of ${CHECKPOINT_TYPES.join(', ')}.`,
+        );
+      }
+      if (isSub) {
+        throw new BadRequestException('A sub-booth is always a booth.');
+      }
+      if (checkpoint.type === 'BOOTH') {
+        const childCount = await this.prisma.checkpoint.count({
+          where: { parentId: checkpoint.id, deletedAt: null },
+        });
+        if (childCount > 0) {
+          throw new BadRequestException(
+            'Remove this booth\'s sub-booths before changing its type.',
+          );
+        }
+      }
+      data.type = dto.type;
+    }
+
+    const finalType = data.type ?? checkpoint.type;
+    if (dto.requireMainEntry !== undefined && !isSub) {
+      data.requireMainEntry = Boolean(dto.requireMainEntry);
+    }
+    if (finalType === 'MAIN_ENTRY') {
+      data.requireMainEntry = false;
+    }
+
+    const updated = await this.prisma.checkpoint.update({
+      where: { id: checkpoint.id },
+      data,
+      include: { event: { select: { title: true } } },
+    });
+
+    if (
+      !isSub &&
+      data.requireMainEntry !== undefined &&
+      data.requireMainEntry !== checkpoint.requireMainEntry
+    ) {
+      await this.prisma.checkpoint.updateMany({
+        where: { parentId: checkpoint.id, deletedAt: null },
+        data: { requireMainEntry: data.requireMainEntry },
+      });
+    }
+
+    this.logger.log(`Checkpoint '${checkpoint.id}' updated by user '${user.id}'`);
+    return this.toStaffDto(updated);
   }
 
   async createSubBooth(

@@ -14,8 +14,10 @@ export interface EventScheduleItem {
   time: string;
   title: string;
   description: string;
-  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BOOTH' | 'GATE' | string;
+  /** BOOTH and GATE are legacy values from before the program was split from stations. */
+  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BREAK' | 'OTHER' | 'BOOTH' | 'GATE' | string;
   location?: string;
+  /** Optional station where attendance for this program item is scanned. */
   checkpointId?: string;
 }
 
@@ -77,6 +79,8 @@ export interface RecentScanItem {
   attendeeName: string;
   affiliation: string;
   ticketCode: string;
+  /** Checkpoint id (present on API responses since the Stream tab). */
+  stationId?: string;
   stationName: string;
   scannedAt: string;
   status: string;

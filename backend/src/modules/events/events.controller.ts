@@ -28,6 +28,7 @@ import {
   OrganizerCandidateDto,
   ScanResultDto,
   OrganizerEventDto,
+  RecentScanItemDto,
   ReviewEventDto,
   UpdateEventDto,
   type GuestImportFile,
@@ -298,6 +299,23 @@ export class EventsController {
       success: true,
       data,
     };
+  }
+
+  @Get(':eventId/scans')
+  @UseGuards(JwtAuthGuard)
+  async listScans(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Query('stationId') stationId?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ success: boolean; data: RecentScanItemDto[] }> {
+    const data = await this.eventsService.listScans(user, eventId, {
+      checkpointId: stationId || undefined,
+      status: status || undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+    return { success: true, data };
   }
 
   @Get(':eventId/scans/export')

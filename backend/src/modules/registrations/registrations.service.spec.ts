@@ -23,6 +23,9 @@ describe('RegistrationsService', () => {
       create: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
+    eventOrganizer: { findFirst: ReturnType<typeof vi.fn> };
+    eventStaff: { findFirst: ReturnType<typeof vi.fn> };
+    checkpointStaff: { findFirst: ReturnType<typeof vi.fn> };
   };
 
   const mockUser: UserSummaryDto = {
@@ -43,6 +46,9 @@ describe('RegistrationsService', () => {
         create: vi.fn(),
         update: vi.fn(),
       },
+      eventOrganizer: { findFirst: vi.fn().mockResolvedValue(null) },
+      eventStaff: { findFirst: vi.fn().mockResolvedValue(null) },
+      checkpointStaff: { findFirst: vi.fn().mockResolvedValue(null) },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -109,6 +115,126 @@ describe('RegistrationsService', () => {
 
     expect(res.ticketCode).toBe('CHK-2026-1234A');
     expect(res.attendeeName).toBe('Jane Doe');
+  });
+
+  it('should generate a UUID-based ticket code and use it as the QR payload', async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 'evt-1',
+      isActive: true,
+      deletedAt: null,
+      approvalStatus: 'APPROVED',
+      capacity: null,
+    });
+    prisma.ticket.findUnique.mockResolvedValue(null);
+    prisma.ticket.create.mockImplementation(({ data }) =>
+      Promise.resolve({ ...data, status: 'REGISTERED' }),
+    );
+
+    const codes = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      await service.create({
+        eventId: 'evt-1',
+        fullName: 'Jane Doe',
+        email: `jane${i}@example.com`,
+        studentId: '2023-0001',
+      });
+      const { data } = prisma.ticket.create.mock.calls[i][0];
+      expect(data.ticketCode).toMatch(
+        /^CHK-[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/,
+      );
+      expect(data.qrPayload).toBe(data.ticketCode);
+      codes.add(data.ticketCode);
+    }
+    expect(codes.size).toBe(50);
+  });
+
+  describe('findForUser', () => {
+    it('returns no QR payload when the user has no tickets', async () => {
+      prisma.ticket.findFirst.mockResolvedValue(null);
+      const res = await service.findForUser(mockUser);
+      expect(res.ticketCode).toBe('');
+      expect(res.qrPayload).toBe('');
+    });
+  });
+
+  describe('findByTicketCode', () => {
+    const ticket = {
+      id: 'tkt-1',
+      ticketCode: 'CHK-ABC',
+      qrPayload: 'CHK-ABC',
+      eventId: 'evt-1',
+      userId: 'owner-1',
+      email: 'owner@example.com',
+      firstName: 'Olive',
+      lastName: 'Owner',
+      studentId: '2023-0001',
+      createdAt: new Date('2026-11-01T00:00:00Z'),
+      event: { title: 'Tech Summit', organizerId: 'org-1' },
+    };
+    const stranger: UserSummaryDto = {
+      id: 'stranger-1',
+      email: 'stranger@example.com',
+      fullName: 'Sam Stranger',
+      role: 'ATTENDEE',
+    };
+
+    beforeEach(() => {
+      prisma.ticket.findUnique.mockResolvedValue(ticket);
+    });
+
+    it('returns the ticket to its owner', async () => {
+      const res = await service.findByTicketCode(
+        { ...stranger, id: 'owner-1', email: 'owner@example.com' },
+        'CHK-ABC',
+      );
+      expect(res.ticketCode).toBe('CHK-ABC');
+      expect(res.qrPayload).toBe('CHK-ABC');
+      expect(res.eventName).toBe('Tech Summit');
+    });
+
+    it('matches the owner by email case-insensitively', async () => {
+      const res = await service.findByTicketCode(
+        { ...stranger, email: 'OWNER@example.com' },
+        'CHK-ABC',
+      );
+      expect(res.email).toBe('owner@example.com');
+    });
+
+    it('allows admins and the event organizer', async () => {
+      await expect(
+        service.findByTicketCode({ ...stranger, role: 'ADMIN' }, 'CHK-ABC'),
+      ).resolves.toBeDefined();
+      await expect(
+        service.findByTicketCode({ ...stranger, id: 'org-1' }, 'CHK-ABC'),
+      ).resolves.toBeDefined();
+    });
+
+    it.each(['eventOrganizer', 'eventStaff', 'checkpointStaff'] as const)(
+      'allows a user found in %s for the event',
+      async (table) => {
+        prisma[table].findFirst.mockResolvedValue({ id: 'row-1' });
+        await expect(
+          service.findByTicketCode(stranger, 'CHK-ABC'),
+        ).resolves.toBeDefined();
+      },
+    );
+
+    it('rejects anyone else with ForbiddenException', async () => {
+      await expect(
+        service.findByTicketCode(stranger, 'CHK-ABC'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.eventStaff.findFirst).toHaveBeenCalledWith({
+        where: { eventId: 'evt-1', userId: 'stranger-1', isActive: true },
+        select: { id: true },
+      });
+    });
+
+    it('throws NotFoundException for an unknown code', async () => {
+      prisma.ticket.findUnique.mockResolvedValue(null);
+      await expect(
+        service.findByTicketCode(stranger, 'CHK-NOPE'),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
   it('should reject registration if email is already registered', async () => {

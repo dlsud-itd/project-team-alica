@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RegistrationsController } from './registrations.controller.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -108,10 +109,22 @@ describe('RegistrationsController', () => {
   });
 
   it('should retrieve a registration by ticket code', async () => {
-    const res = await controller.getByTicketCode('CHK-2026-9812A');
+    const res = await controller.getByTicketCode(mockUser, 'CHK-2026-9812A');
     expect(res.success).toBe(true);
     expect(res.data.ticketCode).toBe('CHK-2026-9812A');
     expect(res.data.fullName).toBe('Juan Dela Cruz');
+    expect(service.findByTicketCode).toHaveBeenCalledWith(
+      mockUser,
+      'CHK-2026-9812A',
+    );
+  });
+
+  it('should require JWT auth to look up a ticket by code', () => {
+    const guards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      RegistrationsController.prototype.getByTicketCode,
+    );
+    expect(guards).toContain(JwtAuthGuard);
   });
 
   it('should return RSVP list for current user', async () => {

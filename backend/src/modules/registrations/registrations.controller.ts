@@ -85,10 +85,12 @@ export class RegistrationsController {
   }
 
   @Get(':ticketCode')
+  @UseGuards(JwtAuthGuard)
   async getByTicketCode(
+    @CurrentUser() user: UserSummaryDto,
     @Param('ticketCode') ticketCode: string,
   ): Promise<{ success: boolean; data: TicketProfileDto }> {
-    const data = await this.service.findByTicketCode(ticketCode);
+    const data = await this.service.findByTicketCode(user, ticketCode);
     return {
       success: true,
       data,

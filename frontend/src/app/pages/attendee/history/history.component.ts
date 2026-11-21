@@ -10,6 +10,7 @@ import {
   RsvpStatus,
 } from '../../../core/attendee/attendee-rsvp.models';
 import { AttendeeRsvpService } from '../../../core/attendee/attendee-rsvp.service';
+import { TicketQrService } from '../../../core/tickets/ticket-qr.service';
 import { SubmitEvent } from './submit-event/submit-event.component';
 
 export type HistoryStatusFilter = 'ALL' | 'UPCOMING' | 'CHECKED_IN' | 'CANCELLED';
@@ -22,6 +23,7 @@ export type HistoryStatusFilter = 'ALL' | 'UPCOMING' | 'CHECKED_IN' | 'CANCELLED
 })
 export class History implements OnInit {
   private readonly rsvpService = inject(AttendeeRsvpService);
+  private readonly ticketQr = inject(TicketQrService);
 
   readonly rsvps = this.rsvpService.rsvps;
   readonly loading = this.rsvpService.loading;
@@ -118,7 +120,7 @@ export class History implements OnInit {
     this.qrLoading.set(true);
     this.qrDataUrl.set('');
 
-    this.rsvpService.generateQrCode(rsvp.qrPayload).subscribe({
+    this.ticketQr.render(rsvp).subscribe({
       next: (url) => {
         this.qrDataUrl.set(url);
         this.qrLoading.set(false);

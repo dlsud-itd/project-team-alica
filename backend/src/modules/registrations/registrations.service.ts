@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Injectable,
   NotFoundException,
@@ -120,10 +121,9 @@ export class RegistrationsService {
     const firstName = nameParts[0] || 'Attendee';
     const lastName = nameParts.slice(1).join(' ') || 'Delegate';
 
-    // Generate unique Checkpoint ticket code
-    const randomSuffix =
-      Math.floor(1000 + Math.random() * 9000).toString() + 'A';
-    const ticketCode = `CHK-2026-${randomSuffix}`;
+    // Collision-safe ticket code (same format as organizer guest imports).
+    // The QR encodes this exact value via qrPayload.
+    const ticketCode = `CHK-${randomUUID().toUpperCase()}`;
 
     const ticket = await this.prisma.ticket.create({
       data: {
@@ -176,7 +176,8 @@ export class RegistrationsService {
       status: 'PENDING',
       identificationNumber: user.studentId || undefined,
       issuedAt: new Date().toISOString(),
-      qrPayload: user.id,
+      // No ticket yet, so nothing scannable to encode.
+      qrPayload: '',
     };
   }
 
@@ -246,11 +247,15 @@ export class RegistrationsService {
     return computeTicketProgress(this.prisma, ticket);
   }
 
-  async findByTicketCode(ticketCode: string): Promise<TicketProfileDto> {
+  /** A ticket's details, visible to its owner, the event's organizers/staff, or an admin. */
+  async findByTicketCode(
+    user: UserSummaryDto,
+    ticketCode: string,
+  ): Promise<TicketProfileDto> {
     const ticket = await this.prisma.ticket.findUnique({
       where: { ticketCode },
       include: {
-        event: { select: { title: true } },
+        event: { select: { title: true, organizerId: true } },
       },
     });
 
@@ -258,6 +263,10 @@ export class RegistrationsService {
       throw new NotFoundException(
         `Registration with ticket code '${ticketCode}' not found`,
       );
+    }
+
+    if (!(await canViewTicket(this.prisma, user, ticket))) {
+      throw new ForbiddenException('You do not have access to this ticket');
     }
 
     return this.toTicketProfile(ticket);

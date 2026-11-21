@@ -99,49 +99,69 @@
       <!-- Column 1: Checkpoint Digital ID & QR Code Card -->
       <aside class="id-card-wrapper" id="id_card_wrapper">
         <div class="digital-id-card" id="digital_id_card">
-          <div class="id-card-top">
-            <span class="brand-sub">CHECKPOINT OFFICIAL</span>
-            <h2 class="id-title">Checkpoint ID Pass</h2>
-          </div>
+          @if (isTicketView) {
+            <div class="id-card-top">
+              <span class="brand-sub">CHECKPOINT TICKET</span>
+              <h2 class="id-title">{{ userProfile.eventName || 'Event Ticket' }}</h2>
+            </div>
 
-          <div class="qr-box" id="qr_box">
-            @if (qrDataUrl) {
-              <img class="qr-image"
-                  id="unique_id_qr_image"
-                  [src]="qrDataUrl"
-                  alt="User Unique ID QR Code" />
-            } @else {
-              <div class="qr-placeholder" id="qr_loading_placeholder">
-                Generating QR Pass...
-              </div>
-            }
-          </div>
+            <div class="qr-box" id="qr_box">
+              @if (qrDataUrl) {
+                <img class="qr-image"
+                    id="ticket_qr_image"
+                    [src]="qrDataUrl"
+                    alt="Ticket QR Code" />
+              } @else {
+                <div class="qr-placeholder" id="qr_loading_placeholder">
+                  Generating QR Pass...
+                </div>
+              }
+            </div>
 
-          <!-- Intuitive Click-to-Copy Pill -->
-          <button type="button"
-              class="ticket-code-pill"
-              id="ticket_code_pill"
-              (click)="copyTicketCode()"
-              title="Click to copy Unique ID">
-            <span class="pill-label">UNIQUE ID</span>
-            <span class="pill-code" id="unique_ticket_code_display">
-              {{ isCodeCopied ? 'Copied to Clipboard!' : userProfile.ticketCode || 'No ticket yet' }}
-            </span>
-          </button>
-
-          <p class="scan-instruction">
-            Present this unique QR code at entrance checkpoints and
-            scan stations for instant verification.
-          </p>
-
-          <div class="id-card-actions">
+            <!-- Intuitive Click-to-Copy Pill -->
             <button type="button"
-                class="action-button primary-button full-width"
-                id="download_qr_pass_btn"
-                (click)="downloadQrCode()">
-              Download QR (PNG)
+                class="ticket-code-pill"
+                id="ticket_code_pill"
+                (click)="copyTicketCode()"
+                title="Click to copy ticket code">
+              <span class="pill-label">TICKET CODE</span>
+              <span class="pill-code" id="unique_ticket_code_display">
+                {{ isCodeCopied ? 'Copied to Clipboard!' : userProfile.ticketCode }}
+              </span>
             </button>
-          </div>
+
+            <p class="scan-instruction">
+              Present this ticket QR at this event's entrance and
+              scan stations. Each event you register for has its own ticket.
+            </p>
+
+            <div class="id-card-actions">
+              <button type="button"
+                  class="action-button primary-button full-width"
+                  id="download_qr_pass_btn"
+                  (click)="downloadQrCode()">
+                Download QR (PNG)
+              </button>
+            </div>
+          } @else {
+            <div class="id-card-top">
+              <span class="brand-sub">CHECKPOINT</span>
+              <h2 class="id-title">Your Tickets</h2>
+            </div>
+
+            <p class="scan-instruction" id="tickets_hint">
+              Each event you register for has its own ticket QR.
+              Open My Hub to view the pass for a specific event.
+            </p>
+
+            <div class="id-card-actions">
+              <a routerLink="/hub"
+                  class="action-button primary-button full-width"
+                  id="go_to_hub_link">
+                Go to My Hub
+              </a>
+            </div>
+          }
         </div>
       </aside>
 
@@ -288,9 +308,8 @@
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
             <p class="notice-text">
-              Your Unique ID and QR Pass are tied to your registered
-              identity. Do not share your private QR pass with
-              unauthorized parties.
+              Each ticket QR is tied to your registration for that event.
+              Do not share your ticket QR passes with unauthorized parties.
             </p>
           </div>
 

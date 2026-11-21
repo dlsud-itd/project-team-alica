@@ -5,7 +5,7 @@ import { AttendeeProgressService } from '../../core/attendee/attendee-progress.s
 import { StampCardComponent } from '../../shared/stamp-card/stamp-card.component';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import * as QRCode from 'qrcode';
+import { TicketQrService } from '../../core/tickets/ticket-qr.service';
 import { AttendeeRsvp } from '../../core/attendee/attendee-rsvp.models';
 import { AttendeeRsvpService } from '../../core/attendee/attendee-rsvp.service';
 import { OrganizerEventsService } from '../../core/organizer/organizer-events.service';
@@ -40,6 +40,7 @@ export class HubComponent implements OnInit {
   private readonly rsvpService = inject(AttendeeRsvpService);
   private readonly organizerService = inject(OrganizerEventsService);
   private readonly scannerApi = inject(ScannerApi);
+  private readonly ticketQr = inject(TicketQrService);
   private readonly router = inject(Router);
   readonly auth = inject(AuthService);
 
@@ -154,12 +155,8 @@ export class HubComponent implements OnInit {
     this.qrLoading.set(true);
     this.qrDataUrl.set('');
 
-    const payload = rsvp.ticketCode;
-    QRCode.toDataURL(payload, {
-      width: 280,
-      margin: 2,
-      color: { dark: '#0d5c46', light: '#ffffff' },
-    })
+    this.ticketQr
+      .toDataUrl(rsvp)
       .then((url) => {
         this.qrDataUrl.set(url);
         this.qrLoading.set(false);

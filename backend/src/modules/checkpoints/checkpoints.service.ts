@@ -13,6 +13,12 @@ import {
   resolveCheckpointCooldownSeconds,
   type EvaluatedScanOutcome,
 } from './checkpoint-scan.evaluator.js';
+import {
+  canViewTicket,
+  computeProgressSummaryForCode,
+  findTicketByAnyCode,
+  type ProgressSummaryDto,
+} from './ticket-progress.js';
 
 export interface StaffCheckpointDto {
   id: string;
@@ -54,6 +60,8 @@ export interface ScanOutcomeDto {
   cooldownActive?: boolean;
   cooldownSeconds?: number;
   cooldownRemainingSeconds?: number;
+  /** Attendee's booth stamp progress, present on SUCCESS/DUPLICATE scans. */
+  progress?: ProgressSummaryDto;
 }
 
 export class ScanRequestBodyDto {
@@ -120,6 +128,32 @@ export class CheckpointsService {
         ? { cooldownRemainingSeconds: outcome.cooldownRemainingSeconds }
         : {}),
     };
+  }
+
+  /**
+   * Stamp-card summary for the scanned attendee. Best effort: a failure here must
+   * never block or fail the scan itself.
+   */
+  private async safeProgressSummary(
+    outcome: ScanOutcomeDto,
+  ): Promise<ProgressSummaryDto | null> {
+    if (
+      !outcome.attendee ||
+      (outcome.scanResult !== 'SUCCESS' && outcome.scanResult !== 'DUPLICATE')
+    ) {
+      return null;
+    }
+    try {
+      return await computeProgressSummaryForCode(
+        this.prisma,
+        outcome.attendee.ticketCode,
+      );
+    } catch (err) {
+      this.logger.debug(
+        `Progress summary unavailable for ${outcome.attendee.ticketCode}: ${String(err)}`,
+      );
+      return null;
+    }
   }
 
   private async assertStationAccess(
@@ -375,6 +409,10 @@ export class CheckpointsService {
     });
 
     const outcomeDto = this.toScanOutcomeDto(evaluated.outcome);
+    const progress = await this.safeProgressSummary(outcomeDto);
+    if (progress) {
+      outcomeDto.progress = progress;
+    }
 
     if (evaluated.httpStatus === 404) {
       throw new NotFoundException({
@@ -414,7 +452,19 @@ export class CheckpointsService {
     return outcomeDto;
   }
 
-  async getAttendeeHistory(ticketCode: string) {
+  async getAttendeeHistory(user: UserSummaryDto, ticketCode: string) {
+    const ticket = await findTicketByAnyCode(this.prisma, ticketCode);
+    if (!ticket) {
+      // Logs for unknown codes (invalid-ticket scans) are admin-only.
+      if (user.role !== 'ADMIN') {
+        throw new NotFoundException(`Ticket '${ticketCode}' not found.`);
+      }
+    } else if (!(await canViewTicket(this.prisma, user, ticket))) {
+      throw new ForbiddenException(
+        'You do not have access to this attendee’s scan history.',
+      );
+    }
+
     const raw = ticketCode.trim();
     const codeNoHash = raw.startsWith('#') ? raw.slice(1).trim() : raw;
     const codeWithHash = `#${codeNoHash}`;

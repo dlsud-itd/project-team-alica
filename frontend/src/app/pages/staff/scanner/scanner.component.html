@@ -196,6 +196,12 @@
                 </dl>
               }
 
+              @if (r.progress; as p) {
+                @if (p.totalCount > 0) {
+                  <app-stamp-card class="result-progress" [progress]="p" [compact]="true" />
+                }
+              }
+
               <button type="button" class="btn-next" (click)="dismissResult()">Scan next</button>
             </div>
           }

@@ -1,0 +1,151 @@
+:host {
+  display: block;
+}
+
+.stamp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-label, #5f5e5a);
+}
+
+.progress-percent {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-forest-green, #0f6e56);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-mint-light, #e1f5ee);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-forest-green, #0f6e56);
+  transition: width 0.4s ease;
+}
+
+.completed .progress-fill {
+  background: var(--color-emerald-accent, #1d9e75);
+}
+
+.compact {
+  gap: 6px;
+
+  .progress-label {
+    font-size: 12px;
+  }
+
+  .progress-track {
+    height: 6px;
+  }
+}
+
+.stamp-grid {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border: 1.5px dashed var(--color-border-light, #e2e5e9);
+  border-radius: 12px;
+  background: var(--color-white, #ffffff);
+  min-width: 0;
+}
+
+.stamp-seal {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px dashed var(--color-sage-border, #8a938f);
+  color: var(--color-gray-placeholder, #9a9a9a);
+  font-weight: 700;
+  font-size: 14px;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.stamp-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-charcoal-dark, #1a1a1a);
+  overflow-wrap: anywhere;
+}
+
+.stamp-meta {
+  font-size: 11px;
+  color: var(--color-slate-medium, #6b6b6b);
+}
+
+.stamp.visited {
+  border-style: solid;
+  border-color: var(--color-forest-green, #0f6e56);
+  background: var(--color-mint-subtle, #f1f5f3);
+
+  .stamp-seal {
+    border-style: solid;
+    border-color: var(--color-forest-green, #0f6e56);
+    background: var(--color-forest-green, #0f6e56);
+    color: var(--color-white, #ffffff);
+  }
+}
+
+.stamp.highlight .stamp-seal {
+  animation: stamp-in 0.5s ease-out;
+}
+
+@keyframes stamp-in {
+  0% {
+    transform: scale(1.8) rotate(-12deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(0.92) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill {
+    transition: none;
+  }
+
+  .stamp.highlight .stamp-seal {
+    animation: none;
+  }
+}

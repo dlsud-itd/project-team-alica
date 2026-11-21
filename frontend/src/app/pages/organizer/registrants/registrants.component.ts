@@ -4,10 +4,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { filter, map, switchMap } from 'rxjs';
+import { EMPTY, catchError, filter, finalize, map, switchMap, tap } from 'rxjs';
 import * as QRCode from 'qrcode';
+import { StampCardComponent } from '../../../shared/stamp-card/stamp-card.component';
 import {
   EventRegistrant,
+  EventRegistrantProgress,
   GuestFilePreview,
   GuestImportMapping,
   RegistrationStatus,
@@ -21,7 +23,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 export type RegistrantFilter = 'ALL' | 'Registered' | 'Checked In' | 'Cancelled';
 
 @Component({
-  imports: [DatePipe, FormsModule, ReactiveFormsModule],
+  imports: [DatePipe, FormsModule, ReactiveFormsModule, StampCardComponent],
   selector: 'app-organizer-registrants',
   styleUrl: './registrants.component.scss',
   templateUrl: './registrants.component.html',
@@ -64,6 +66,15 @@ export class OrganizerRegistrants {
   readonly cancellingRegistrant = signal<EventRegistrant | null>(null);
   readonly restoringRegistrant = signal<EventRegistrant | null>(null);
 
+    // Booth progress + stamp card modal
+  readonly progressLoading = signal(false);
+  readonly progressError = signal(false);
+  readonly activeStampRegistrant = signal<EventRegistrant | null>(null);
+  readonly activeStampProgress = computed(() => {
+    const registrant = this.activeStampRegistrant();
+    return registrant ? this.progressFor(registrant) : null;
+  });
+
   // Column Mapping Modal States
   readonly mappingModalOpen = signal(false);
   readonly summaryModalOpen = signal(false);
@@ -95,10 +106,32 @@ export class OrganizerRegistrants {
         switchMap((eventId) => this.organizerEvents.loadRegistrants(eventId)),
         takeUntilDestroyed(),
       )
-      .subscribe({
+            .subscribe({
         error: () => this.errorMessage.set('Could not load registrants. Please try again later.'),
       });
+
+    idSource$
+      .pipe(
+        map((params) => params.get('eventId') ?? ''),
+        filter(Boolean),
+        tap(() => {
+          this.progressLoading.set(true);
+          this.progressError.set(false);
+        }),
+        switchMap((eventId) =>
+          this.organizerEvents.loadProgress(eventId).pipe(
+            catchError(() => {
+              this.progressError.set(true);
+              return EMPTY;
+            }),
+            finalize(() => this.progressLoading.set(false)),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe();
   }
+  
 
   readonly event = computed(() => this.organizerEvents.eventById(this.eventId()));
   readonly loading = this.organizerEvents.loading;
@@ -229,6 +262,17 @@ export class OrganizerRegistrants {
     this.activeQrRegistrant.set(null);
     this.qrDataUrl.set('');
     this.qrLoading.set(false);
+  }
+    progressFor(registrant: EventRegistrant): EventRegistrantProgress | null {
+    return this.organizerEvents.progressByTicket()[registrant.id] ?? null;
+  }
+
+  openStampCard(registrant: EventRegistrant): void {
+    this.activeStampRegistrant.set(registrant);
+  }
+
+  closeStampCard(): void {
+    this.activeStampRegistrant.set(null);
   }
 
   downloadQr(registrant: EventRegistrant): void {

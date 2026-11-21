@@ -9,6 +9,7 @@ import {
   EventLiveOverview,
   EventRegistrant,
   GuestFilePreview,
+  EventRegistrantProgress,
   GuestImportMapping,
   NewOrganizerEvent,
   OrganizerCandidate,
@@ -47,10 +48,13 @@ export class OrganizerEventsService {
   private readonly http = inject(HttpClient);
   private readonly eventState = signal<OrganizerEvent[]>([]);
   private readonly registrantState = signal<EventRegistrant[]>([]);
+  private readonly progressState = signal<Record<string, EventRegistrantProgress>>({});
   private readonly eventsLoadedState = signal(false);
 
   readonly events = this.eventState.asReadonly();
   readonly registrants = this.registrantState.asReadonly();
+    /** Booth progress keyed by ticket id (same as EventRegistrant.id). */
+  readonly progressByTicket = this.progressState.asReadonly();
   /** True once the organizer's events have been fetched at least once. */
   readonly eventsLoaded = this.eventsLoadedState.asReadonly();
   readonly loading = signal(false);
@@ -98,6 +102,20 @@ export class OrganizerEventsService {
         ]),
       ),
     );
+  }
+
+  loadProgress(eventId: UUID): Observable<EventRegistrantProgress[]> {
+    return this.http
+      .get<ApiResponse<EventRegistrantProgress[]>>(`${this.api}/${eventId}/progress`)
+      .pipe(
+        map((res) => res.data),
+        tap((rows) =>
+          this.progressState.update((current) => ({
+            ...current,
+            ...Object.fromEntries(rows.map((row) => [row.ticketId, row])),
+          })),
+        ),
+      );
   }
 
   previewGuestFile(eventId: UUID, file: File): Observable<GuestFilePreview> {

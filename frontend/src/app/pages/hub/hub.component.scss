@@ -812,3 +812,31 @@
   color: var(--color-slate-medium, #6b6b6b);
   margin: 0;
 }
+
+// Booth stamp-card progress
+.card-progress {
+  margin: 0 0 14px;
+}
+
+.modal-progress {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border-light, #e2e5e9);
+  text-align: left;
+}
+
+.stamp-toast {
+  margin: 0 0 0.75rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--color-mint-light, #e1f5ee);
+  color: var(--color-forest-green, #0f6e56);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.modal-progress ::ng-deep .stamp-grid {
+  max-height: 240px;
+  overflow-y: auto;
+}

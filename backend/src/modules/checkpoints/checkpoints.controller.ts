@@ -48,8 +48,14 @@ export class CheckpointsController {
   }
 
   @Get('attendees/:ticketCode/history')
-  async getAttendeeHistory(@Param('ticketCode') ticketCode: string) {
-    const data = await this.checkpointsService.getAttendeeHistory(ticketCode);
+  async getAttendeeHistory(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('ticketCode') ticketCode: string,
+  ) {
+    const data = await this.checkpointsService.getAttendeeHistory(
+      user,
+      ticketCode,
+    );
     return {
       success: true,
       data,

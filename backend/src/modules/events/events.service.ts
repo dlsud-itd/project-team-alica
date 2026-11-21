@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import {
@@ -34,6 +34,7 @@ import {
   FACE_MATCH_THRESHOLD,
 } from '../checkpoints/checkpoints.service.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
+import { generateTicketCode } from '../../common/ticket-code.js';
 
 const MAX_GUEST_ROWS = 5000;
 const DEFAULT_GUEST_AFFILIATION = 'Guest / Imported Attendee';
@@ -551,7 +552,7 @@ export class EventsService {
       const temporaryPassword =
         this.generateUniqueTemporaryPassword(usedPasswords);
       const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-      const ticketCode = `CHK-${randomUUID().toUpperCase()}`;
+      const ticketCode = generateTicketCode();
       let account: {
         id: string;
         email: string;

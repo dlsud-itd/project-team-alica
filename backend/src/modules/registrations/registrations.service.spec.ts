@@ -6,8 +6,9 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { TicketStatus } from '@prisma/client';
+import { Prisma, TicketStatus } from '@prisma/client';
 import { RegistrationsService } from './registrations.service.js';
+import { TICKET_CODE_PATTERN } from '../../common/ticket-code.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
 
@@ -117,7 +118,7 @@ describe('RegistrationsService', () => {
     expect(res.attendeeName).toBe('Jane Doe');
   });
 
-  it('should generate a UUID-based ticket code and use it as the QR payload', async () => {
+  it('should generate a short ticket code and use it as the QR payload', async () => {
     prisma.event.findUnique.mockResolvedValue({
       id: 'evt-1',
       isActive: true,
@@ -139,13 +140,73 @@ describe('RegistrationsService', () => {
         studentId: '2023-0001',
       });
       const { data } = prisma.ticket.create.mock.calls[i][0];
-      expect(data.ticketCode).toMatch(
-        /^CHK-[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/,
-      );
+      expect(data.ticketCode).toMatch(TICKET_CODE_PATTERN);
       expect(data.qrPayload).toBe(data.ticketCode);
       codes.add(data.ticketCode);
     }
     expect(codes.size).toBe(50);
+  });
+
+  describe('ticket code collisions', () => {
+    const collision = () =>
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target: ['ticketCode'] },
+      });
+    const register = () =>
+      service.create({
+        eventId: 'evt-1',
+        fullName: 'Jane Doe',
+        email: 'jane@example.com',
+        studentId: '2023-0001',
+      });
+
+    beforeEach(() => {
+      prisma.event.findUnique.mockResolvedValue({
+        id: 'evt-1',
+        isActive: true,
+        deletedAt: null,
+        approvalStatus: 'APPROVED',
+        capacity: null,
+      });
+      prisma.ticket.findUnique.mockResolvedValue(null);
+    });
+
+    it('retries with a fresh code when the code is already taken', async () => {
+      prisma.ticket.create
+        .mockRejectedValueOnce(collision())
+        .mockImplementationOnce(({ data }) =>
+          Promise.resolve({ ...data, status: 'REGISTERED' }),
+        );
+
+      const res = await register();
+
+      expect(prisma.ticket.create).toHaveBeenCalledTimes(2);
+      const [first, second] = prisma.ticket.create.mock.calls.map(
+        ([arg]) => arg.data.ticketCode,
+      );
+      expect(second).not.toBe(first);
+      expect(res.ticketCode).toBe(second);
+    });
+
+    it('gives up after 5 colliding attempts', async () => {
+      prisma.ticket.create.mockRejectedValue(collision());
+      await expect(register()).rejects.toThrow('Unique constraint failed');
+      expect(prisma.ticket.create).toHaveBeenCalledTimes(5);
+    });
+
+    it('does not retry other unique-constraint errors', async () => {
+      prisma.ticket.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+          meta: { target: ['eventId', 'email'] },
+        }),
+      );
+      await expect(register()).rejects.toThrow();
+      expect(prisma.ticket.create).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('findForUser', () => {

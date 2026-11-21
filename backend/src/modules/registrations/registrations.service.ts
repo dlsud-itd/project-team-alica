@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   Injectable,
   NotFoundException,
@@ -7,9 +6,10 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { TicketStatus, type Event, type Ticket } from '@prisma/client';
+import { Prisma, TicketStatus, type Event, type Ticket } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
+import { generateTicketCode } from '../../common/ticket-code.js';
 import {
   canViewTicket,
   computeTicketProgress,
@@ -121,23 +121,18 @@ export class RegistrationsService {
     const firstName = nameParts[0] || 'Attendee';
     const lastName = nameParts.slice(1).join(' ') || 'Delegate';
 
-    // Collision-safe ticket code (same format as organizer guest imports).
-    // The QR encodes this exact value via qrPayload.
-    const ticketCode = `CHK-${randomUUID().toUpperCase()}`;
-
-    const ticket = await this.prisma.ticket.create({
-      data: {
-        eventId: dto.eventId,
-        userId: dto.userId || null,
-        firstName,
-        lastName,
-        email: dto.email,
-        studentId: dto.studentId || null,
-        ticketType: 'STUDENT',
-        ticketCode,
-        qrPayload: ticketCode,
-      },
-    });
+    const ticket = await this.createTicketWithUniqueCode((ticketCode) => ({
+      eventId: dto.eventId,
+      userId: dto.userId || null,
+      firstName,
+      lastName,
+      email: dto.email,
+      studentId: dto.studentId || null,
+      ticketType: 'STUDENT',
+      ticketCode,
+      // The QR encodes this exact value.
+      qrPayload: ticketCode,
+    }));
 
     return {
       ticketCode: ticket.ticketCode,
@@ -342,4 +337,35 @@ export class RegistrationsService {
       qrPayload: ticket.qrPayload,
     };
   }
+
+  /**
+   * Creates a ticket with a short random code, drawing a new code if the
+   * unique ticketCode constraint ever rejects one.
+   */
+  private async createTicketWithUniqueCode(
+    buildData: (ticketCode: string) => Prisma.TicketUncheckedCreateInput,
+  ): Promise<Ticket> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.prisma.ticket.create({
+          data: buildData(generateTicketCode()),
+        });
+      } catch (error) {
+        if (!isTicketCodeCollision(error) || attempt >= TICKET_CODE_ATTEMPTS) {
+          throw error;
+        }
+      }
+    }
+  }
+}
+
+/** Fresh codes to try if a generated ticket code is already taken. */
+const TICKET_CODE_ATTEMPTS = 5;
+
+function isTicketCodeCollision(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002' &&
+    String(error.meta?.target ?? '').includes('ticketCode')
+  );
 }

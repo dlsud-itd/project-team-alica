@@ -5,7 +5,7 @@ import { Subscription, interval } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { EventLiveOverview, EventStaff, HourlyFlowPoint } from '../../../core/organizer/organizer.models';
-import { StaffCheckpoint } from '../../../core/staff/scanner.models';
+import { CheckpointType, StaffCheckpoint } from '../../../core/staff/scanner.models';
 import { SubBoothApi } from '../../../core/staff/sub-booth-api';
 
 @Component({
@@ -33,6 +33,21 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
   readonly subLocation = signal('');
   readonly savingSub = signal(false);
   readonly subError = signal('');
+
+  // New top-level booth / gate state
+  readonly boothTypes: { value: CheckpointType; label: string }[] = [
+    { value: 'BOOTH', label: 'Booth' },
+    { value: 'SESSION', label: 'Session' },
+    { value: 'MAIN_ENTRY', label: 'Main entry gate' },
+    { value: 'EXIT', label: 'Exit gate' },
+  ];
+  readonly addingBooth = signal(false);
+  readonly boothName = signal('');
+  readonly boothLocation = signal('');
+  readonly boothType = signal<CheckpointType>('BOOTH');
+  readonly boothRequireMainEntry = signal(false);
+  readonly savingBooth = signal(false);
+  readonly boothError = signal('');
 
   // Staff Management
   readonly staffList = signal<EventStaff[]>([]);
@@ -291,6 +306,60 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
         }
       },
     });
+  }
+
+  // ---- Top-level booths ----
+
+  openBoothForm(): void {
+    this.addingBooth.set(true);
+    this.boothName.set('');
+    this.boothLocation.set('');
+    this.boothType.set('BOOTH');
+    this.boothRequireMainEntry.set(false);
+    this.boothError.set('');
+  }
+
+  cancelBooth(): void {
+    this.addingBooth.set(false);
+    this.boothError.set('');
+  }
+
+  submitBooth(event: Event): void {
+    event.preventDefault();
+
+    const eventId = this.eventId();
+    const name = this.boothName().trim();
+    if (!eventId || this.savingBooth()) return;
+
+    if (!name) {
+      this.boothError.set('Please enter a name.');
+      return;
+    }
+
+    const type = this.boothType();
+    this.savingBooth.set(true);
+    this.boothError.set('');
+
+    this.subBoothApi
+      .createCheckpoint({
+        eventId,
+        name,
+        type,
+        location: this.boothLocation().trim() || undefined,
+        requireMainEntry: type === 'MAIN_ENTRY' ? false : this.boothRequireMainEntry(),
+      })
+      .subscribe({
+        next: () => {
+          this.savingBooth.set(false);
+          this.addingBooth.set(false);
+          this.loadCheckpoints();
+          this.fetchOverview(true);
+        },
+        error: (err: { error?: { message?: string } }) => {
+          this.savingBooth.set(false);
+          this.boothError.set(err.error?.message || 'Could not add the booth.');
+        },
+      });
   }
 
   // ---- Sub-booths ----

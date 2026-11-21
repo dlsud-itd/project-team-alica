@@ -142,7 +142,65 @@
             <h2 class="telemetry-title">STATION TRAFFIC BREAKDOWN</h2>
             <p class="telemetry-subtitle">Volume per gate &amp; booth</p>
           </div>
+          @if (canManageSubBooths() && !addingBooth()) {
+            <button type="button" class="btn-add-sub btn-add-booth" (click)="openBoothForm()">
+              + Add booth
+            </button>
+          }
         </header>
+
+        @if (addingBooth()) {
+          <form class="sub-form booth-form" (submit)="submitBooth($event)">
+            <p class="sub-form-title">Add a booth or gate</p>
+            <input
+              type="text"
+              class="sub-input"
+              placeholder="Name (e.g. Google Cloud Booth)"
+              maxlength="80"
+              aria-label="Booth name"
+              [value]="boothName()"
+              (input)="boothName.set($any($event.target).value)"
+            />
+            <input
+              type="text"
+              class="sub-input"
+              placeholder="Location (optional)"
+              maxlength="120"
+              aria-label="Booth location"
+              [value]="boothLocation()"
+              (input)="boothLocation.set($any($event.target).value)"
+            />
+            <select
+              class="sub-input"
+              aria-label="Checkpoint type"
+              [value]="boothType()"
+              (change)="boothType.set($any($event.target).value)"
+            >
+              @for (opt of boothTypes; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+            @if (boothType() !== 'MAIN_ENTRY') {
+              <label class="booth-check">
+                <input
+                  type="checkbox"
+                  [checked]="boothRequireMainEntry()"
+                  (change)="boothRequireMainEntry.set($any($event.target).checked)"
+                />
+                Attendees must scan in at a main entry gate first
+              </label>
+            }
+            @if (boothError()) {
+              <p class="sub-error" role="alert">{{ boothError() }}</p>
+            }
+            <div class="sub-actions">
+              <button type="button" class="btn-sub-cancel" (click)="cancelBooth()">Cancel</button>
+              <button type="submit" class="btn-sub-save" [disabled]="savingBooth()">
+                {{ savingBooth() ? 'Saving…' : 'Add booth' }}
+              </button>
+            </div>
+          </form>
+        }
 
         <div class="station-list">
           @if (stationTraffic().length === 0) {

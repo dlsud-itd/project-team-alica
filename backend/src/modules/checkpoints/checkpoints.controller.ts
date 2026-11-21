@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   CheckpointsService,
+  CreateCheckpointDto,
   CreateSubBoothDto,
   ScanOutcomeDto,
   ScanRequestBodyDto,
@@ -94,6 +95,15 @@ export class CheckpointsController {
       message: data.message,
       data,
     };
+  }
+
+  @Post()
+  async createCheckpoint(
+    @CurrentUser() user: UserSummaryDto,
+    @Body() dto: CreateCheckpointDto,
+  ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
+    const data = await this.checkpointsService.createCheckpoint(user, dto);
+    return { success: true, data };
   }
 
   @Post(':boothId/sub-booths')

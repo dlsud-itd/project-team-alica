@@ -10,6 +10,15 @@ export interface CreateSubBoothPayload {
   location?: string;
 }
 
+export interface CreateCheckpointPayload {
+  eventId: string;
+  name: string;
+  location?: string;
+  type?: StaffCheckpoint['type'];
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SubBoothApi {
   private readonly http = inject(HttpClient);
@@ -32,6 +41,15 @@ export class SubBoothApi {
         `${this.apiUrl}/events/${eventId}/checkpoints`,
         { headers: this.buildHeaders() },
       )
+      .pipe(map((res) => res.data));
+  }
+
+  /** Create a top-level checkpoint (booth by default) for an event. */
+  createCheckpoint(payload: CreateCheckpointPayload): Observable<StaffCheckpoint> {
+    return this.http
+      .post<{ success: boolean; data: StaffCheckpoint }>(`${this.apiUrl}/checkpoints`, payload, {
+        headers: this.buildHeaders(),
+      })
       .pipe(map((res) => res.data));
   }
 

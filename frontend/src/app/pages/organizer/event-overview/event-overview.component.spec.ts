@@ -125,6 +125,9 @@ describe('EventOverviewComponent', () => {
         }),
       ),
       remove: vi.fn().mockReturnValue(of({ success: true, message: 'Booth removed successfully' })),
+      createCheckpoint: vi.fn().mockReturnValue(
+        of({ ...MOCK_CHECKPOINTS[1], id: 'chk-booth-new', name: 'Google Cloud Booth' }),
+      ),
     };
 
     await TestBed.configureTestingModule({
@@ -206,5 +209,48 @@ describe('EventOverviewComponent', () => {
       location: undefined,
     });
   });
-});
 
+  it('should show + Add booth for organizers and create a top-level booth', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const addBtn = el.querySelector<HTMLButtonElement>('.btn-add-booth');
+    expect(addBtn).toBeTruthy();
+
+    addBtn!.click();
+    fixture.detectChanges();
+    expect(el.querySelector('.booth-form')).toBeTruthy();
+
+    component.submitBooth(new Event('submit'));
+    expect(component.boothError()).toBe('Please enter a name.');
+    expect(subBoothApiMock.createCheckpoint).not.toHaveBeenCalled();
+
+    component.boothName.set('  Google Cloud Booth ');
+    component.boothLocation.set('Hall B');
+    component.boothRequireMainEntry.set(true);
+    component.submitBooth(new Event('submit'));
+    expect(subBoothApiMock.createCheckpoint).toHaveBeenCalledWith({
+      eventId: 'evt-devcon-manila-2026',
+      name: 'Google Cloud Booth',
+      type: 'BOOTH',
+      location: 'Hall B',
+      requireMainEntry: true,
+    });
+    expect(component.addingBooth()).toBe(false);
+  });
+
+  it('should never send requireMainEntry for a main entry gate', () => {
+    component.openBoothForm();
+    component.boothName.set('North Gate');
+    component.boothType.set('MAIN_ENTRY');
+    component.boothRequireMainEntry.set(true);
+    component.submitBooth(new Event('submit'));
+    expect(subBoothApiMock.createCheckpoint).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'MAIN_ENTRY', requireMainEntry: false }),
+    );
+  });
+
+  it('should hide + Add booth for non-organizer users', () => {
+    userSignal.set({ id: 'usr-staff', email: 'staff@checkpoint.ph', fullName: 'Staff User', role: 'USER' });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.btn-add-booth')).toBeNull();
+  });
+});

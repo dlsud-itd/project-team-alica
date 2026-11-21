@@ -80,6 +80,23 @@ export class CreateSubBoothDto {
   allowMultipleScans?: boolean;
 }
 
+export const CHECKPOINT_TYPES: StaffCheckpointDto['type'][] = [
+  'MAIN_ENTRY',
+  'SESSION',
+  'BOOTH',
+  'EXIT',
+];
+
+export class CreateCheckpointDto {
+  eventId!: string;
+  name!: string;
+  location?: string;
+  /** Defaults to BOOTH. */
+  type?: StaffCheckpointDto['type'];
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+}
+
 type CheckpointWithEvent = {
   id: string;
   name: string;
@@ -345,6 +362,69 @@ export class CheckpointsService {
     });
 
     return checkpoints.map((c) => this.toStaffDto(c));
+  }
+
+  /**
+   * Creates a top-level checkpoint (booth by default, or a gate/session) for
+   * an event. Sub-booths are created through createSubBooth instead.
+   */
+  async createCheckpoint(
+    user: UserSummaryDto,
+    dto: CreateCheckpointDto,
+  ): Promise<StaffCheckpointDto> {
+    const name = dto.name?.trim();
+    if (!name) {
+      throw new BadRequestException('Booth name is required.');
+    }
+    const eventId = dto.eventId?.trim();
+    if (!eventId) {
+      throw new BadRequestException('eventId is required.');
+    }
+    const type = dto.type ?? 'BOOTH';
+    if (!CHECKPOINT_TYPES.includes(type)) {
+      throw new BadRequestException(
+        `type must be one of ${CHECKPOINT_TYPES.join(', ')}.`,
+      );
+    }
+
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+      select: { id: true, organizerId: true },
+    });
+    if (!event) {
+      throw new NotFoundException(`Event '${eventId}' not found.`);
+    }
+    if (user.role !== 'ADMIN' && event.organizerId !== user.id) {
+      let isCoOrganizer = false;
+      if (this.prisma.eventOrganizer?.findFirst) {
+        const coOrg = await this.prisma.eventOrganizer.findFirst({
+          where: { eventId: event.id, userId: user.id },
+        });
+        if (coOrg) isCoOrganizer = true;
+      }
+      if (!isCoOrganizer) {
+        throw new ForbiddenException('Only organizers can add booths.');
+      }
+    }
+
+    const created = await this.prisma.checkpoint.create({
+      data: {
+        name,
+        location: dto.location?.trim() || null,
+        type,
+        eventId: event.id,
+        // Booths are usually revisited; gates and sessions are one scan each.
+        allowMultipleScans: dto.allowMultipleScans ?? type === 'BOOTH',
+        requireMainEntry: type === 'MAIN_ENTRY' ? false : (dto.requireMainEntry ?? false),
+      },
+      include: { event: { select: { title: true } } },
+    });
+
+    this.logger.log(
+      `Created ${type} checkpoint '${created.id}' for event '${event.id}' by user '${user.id}'`,
+    );
+
+    return this.toStaffDto(created);
   }
 
   async createSubBooth(

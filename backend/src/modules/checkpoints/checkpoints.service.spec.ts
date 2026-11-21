@@ -282,6 +282,116 @@ describe('CheckpointsService', () => {
     expect(result.message).toContain('main entrance');
   });
 
+  describe('createCheckpoint', () => {
+    beforeEach(() => {
+      mockPrisma.event = {
+        findFirst: vi.fn().mockImplementation(({ where }) =>
+          Promise.resolve(
+            where.id === 'evt-devcon-1'
+              ? { id: 'evt-devcon-1', organizerId: 'usr-org' }
+              : null,
+          ),
+        ),
+      };
+      mockPrisma.eventOrganizer = {
+        findFirst: vi.fn().mockImplementation(({ where }) =>
+          Promise.resolve(where.userId === 'usr-coorg' ? { id: 'eo-1' } : null),
+        ),
+      };
+    });
+
+    it('creates a top-level booth for the event organizer', async () => {
+      const result = await service.createCheckpoint(mockOrganizer, {
+        eventId: 'evt-devcon-1',
+        name: '  Google Booth  ',
+        location: 'Hall B-02',
+      });
+
+      expect(result).toMatchObject({
+        name: 'Google Booth',
+        location: 'Hall B-02',
+        type: 'BOOTH',
+        eventId: 'evt-devcon-1',
+        parentId: null,
+        allowMultipleScans: true,
+        requireMainEntry: false,
+      });
+      expect(mockPrisma.checkpoint.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ parentId: expect.anything() }),
+        }),
+      );
+    });
+
+    it('creates other checkpoint types with single-scan defaults', async () => {
+      const gate = await service.createCheckpoint(mockOrganizer, {
+        eventId: 'evt-devcon-1',
+        name: 'North Gate',
+        type: 'MAIN_ENTRY',
+        requireMainEntry: true,
+      });
+      expect(gate.type).toBe('MAIN_ENTRY');
+      expect(gate.allowMultipleScans).toBe(false);
+      // A main entry gate can never require itself.
+      expect(gate.requireMainEntry).toBe(false);
+
+      const session = await service.createCheckpoint(mockOrganizer, {
+        eventId: 'evt-devcon-1',
+        name: 'Keynote',
+        type: 'SESSION',
+        requireMainEntry: true,
+      });
+      expect(session.requireMainEntry).toBe(true);
+    });
+
+    it('allows co-organizers and admins', async () => {
+      await expect(
+        service.createCheckpoint(
+          { id: 'usr-coorg', email: 'c@alica.ph', fullName: 'Co', role: 'USER' },
+          { eventId: 'evt-devcon-1', name: 'Booth' },
+        ),
+      ).resolves.toMatchObject({ type: 'BOOTH' });
+      await expect(
+        service.createCheckpoint(
+          { id: 'usr-admin', email: 'a@alica.ph', fullName: 'Admin', role: 'ADMIN' },
+          { eventId: 'evt-devcon-1', name: 'Booth' },
+        ),
+      ).resolves.toMatchObject({ type: 'BOOTH' });
+    });
+
+    it('rejects users who do not organize the event', async () => {
+      await expect(
+        service.createCheckpoint(
+          { id: 'usr-other', email: 'o@alica.ph', fullName: 'Other', role: 'USER' },
+          { eventId: 'evt-devcon-1', name: 'Booth' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.checkpoint.create).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 for an unknown event', async () => {
+      await expect(
+        service.createCheckpoint(mockOrganizer, { eventId: 'nope', name: 'Booth' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws 400 for a blank name, missing event, or bad type', async () => {
+      await expect(
+        service.createCheckpoint(mockOrganizer, { eventId: 'evt-devcon-1', name: ' ' }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createCheckpoint(mockOrganizer, { eventId: '', name: 'Booth' }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createCheckpoint(mockOrganizer, {
+          eventId: 'evt-devcon-1',
+          name: 'Booth',
+          type: 'KIOSK' as any,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('createSubBooth', () => {
     it('should create a sub-booth under a booth for a dynamic USER event organizer', async () => {
       const result = await service.createSubBooth(

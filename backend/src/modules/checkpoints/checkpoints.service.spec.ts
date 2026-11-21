@@ -464,6 +464,28 @@ describe('CheckpointsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('rejects face scan when distance is above strict threshold (e.g. distance approx 0.50)', async () => {
+      const sampleDescriptor = new Array(128).fill(0.1);
+      mockPrisma.ticket.findMany = vi.fn().mockResolvedValueOnce([
+        {
+          id: 'tkt-face-1',
+          ticketCode: 'CHK-2026-9812A',
+          user: {
+            id: 'usr-attendee-1',
+            fullName: 'Face Attendee',
+            faceDescriptor: new Array(128).fill(0.144),
+          },
+        },
+      ]);
+      mockPrisma.user.findMany = vi.fn().mockResolvedValueOnce([]);
+
+      await expect(
+        service.scan(mockUser, 'chk-booth-1', {
+          faceDescriptor: sampleDescriptor,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
     it('throws BadRequestException for malformed face descriptor', async () => {
       await expect(
         service.scan(mockUser, 'chk-booth-1', {

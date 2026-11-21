@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
@@ -5,6 +6,7 @@ import { EventStreamComponent } from './event-stream.component';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { RecentScanItem } from '../../../core/organizer/organizer.models';
 import { SubBoothApi } from '../../../core/staff/sub-booth-api';
+import { AuthService } from '../../../core/auth/auth.service';
 
 const scan = (i: number): RecentScanItem => ({
   id: `log-${i}`,
@@ -27,6 +29,8 @@ describe('EventStreamComponent', () => {
     events = {
       listScans: vi.fn().mockReturnValue(of([scan(1), scan(2)])),
       exportScansCsv: vi.fn().mockReturnValue(of('csv')),
+      loadLiveOverview: () =>
+        of({ organizerId: 'usr-org', kpis: undefined, hourlyFlow: [], stationTraffic: [], recentScans: [] }),
     };
 
     await TestBed.configureTestingModule({
@@ -35,6 +39,7 @@ describe('EventStreamComponent', () => {
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { parent: { paramMap: of(new Map([['eventId', 'evt-1']])) } } },
         { provide: OrganizerEventsService, useValue: events },
+        { provide: AuthService, useValue: { user: signal({ id: 'usr-org', role: 'USER' }) } },
         {
           provide: SubBoothApi,
           useValue: {
@@ -51,6 +56,10 @@ describe('EventStreamComponent', () => {
     fixture = TestBed.createComponent(EventStreamComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('shows the live stats above the log', () => {
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-event-stats')).toBeTruthy();
   });
 
   it('loads the scan log and renders every row', () => {

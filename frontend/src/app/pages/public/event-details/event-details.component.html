@@ -28,7 +28,8 @@
   <!-- Main Content View (Responsive Website + Mobile Layout) -->
   @if (!isLoading() && event(); as ev) {
     <div class="event-details-container">
-      <!-- Breadcrumb / Header Row -->
+      <!-- Breadcrumb / Header Row (hidden in organizer preview) -->
+      @if (!preview()) {
       <nav class="event-breadcrumb-bar" aria-label="Breadcrumb">
         <button type="button" class="btn-breadcrumb-back" (click)="goBack()" aria-label="Back to all events">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="back-arrow-icon" aria-hidden="true">
@@ -42,6 +43,7 @@
 
         <span class="nav-event-title visually-hidden">{{ ev.title }}</span>
       </nav>
+      }
 
       <!-- Wide Hero Banner Section -->
       <section class="hero-banner-section" aria-label="Event Cover">
@@ -255,7 +257,11 @@
 
             <!-- Primary Action Button in Sidebar -->
             <div class="sidebar-cta-wrap">
-              @if (isRegistered()) {
+              @if (preview()) {
+                <button type="button" class="btn-primary-cta btn-claim-pass" disabled title="Attendees register here">
+                  <span>RSVP for Event / Claim Pass</span>
+                </button>
+              } @else if (isRegistered()) {
                 <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
                     <polyline points="20 6 9 17 4 12"></polyline>
@@ -283,7 +289,8 @@
         </aside>
       </div>
 
-      <!-- Mobile Fixed Bottom Action Bar (visible on mobile screens only) -->
+      <!-- Mobile Fixed Bottom Action Bar (visible on mobile screens only; not in preview) -->
+      @if (!preview()) {
       <footer class="mobile-fixed-bottom-bar" aria-label="Mobile Action Bar">
         @if (isRegistered()) {
           <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
@@ -302,6 +309,7 @@
           </button>
         }
       </footer>
+      }
     </div>
   }
 

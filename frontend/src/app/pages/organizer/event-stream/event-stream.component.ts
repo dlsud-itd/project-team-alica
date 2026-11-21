@@ -6,13 +6,14 @@ import { OrganizerEventsService } from '../../../core/organizer/organizer-events
 import { RecentScanItem } from '../../../core/organizer/organizer.models';
 import { StaffCheckpoint } from '../../../core/staff/scanner.models';
 import { SubBoothApi } from '../../../core/staff/sub-booth-api';
+import { EventStatsComponent } from '../event-stats/event-stats.component';
 
 const PAGE_SIZE = 100;
 
 @Component({
-  imports: [DatePipe],
+  imports: [DatePipe, EventStatsComponent],
   selector: 'app-event-stream',
-  styleUrls: ['../event-overview/event-overview.component.scss', './event-stream.component.scss'],
+  styleUrls: ['../event-stats/event-stats.component.scss', './event-stream.component.scss'],
   templateUrl: './event-stream.component.html',
 })
 export class EventStreamComponent implements OnInit, OnDestroy {

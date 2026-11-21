@@ -197,4 +197,23 @@ describe('EventDetailsComponent', () => {
     expect(ctaBtn).toBeTruthy();
     expect(ctaBtn?.textContent).toContain('Already Registered (Go to Pass)');
   });
+
+  it('preview mode loads the given event and disables navigation and registration', () => {
+    fixture.componentRef.setInput('previewEventId', 'evt-devcon-manila-2026');
+    fixture.detectChanges();
+
+    httpTesting
+      .expectOne(`${environment.apiUrl}/events/evt-devcon-manila-2026`)
+      .flush({ success: true, data: mockEvent });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.classList).toContain('is-preview');
+    expect(el.querySelector('.event-breadcrumb-bar')).toBeNull();
+    expect(el.querySelector('.mobile-fixed-bottom-bar')).toBeNull();
+    expect(el.querySelector<HTMLButtonElement>('.sidebar-cta-wrap button')?.disabled).toBe(true);
+
+    component.openRsvpModal();
+    expect(component.isRsvpOpen()).toBe(false);
+  });
 });

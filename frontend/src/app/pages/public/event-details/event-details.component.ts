@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
@@ -59,6 +59,7 @@ export interface EventDetail {
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './event-details.component.html',
   styleUrl: './event-details.component.scss',
+  host: { '[class.is-preview]': 'preview()' },
 })
 export class EventDetailsComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -66,6 +67,13 @@ export class EventDetailsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly fb = inject(FormBuilder);
   readonly auth = inject(AuthService);
+
+  /**
+   * Preview mode (organizer Overview tab): render the page for this event id
+   * exactly as attendees see it, minus navigation and registration actions.
+   */
+  readonly previewEventId = input<string>('');
+  readonly preview = computed(() => !!this.previewEventId());
 
   readonly event = signal<EventDetail | null>(null);
   readonly isLoading = signal(true);
@@ -96,6 +104,11 @@ export class EventDetailsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    const previewId = this.previewEventId();
+    if (previewId) {
+      this.fetchEventDetails(previewId);
+      return;
+    }
     this.route.paramMap.subscribe((params) => {
       const idOrSlug = params.get('idOrSlug') || params.get('eventId');
       if (idOrSlug) {
@@ -137,7 +150,7 @@ export class EventDetailsComponent implements OnInit {
 
   openRsvpModal(): void {
     const ev = this.event();
-    if (!ev) return;
+    if (!ev || this.preview()) return;
 
     this.isRsvpOpen.set(true);
     this.rsvpSuccess.set(null);

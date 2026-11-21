@@ -1161,3 +1161,14 @@
   flex-direction: column;
   gap: 8px;
 }
+
+// Organizer preview (Overview tab): embedded inside the event workspace
+:host(.is-preview) {
+  min-height: 0;
+  background-color: transparent;
+
+  .event-details-container {
+    max-width: none;
+    padding: 0;
+  }
+}

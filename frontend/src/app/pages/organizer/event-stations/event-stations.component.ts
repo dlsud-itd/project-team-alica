@@ -58,7 +58,7 @@ export const STATION_TYPE_LABELS: Record<CheckpointType, string> = {
 @Component({
   imports: [DatePipe, NgTemplateOutlet],
   selector: 'app-event-stations',
-  styleUrls: ['../event-overview/event-overview.component.scss', './event-stations.component.scss'],
+  styleUrls: ['../event-stats/event-stats.component.scss', './event-stations.component.scss'],
   templateUrl: './event-stations.component.html',
 })
 export class EventStationsComponent implements OnInit {

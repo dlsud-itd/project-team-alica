@@ -1,4 +1,8 @@
 <div class="overview-dashboard">
+  @if (eventId()) {
+    <app-event-stats [eventId]="eventId()" />
+  }
+
   <article class="telemetry-card activity-card">
     <header class="telemetry-header activity-header">
       <div>

@@ -271,4 +271,51 @@ describe('Scanner', () => {
     expect(text()).toContain('Scan could not be recorded');
     expect(component.processing()).toBe(false);
   });
+
+  it('switches scan modes and updates viewfinder hint', async () => {
+    await create();
+    expect(component.scanMode()).toBe('hybrid');
+    expect(component.viewfinderHint()).toContain('Scan QR pass or look into camera for Face ID');
+
+    component.setScanMode('qr');
+    expect(component.scanMode()).toBe('qr');
+    expect(component.viewfinderHint()).toContain('Point the camera at the attendee’s QR pass');
+
+    component.setScanMode('face');
+    expect(component.scanMode()).toBe('face');
+    expect(component.viewfinderHint()).toContain('Position face within the guide for Face ID');
+  });
+
+  it('submits face descriptor when submitFace is called and displays verification method', async () => {
+    await create();
+    const sampleDescriptor = new Array(128).fill(0.1);
+    api.scan.mockReturnValue(
+      of(
+        outcome({
+          verificationMethod: 'FACE_ID',
+          faceConfidence: 94,
+        }),
+      ),
+    );
+
+    component.submitFace(sampleDescriptor);
+    await fixture.whenStable();
+
+    expect(api.scan).toHaveBeenCalledWith(
+      GATE.id,
+      expect.objectContaining({ faceDescriptor: sampleDescriptor }),
+    );
+    expect(component.result()?.verificationMethod).toBe('FACE_ID');
+    expect(text()).toContain('Verified via Face ID');
+    expect(text()).toContain('94% match');
+  });
+
+  it('ignores QR decode events when scanMode is set to face only', async () => {
+    await create();
+    component.setScanMode('face');
+    (component as any).onDecoded('CHK-2026-9812A');
+    await fixture.whenStable();
+
+    expect(api.scan).not.toHaveBeenCalled();
+  });
 });

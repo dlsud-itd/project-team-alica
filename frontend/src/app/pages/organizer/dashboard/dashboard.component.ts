@@ -125,6 +125,7 @@ export class OrganizerDashboard {
 
   // Delete Event State
   readonly deletingEvent = signal<OrganizerEvent | null>(null);
+   readonly isDeleting = signal(false);
 
   readonly editForm = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -356,14 +357,24 @@ export class OrganizerDashboard {
     this.deletingEvent.set(null);
   }
 
-  confirmDelete(): void {
+    confirmDelete(): void {
     const target = this.deletingEvent();
-    if (!target) return;
+    if (!target || this.isDeleting()) return;
 
-    this.organizerEvents.deleteEvent(target.id);
-    this.notice.set(`Event "${target.name}" was deleted.`);
-    this.closeDelete();
-    this.closeEdit();
+    this.isDeleting.set(true);
+    this.organizerEvents.deleteEvent(target.id).subscribe({
+      next: () => {
+        this.isDeleting.set(false);
+        this.notice.set(`Event "${target.name}" was deleted.`);
+        this.closeDelete();
+        this.closeEdit();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.isDeleting.set(false);
+        this.notice.set(err.error?.message ?? `Could not delete "${target.name}". Please try again.`);
+        this.closeDelete();
+      },
+    });
   }
 
   @HostListener('document:keydown.escape')

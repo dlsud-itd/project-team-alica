@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
-import { EventOrganizer, OrganizerEvent } from '../../../core/organizer/organizer.models';
+import { EventOrganizer, EventScheduleItem, OrganizerEvent } from '../../../core/organizer/organizer.models';
 
 function toDateTimeLocalInput(isoString: string): string {
   if (!isoString) return '';
@@ -37,6 +37,16 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
   readonly generalSuccess = signal('');
   readonly generalError = signal('');
 
+  // Banner image state
+  readonly bannerImageUrl = signal<string | null>(null);
+  readonly imageError = signal('');
+
+  // Schedule state
+  readonly scheduleItems = signal<EventScheduleItem[]>([]);
+  readonly scheduleFormOpen = signal(false);
+  readonly editingScheduleIndex = signal<number | null>(null);
+  readonly scheduleError = signal('');
+
   // Organizers state
   readonly organizers = signal<EventOrganizer[]>([]);
   readonly organizersLoading = signal(false);
@@ -46,6 +56,8 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
 
   // Delete state
   readonly deleting = signal(false);
+  readonly isDeleting = signal(false);
+  readonly deleteError = signal('');
 
   private routeSub?: Subscription;
 
@@ -72,6 +84,10 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
 
   readonly generalForm = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    category: new FormControl<'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO'>('CONFERENCE', {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
     description: new FormControl('', { nonNullable: true }),
     venue: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     starts_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -81,6 +97,14 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
     }),
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
     is_private: new FormControl(false, { nonNullable: true }),
+  });
+
+  readonly scheduleItemForm = new FormGroup({
+    time: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    type: new FormControl('SESSION', { nonNullable: true, validators: [Validators.required] }),
+    location: new FormControl('', { nonNullable: true }),
+    description: new FormControl('', { nonNullable: true }),
   });
 
   ngOnInit(): void {
@@ -124,6 +148,7 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
     if (!ev) return;
     this.generalForm.patchValue({
       name: ev.name,
+      category: ev.category ?? 'CONFERENCE',
       description: ev.description,
       venue: ev.venue,
       starts_at: toDateTimeLocalInput(ev.starts_at),
@@ -132,6 +157,114 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
       allow_walk_ins: ev.allow_walk_ins,
       is_private: ev.is_private ?? false,
     });
+    this.bannerImageUrl.set(ev.banner_image_url ?? null);
+    this.scheduleItems.set(ev.schedule ? [...ev.schedule] : []);
+  }
+
+  // Cover image management
+  onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    this.imageError.set('');
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      this.imageError.set('Please select a valid image file (PNG, JPG, or WebP).');
+      input.value = '';
+      return;
+    }
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      this.imageError.set('Image file size must be less than 2MB.');
+      input.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.bannerImageUrl.set(reader.result as string);
+    };
+    reader.onerror = () => {
+      this.imageError.set('Failed to read image file. Please try again.');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removeImage(): void {
+    this.bannerImageUrl.set(null);
+    this.imageError.set('');
+  }
+
+  // Schedule timeline management
+  openAddScheduleItem(): void {
+    this.editingScheduleIndex.set(null);
+    this.scheduleItemForm.reset({
+      time: '',
+      title: '',
+      type: 'SESSION',
+      location: '',
+      description: '',
+    });
+    this.scheduleError.set('');
+    this.scheduleFormOpen.set(true);
+  }
+
+  openEditScheduleItem(index: number): void {
+    const items = this.scheduleItems();
+    if (index < 0 || index >= items.length) return;
+    const item = items[index];
+    this.editingScheduleIndex.set(index);
+    this.scheduleItemForm.patchValue({
+      time: item.time,
+      title: item.title,
+      type: item.type,
+      location: item.location ?? '',
+      description: item.description ?? '',
+    });
+    this.scheduleError.set('');
+    this.scheduleFormOpen.set(true);
+  }
+
+  closeScheduleForm(): void {
+    this.scheduleFormOpen.set(false);
+    this.editingScheduleIndex.set(null);
+    this.scheduleError.set('');
+  }
+
+  saveScheduleItem(): void {
+    if (this.scheduleItemForm.invalid) {
+      this.scheduleError.set('Please fill in both Time and Title for the session.');
+      return;
+    }
+    const val = this.scheduleItemForm.getRawValue();
+    const editIdx = this.editingScheduleIndex();
+    const newItem: EventScheduleItem = {
+      id:
+        editIdx !== null && editIdx >= 0
+          ? this.scheduleItems()[editIdx].id
+          : `sch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      time: val.time.trim(),
+      title: val.title.trim(),
+      type: val.type,
+      location: val.location.trim() || undefined,
+      description: val.description.trim(),
+    };
+
+    const updated = [...this.scheduleItems()];
+    if (editIdx !== null && editIdx >= 0) {
+      updated[editIdx] = newItem;
+    } else {
+      updated.push(newItem);
+    }
+    this.scheduleItems.set(updated);
+    this.closeScheduleForm();
+  }
+
+  removeScheduleItem(index: number): void {
+    const updated = this.scheduleItems().filter((_, i) => i !== index);
+    this.scheduleItems.set(updated);
   }
 
   loadOrganizers(eventId: string): void {
@@ -191,6 +324,9 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
         capacity,
         allow_walk_ins: raw.allow_walk_ins,
         is_private: raw.is_private,
+        category: raw.category,
+        banner_image_url: this.bannerImageUrl(),
+        schedule: this.scheduleItems(),
       })
       .subscribe({
         next: (saved) => {
@@ -253,14 +389,26 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
 
   closeDelete(): void {
     this.deleting.set(false);
+    this.deleteError.set('');
   }
 
-  confirmDelete(): void {
+    confirmDelete(): void {
     const ev = this.event();
-    if (!ev) return;
-    this.organizerEvents.deleteEvent(ev.id);
-    this.closeDelete();
-    this.router.navigate(['/hub']);
+    if (!ev || this.isDeleting()) return;
+
+    this.isDeleting.set(true);
+    this.deleteError.set('');
+    this.organizerEvents.deleteEvent(ev.id).subscribe({
+      next: () => {
+        this.isDeleting.set(false);
+        this.closeDelete();
+        this.router.navigate(['/hub']);
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.isDeleting.set(false);
+        this.deleteError.set(err.error?.message ?? 'Could not delete the event. Please try again.');
+      },
+    });
   }
 }
 

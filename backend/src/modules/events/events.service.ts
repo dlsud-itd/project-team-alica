@@ -29,6 +29,10 @@ import {
   type ProgressSummaryDto,
   type RegistrantProgressDto,
 } from '../checkpoints/ticket-progress.js';
+import {
+  euclideanDistance,
+  FACE_MATCH_THRESHOLD,
+} from '../checkpoints/checkpoints.service.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
 
 const MAX_GUEST_ROWS = 5000;
@@ -108,6 +112,7 @@ export interface EventResponseDto {
   organizerId?: string;
   staffIds?: string[];
   registeredUserIds?: string[];
+  bannerImageUrl?: string | null;
 }
 
 export interface EventScheduleItemDto {
@@ -175,6 +180,8 @@ export interface OrganizerEventDto {
   checkpoints_count?: number;
   admitted_count?: number;
   organizers?: EventOrganizerDto[];
+  banner_image_url?: string | null;
+  schedule?: EventScheduleItemDto[];
 }
 
 export interface EventLiveKpisDto {
@@ -256,6 +263,8 @@ export interface ScanResultDto {
   cooldownRemainingSeconds?: number;
   /** Attendee's booth stamp progress, present on SUCCESS/DUPLICATE scans. */
   progress?: ProgressSummaryDto;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }
 
 export interface AdminEventDto extends OrganizerEventDto {
@@ -300,6 +309,9 @@ export class UpdateEventDto {
   capacity?: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
+  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  banner_image_url?: string;
+  schedule?: EventScheduleItemDto[];
   organizerEmails?: string[];
 }
 
@@ -321,6 +333,9 @@ export class CreateEventDto {
   capacity!: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
+  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  banner_image_url?: string;
+  schedule?: EventScheduleItemDto[];
   organizerEmails?: string[];
 }
 
@@ -924,13 +939,16 @@ export class EventsService {
         statusLabel = `${spotsRemaining} Spots Left`;
       }
 
-      // Infer category from title/slug
+      // Infer or use explicitly saved category
       const lowerSlug = (ev.slug + ' ' + ev.title).toLowerCase();
       let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
         'CONFERENCE';
       let categoryLabel = 'Conference';
 
-      if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
+        category = ev.category as any;
+        categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
+      } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
         category = 'HACKATHON';
         categoryLabel = 'Hackathon';
       } else if (
@@ -978,6 +996,7 @@ export class EventsService {
         registeredUserIds: ev.tickets
           .map((t) => t.userId)
           .filter((uid): uid is string => uid !== null),
+        bannerImageUrl: ev.bannerImageUrl ?? null,
       };
     });
   }
@@ -1046,7 +1065,10 @@ export class EventsService {
       'CONFERENCE';
     let categoryLabel = 'Conference';
 
-    if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+    if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
+      category = ev.category as any;
+      categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
+    } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
       category = 'HACKATHON';
       categoryLabel = 'Hackathon';
     } else if (
@@ -1089,9 +1111,13 @@ export class EventsService {
     const checkpointMode =
       ev.checkpoints.length > 1 ? 'Multi-stop Checks' : 'Single Gate Entry';
 
-    const schedule = this.buildScheduleTimeline(ev);
+    const schedule =
+      ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0
+        ? (ev.schedule as unknown as EventScheduleItemDto[])
+        : this.buildScheduleTimeline(ev);
     const speakers = this.buildFeaturedSpeakers(ev);
-    const bannerImageUrl = this.resolveBannerImage(ev.slug, category);
+    const bannerImageUrl =
+      ev.bannerImageUrl || this.resolveBannerImage(ev.slug, category);
 
     return {
       id: ev.id,
@@ -1558,16 +1584,22 @@ export class EventsService {
       const base = this.toOrganizerEvent(ev, ev._count.tickets);
       let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' = 'CONFERENCE';
       let category_label = 'Conference';
-      const lowerTitle = ev.title.toLowerCase();
-      if (lowerTitle.includes('hackathon')) {
-        category = 'HACKATHON';
-        category_label = 'Hackathon';
-      } else if (lowerTitle.includes('workshop')) {
-        category = 'WORKSHOP';
-        category_label = 'Workshop';
-      } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
-        category = 'EXPO';
-        category_label = 'Expo';
+
+      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
+        category = ev.category as any;
+        category_label = category.charAt(0) + category.slice(1).toLowerCase();
+      } else {
+        const lowerTitle = ev.title.toLowerCase();
+        if (lowerTitle.includes('hackathon')) {
+          category = 'HACKATHON';
+          category_label = 'Hackathon';
+        } else if (lowerTitle.includes('workshop')) {
+          category = 'WORKSHOP';
+          category_label = 'Workshop';
+        } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
+          category = 'EXPO';
+          category_label = 'Expo';
+        }
       }
 
       return {
@@ -1597,7 +1629,7 @@ export class EventsService {
       throw new BadRequestException('Start date & time must be in the future');
     }
     const capacity = this.parseCapacity(dto.capacity);
-    const isPrivate = user.role === 'ATTENDEE' ? false : dto.is_private === true;
+    const isPrivate = dto.is_private === true;
     const approvalStatus =
       isPrivate || user.role === 'ADMIN'
         ? EventApprovalStatus.APPROVED
@@ -1616,6 +1648,9 @@ export class EventsService {
         isPrivate,
         approvalStatus,
         organizerId: user.id,
+        category: dto.category ?? null,
+        bannerImageUrl: dto.banner_image_url ?? null,
+        schedule: dto.schedule ? (dto.schedule as any) : undefined,
       },
       include: {
         organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
@@ -1667,6 +1702,19 @@ export class EventsService {
     return this.toOrganizerEvent(fullEvent ?? event, 0);
   }
 
+    /** Soft delete: hides the event everywhere but keeps tickets and scan history. */
+  async remove(user: UserSummaryDto, eventId: string): Promise<void> {
+    const event = await this.findManageableEvent(user, eventId);
+    if (user.role !== 'ADMIN' && event.organizerId !== user.id) {
+      throw new ForbiddenException('Only the primary organizer can delete this event');
+    }
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+    this.logger.log(`Event '${eventId}' soft-deleted by ${user.id}`);
+  }
+
   async update(
     user: UserSummaryDto,
     eventId: string,
@@ -1693,6 +1741,18 @@ export class EventsService {
 
     if (dto.is_private !== undefined) {
       data.isPrivate = Boolean(dto.is_private);
+    }
+
+    if (dto.category !== undefined) {
+      data.category = dto.category;
+    }
+
+    if (dto.banner_image_url !== undefined) {
+      data.bannerImageUrl = dto.banner_image_url ? dto.banner_image_url.trim() : null;
+    }
+
+    if (dto.schedule !== undefined) {
+      data.schedule = dto.schedule ? (dto.schedule as any) : null;
     }
 
     const [startDate, endDate] = this.parseDateRange(
@@ -2112,6 +2172,16 @@ export class EventsService {
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
       is_private: ev.isPrivate,
+      category: (ev.category as any) ?? undefined,
+      banner_image_url:
+        ev.bannerImageUrl ??
+        (ev.slug ? this.resolveBannerImage(ev.slug, (ev.category as any) || 'CONFERENCE') : null),
+      schedule:
+        (ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0)
+          ? (ev.schedule as unknown as EventScheduleItemDto[])
+          : ev.slug
+            ? this.buildScheduleTimeline({ slug: ev.slug, checkpoints: (ev as any).checkpoints || [] })
+            : undefined,
       ...(organizersList.length > 0 ? { organizers: organizersList } : {}),
     };
   }
@@ -2376,7 +2446,9 @@ export class EventsService {
     user: UserSummaryDto,
     eventId: string,
     checkpointId: string,
-    ticketCode: string,
+    ticketCodeOrPayload:
+      | string
+      | { ticketCode?: string; faceDescriptor?: number[] },
   ): Promise<ScanResultDto> {
     await this.findAccessibleEvent(user, eventId);
 
@@ -2389,6 +2461,104 @@ export class EventsService {
       );
     }
 
+    const payload =
+      typeof ticketCodeOrPayload === 'string'
+        ? { ticketCode: ticketCodeOrPayload }
+        : ticketCodeOrPayload ?? {};
+
+    const hasFace =
+      Array.isArray(payload.faceDescriptor) && payload.faceDescriptor.length > 0;
+    const hasTicket =
+      typeof payload.ticketCode === 'string' &&
+      payload.ticketCode.trim().length > 0;
+
+    if (!hasFace && !hasTicket) {
+      throw new BadRequestException(
+        'Either ticketCode or faceDescriptor must be provided.',
+      );
+    }
+
+    let ticketCodeToEvaluate = payload.ticketCode?.trim();
+    let verificationMethod: 'QR' | 'FACE_ID' = 'QR';
+    let faceConfidence: number | undefined;
+
+    if (hasFace) {
+      verificationMethod = 'FACE_ID';
+      const descriptor = payload.faceDescriptor!;
+      if (
+        descriptor.length !== 128 ||
+        descriptor.some((n) => typeof n !== 'number' || !Number.isFinite(n))
+      ) {
+        throw new BadRequestException(
+          'Face descriptor must be an array of exactly 128 finite numbers',
+        );
+      }
+
+      const attendeesWithFace = await this.prisma.ticket.findMany({
+        where: {
+          eventId,
+          user: {
+            faceRegisteredAt: { not: null },
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              studentId: true,
+              faceDescriptor: true,
+            },
+          },
+        },
+      });
+
+      let bestMatch: {
+        ticket: (typeof attendeesWithFace)[0];
+        distance: number;
+      } | null = null;
+      let minDistance = Infinity;
+
+      for (const t of attendeesWithFace) {
+        const desc = t.user?.faceDescriptor;
+        if (!desc || desc.length !== 128) continue;
+        const dist = euclideanDistance(descriptor, desc);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestMatch = { ticket: t, distance: dist };
+        }
+      }
+
+      if (bestMatch && minDistance < FACE_MATCH_THRESHOLD) {
+        ticketCodeToEvaluate = bestMatch.ticket.ticketCode;
+        faceConfidence = Math.round(
+          Math.max(
+            60,
+            Math.min(
+              99,
+              ((FACE_MATCH_THRESHOLD - minDistance) / FACE_MATCH_THRESHOLD) *
+                39 +
+                60,
+            ),
+          ),
+        );
+      } else {
+        const notFoundMsg =
+          'Face not recognized for any registered attendee of this event.';
+        await this.prisma.attendanceLog.create({
+          data: {
+            ticketCode: 'FACE:UNKNOWN',
+            checkpointId: checkpoint.id,
+            scannedByUserId: user.id,
+            scanResult: 'INVALID_TICKET',
+            notes: notFoundMsg,
+          },
+        });
+        throw new NotFoundException(notFoundMsg);
+      }
+    }
+
     const { outcome } = await evaluateCheckpointScan(this.prisma, {
       userId: user.id,
       checkpoint: {
@@ -2399,7 +2569,13 @@ export class EventsService {
         allowMultipleScans: checkpoint.allowMultipleScans,
         requireMainEntry: checkpoint.requireMainEntry,
       },
-      ticketCode,
+      ticketCode: ticketCodeToEvaluate!,
+      notes:
+        verificationMethod === 'FACE_ID'
+          ? `Face ID verified (score: ${faceConfidence}%)`
+          : undefined,
+      verificationMethod,
+      faceConfidence,
     });
 
     let progress: ProgressSummaryDto | null = null;
@@ -2420,13 +2596,15 @@ export class EventsService {
     return {
       ...(progress ? { progress } : {}),
       scanResult: outcome.scanResult,
-      ticketCode: outcome.attendee?.ticketCode ?? ticketCode.trim(),
+      ticketCode: outcome.attendee?.ticketCode ?? ticketCodeToEvaluate!,
       attendeeName: outcome.attendee?.fullName,
       affiliation: outcome.affiliation,
       stationName: checkpoint.name,
       scannedAt: outcome.scannedAt,
       firstScannedAt: outcome.firstScannedAt,
       message: outcome.message,
+      verificationMethod,
+      faceConfidence,
       ...(outcome.cooldownActive !== undefined
         ? { cooldownActive: outcome.cooldownActive }
         : {}),

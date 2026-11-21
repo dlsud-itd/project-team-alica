@@ -634,13 +634,15 @@
 
       <div class="dialog-body">
         <p class="delete-copy">
-          This removes "{{ target.name }}" from your current dashboard list.
+          This event will be hidden from attendees and organizers. Its tickets and scan history are kept.
         </p>
       </div>
 
       <footer class="dialog-footer">
         <button type="button" class="btn-cancel" (click)="closeDelete()">Cancel</button>
-        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()">Delete Event</button>
+        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()" [disabled]="isDeleting()">
+          {{ isDeleting() ? 'Deleting…' : 'Delete Event' }}
+        </button>
       </footer>
     </section>
   </div>

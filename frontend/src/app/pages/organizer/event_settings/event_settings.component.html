@@ -51,6 +51,16 @@
             />
           </div>
 
+          <div class="form-group span-full">
+            <label for="settings-category">Event Category *</label>
+            <select id="settings-category" class="form-control" formControlName="category">
+              <option value="CONFERENCE">Conference</option>
+              <option value="HACKATHON">Hackathon</option>
+              <option value="WORKSHOP">Workshop</option>
+              <option value="EXPO">Expo &amp; Demos</option>
+            </select>
+          </div>
+
           <div class="form-group">
             <label for="settings-starts-at">Starts At *</label>
             <input
@@ -128,7 +138,155 @@
       </form>
     </section>
 
-    <!-- 2. Event Organizers (Multiple Organizers Management) -->
+    <!-- 2. Event Cover Image & Banner -->
+    <section class="settings-card" aria-labelledby="banner-heading">
+      <header class="card-header">
+        <div>
+          <h2 id="banner-heading" class="card-title">Event Cover Image</h2>
+          <p class="card-subtitle">Upload a prominent cover banner for attendee event discovery and pass headers (PNG, JPG, or WebP, up to 2MB).</p>
+        </div>
+      </header>
+
+      <div class="card-body">
+        @if (imageError()) {
+          <div class="alert-error" role="alert">
+            <span>{{ imageError() }}</span>
+          </div>
+        }
+
+        <div class="image-upload-wrapper">
+          @if (bannerImageUrl()) {
+            <div class="image-preview-container">
+              <img [src]="bannerImageUrl()" alt="Event Cover Banner Preview" class="cover-image-preview" />
+              <div class="image-actions-overlay">
+                <label class="btn-change-image" for="banner-file-input">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>Replace Image</span>
+                </label>
+                <button type="button" class="btn-remove-image" (click)="removeImage()" aria-label="Remove cover image">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  <span>Remove</span>
+                </button>
+              </div>
+            </div>
+          } @else {
+            <label for="banner-file-input" class="image-dropzone" tabindex="0">
+              <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span class="dropzone-title">Upload event banner image</span>
+              <span class="dropzone-hint">PNG, JPG, or WebP up to 2MB (Recommended ratio 16:9)</span>
+            </label>
+          }
+
+          <input
+            id="banner-file-input"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            class="sr-only-input"
+            (change)="onImageSelected($event)"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Schedule Timeline -->
+    <section class="settings-card" aria-labelledby="schedule-heading">
+      <header class="card-header">
+        <div>
+          <h2 id="schedule-heading" class="card-title">Schedule Timeline</h2>
+          <p class="card-subtitle">Configure session tracks, keynotes, and activities displayed on the attendee event page.</p>
+        </div>
+        <button type="button" class="btn-primary btn-sm" (click)="openAddScheduleItem()">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Add Session</span>
+        </button>
+      </header>
+
+      <div class="card-body">
+        @if (scheduleItems().length === 0) {
+          <div class="empty-schedule-state">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <p class="empty-title">No schedule sessions added yet</p>
+            <p class="empty-subtitle">Add sessions like Keynote, Breakouts, or Workshops to structure your event's agenda.</p>
+            <button type="button" class="btn-secondary btn-sm" (click)="openAddScheduleItem()">
+              + Add First Session
+            </button>
+          </div>
+        } @else {
+          <div class="schedule-list">
+            @for (item of scheduleItems(); track item.id; let idx = $index) {
+              <div class="schedule-card-item">
+                <div class="schedule-item-time">
+                  <span class="time-tag">{{ item.time }}</span>
+                </div>
+                <div class="schedule-item-content">
+                  <div class="schedule-item-header">
+                    <h3 class="schedule-item-title">{{ item.title }}</h3>
+                    <span class="session-type-pill" [attr.data-type]="item.type">{{ item.type }}</span>
+                  </div>
+                  @if (item.location) {
+                    <p class="schedule-item-location">
+                      <svg class="loc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      <span>{{ item.location }}</span>
+                    </p>
+                  }
+                  @if (item.description) {
+                    <p class="schedule-item-desc">{{ item.description }}</p>
+                  }
+                </div>
+                <div class="schedule-item-actions">
+                  <button
+                    type="button"
+                    class="btn-icon-action"
+                    (click)="openEditScheduleItem(idx)"
+                    [attr.aria-label]="'Edit ' + item.title"
+                    title="Edit session"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-icon-action text-danger"
+                    (click)="removeScheduleItem(idx)"
+                    [attr.aria-label]="'Remove ' + item.title"
+                    title="Remove session"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- 4. Event Organizers (Multiple Organizers Management) -->
     <section class="settings-card" aria-labelledby="organizers-heading">
       <header class="card-header">
         <div>
@@ -254,7 +412,7 @@
           <div>
             <h2 id="danger-heading" class="card-title text-danger">Delete Event</h2>
             <p class="card-subtitle">
-              Permanently remove this event and archive all associated checkpoint logs and ticket records.
+              Hide this event from attendees and organizers. Tickets and scan history are kept.
             </p>
           </div>
           <button type="button" class="btn-danger-confirm" (click)="openDelete()">
@@ -287,15 +445,130 @@
         </button>
       </header>
 
-      <div class="dialog-body">
+                 <div class="dialog-body">
         <p class="delete-warning">
-          This action will remove the event from active operations and archive attendee tickets.
+          This event will be hidden from attendees and organizers. Its tickets and scan history are kept.
         </p>
+        @if (deleteError()) {
+          <div class="alert-error" role="alert">
+            <span>{{ deleteError() }}</span>
+          </div>
+        }
       </div>
 
       <footer class="dialog-footer">
-        <button type="button" class="btn-cancel" (click)="closeDelete()">Cancel</button>
-        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()">Delete Event</button>
+        <button type="button" class="btn-cancel" (click)="closeDelete()" [disabled]="isDeleting()">Cancel</button>
+        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()" [disabled]="isDeleting()">
+          {{ isDeleting() ? 'Deleting…' : 'Delete Event' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- Add/Edit Schedule Session Modal -->
+@if (scheduleFormOpen()) {
+  <div class="dialog-backdrop" (click)="closeScheduleForm()" tabindex="-1">
+    <section
+      class="confirm-dialog schedule-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dialog-schedule-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="dialog-header">
+        <div>
+          <h2 id="dialog-schedule-title">
+            {{ editingScheduleIndex() !== null ? 'Edit Schedule Session' : 'Add Schedule Session' }}
+          </h2>
+          <p class="dialog-subtitle">Set the timing, title, and session format for this agenda entry.</p>
+        </div>
+        <button type="button" class="dialog-close" (click)="closeScheduleForm()" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+
+      <div class="dialog-body">
+        @if (scheduleError()) {
+          <div class="alert-error" role="alert">
+            <span>{{ scheduleError() }}</span>
+          </div>
+        }
+
+        <form [formGroup]="scheduleItemForm" (ngSubmit)="saveScheduleItem()" class="modal-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="sched-time">Time / Duration *</label>
+              <input
+                id="sched-time"
+                type="text"
+                class="form-control"
+                formControlName="time"
+                placeholder="e.g. 09:00 AM or 09:00 AM - 10:30 AM"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="sched-type">Session Type *</label>
+              <select id="sched-type" class="form-control" formControlName="type">
+                <option value="KEYNOTE">Keynote</option>
+                <option value="SESSION">Session / Talk</option>
+                <option value="WORKSHOP">Workshop</option>
+                <option value="PANEL">Panel Discussion</option>
+                <option value="BOOTH">Booth Activity</option>
+                <option value="GATE">Gate / Check-in</option>
+              </select>
+            </div>
+
+            <div class="form-group span-full">
+              <label for="sched-title">Session Title *</label>
+              <input
+                id="sched-title"
+                type="text"
+                class="form-control"
+                formControlName="title"
+                placeholder="e.g. Opening Keynote: The Future of Cloud"
+              />
+            </div>
+
+            <div class="form-group span-full">
+              <label for="sched-location">Location / Room</label>
+              <input
+                id="sched-location"
+                type="text"
+                class="form-control"
+                formControlName="location"
+                placeholder="e.g. Function Hall A / Room 204"
+              />
+            </div>
+
+            <div class="form-group span-full">
+              <label for="sched-desc">Description</label>
+              <textarea
+                id="sched-desc"
+                rows="3"
+                class="form-control textarea-control"
+                formControlName="description"
+                placeholder="Topic highlights, key discussion points..."
+              ></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="btn-cancel" (click)="closeScheduleForm()">Cancel</button>
+        <button
+          type="button"
+          class="btn-primary"
+          (click)="saveScheduleItem()"
+          [disabled]="scheduleItemForm.invalid"
+        >
+          {{ editingScheduleIndex() !== null ? 'Save Changes' : 'Add Session' }}
+        </button>
       </footer>
     </section>
   </div>

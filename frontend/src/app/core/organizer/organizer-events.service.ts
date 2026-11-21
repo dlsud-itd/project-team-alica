@@ -186,11 +186,16 @@ export class OrganizerEventsService {
     );
   }
 
-  // Local only for now: there is no delete endpoint yet, so the event returns on the next load.
-  deleteEvent(eventId: UUID): void {
-    this.eventState.update((events) => events.filter((event) => event.id !== eventId));
-    this.registrantState.update((registrants) =>
-      registrants.filter((registrant) => registrant.event_id !== eventId),
+   /** Soft-deletes the event on the server, then removes it from the local lists. */
+  deleteEvent(eventId: UUID): Observable<void> {
+    return this.http.delete<ApiResponse<unknown>>(`${this.api}/${eventId}`).pipe(
+      tap(() => {
+        this.eventState.update((events) => events.filter((event) => event.id !== eventId));
+        this.registrantState.update((registrants) =>
+          registrants.filter((registrant) => registrant.event_id !== eventId),
+        );
+      }),
+      map(() => undefined),
     );
   }
 
@@ -254,11 +259,19 @@ export class OrganizerEventsService {
       .pipe(map((res) => res.data));
   }
 
-  recordScan(eventId: UUID, checkpointId: string, ticketCode: string): Observable<RecordScanResponse> {
+  recordScan(
+    eventId: UUID,
+    checkpointId: string,
+    ticketCodeOrPayload: string | { ticketCode?: string; faceDescriptor?: number[] },
+  ): Observable<RecordScanResponse> {
+    const body =
+      typeof ticketCodeOrPayload === 'string'
+        ? { ticketCode: ticketCodeOrPayload }
+        : ticketCodeOrPayload;
     return this.http
       .post<ApiResponse<RecordScanResponse>>(
         `${this.api}/${eventId}/checkpoints/${checkpointId}/scan`,
-        { ticketCode },
+        body,
       )
       .pipe(map((res) => res.data));
   }

@@ -46,6 +46,14 @@ export class SubBoothApi {
       .pipe(map((res) => res.data));
   }
 
+  /** Soft-delete a checkpoint or sub-booth. */
+  remove(checkpointId: string): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<{ success: boolean; message: string }>(
+      `${this.apiUrl}/checkpoints/${checkpointId}`,
+      { headers: this.buildHeaders() },
+    );
+  }
+
   private buildHeaders(): HttpHeaders {
     let headers = new HttpHeaders({ 'Content-Type': 'application/json' });
     const token = this.auth.token();

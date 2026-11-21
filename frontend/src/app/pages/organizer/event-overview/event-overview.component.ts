@@ -135,6 +135,11 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
   // Sub-booth detail panel
   readonly selectedSubId = signal<string | null>(null);
 
+   // Remove booth / sub-booth (soft delete)
+  readonly removingId = signal<string | null>(null);
+  readonly isRemoving = signal(false);
+  readonly removeError = signal('');
+
   readonly selectedSub = computed(() => {
     const id = this.selectedSubId();
     if (!id) return null;
@@ -165,6 +170,45 @@ export class EventOverviewComponent implements OnInit, OnDestroy {
 
   closeSubDetail(): void {
     this.selectedSubId.set(null);
+  }
+
+    canRemoveStation(stationId: string): boolean {
+    return (
+      this.canManageSubBooths() &&
+      (this.boothIds().has(stationId) || this.isSubBooth(stationId))
+    );
+  }
+
+  openRemove(stationId: string): void {
+    this.removingId.set(stationId);
+    this.removeError.set('');
+  }
+
+  cancelRemove(): void {
+    this.removingId.set(null);
+    this.removeError.set('');
+  }
+
+  confirmRemove(): void {
+    const id = this.removingId();
+    if (!id || this.isRemoving()) return;
+
+    this.isRemoving.set(true);
+    this.removeError.set('');
+
+    this.subBoothApi.remove(id).subscribe({
+      next: () => {
+        this.isRemoving.set(false);
+        this.removingId.set(null);
+        if (this.selectedSubId() === id) this.closeSubDetail();
+        this.loadCheckpoints();
+        this.fetchOverview(true);
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.isRemoving.set(false);
+        this.removeError.set(err.error?.message || 'Could not remove this station.');
+      },
+    });
   }
 
   // SVG Chart calculation

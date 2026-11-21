@@ -5,6 +5,7 @@ import { UserProfileComponent } from './user_profile.component';
 import { UserProfileService } from './user_profile.service';
 import { AuthService } from '../core/auth/auth.service';
 import { TicketQrService } from '../core/tickets/ticket-qr.service';
+import { FaceIdService } from '../core/face-id/face-id.service';
 import {
   UserProfile,
   UserRole,
@@ -26,6 +27,17 @@ describe('UserProfileComponent', () => {
   let mockAuthService: {
     changePassword: ReturnType<typeof vi.fn>;
     logout: ReturnType<typeof vi.fn>;
+  };
+  let mockFaceIdService: {
+    getFaceStatus: ReturnType<typeof vi.fn>;
+    registerFace: ReturnType<typeof vi.fn>;
+    removeFace: ReturnType<typeof vi.fn>;
+    isDismissedThisSession: ReturnType<typeof vi.fn>;
+    dismissThisSession: ReturnType<typeof vi.fn>;
+    clearSessionDismissal: ReturnType<typeof vi.fn>;
+    startCamera: ReturnType<typeof vi.fn>;
+    stopCamera: ReturnType<typeof vi.fn>;
+    detectFaceDescriptor: ReturnType<typeof vi.fn>;
   };
 
   const mockProfile: UserProfile = {
@@ -64,6 +76,21 @@ describe('UserProfileComponent', () => {
       })),
       logout: vi.fn(),
     };
+    mockFaceIdService = {
+      getFaceStatus: vi.fn().mockReturnValue(of({ registered: false })),
+      registerFace: vi.fn().mockReturnValue(of({
+        success: true,
+        message: 'Face ID registered successfully',
+        registeredAt: new Date().toISOString(),
+      })),
+      removeFace: vi.fn().mockReturnValue(of({ success: true, message: 'Face ID removed successfully' })),
+      isDismissedThisSession: vi.fn().mockReturnValue(false),
+      dismissThisSession: vi.fn(),
+      clearSessionDismissal: vi.fn(),
+      startCamera: vi.fn().mockResolvedValue({} as MediaStream),
+      stopCamera: vi.fn(),
+      detectFaceDescriptor: vi.fn().mockResolvedValue(Array.from({ length: 128 }, () => 0.05)),
+    };
 
     await TestBed.configureTestingModule({
       imports: [UserProfileComponent],
@@ -84,6 +111,7 @@ describe('UserProfileComponent', () => {
         },
         { provide: AuthService, useValue: mockAuthService },
         { provide: TicketQrService, useValue: mockTicketQr },
+        { provide: FaceIdService, useValue: mockFaceIdService },
       ],
     }).compileComponents();
 
@@ -305,6 +333,101 @@ describe('UserProfileComponent', () => {
 
       expect(mockAuthService.logout).toHaveBeenCalledWith(null);
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
+    });
+  });
+
+  describe('Face ID Registration Feature', () => {
+    it('prompts user on init if Face ID is not registered and not dismissed', () => {
+      mockFaceIdService.getFaceStatus.mockReturnValue(of({ registered: false }));
+      mockFaceIdService.isDismissedThisSession.mockReturnValue(false);
+
+      fixture.detectChanges();
+
+      expect(component.faceRegistered()).toBe(false);
+      expect(component.status()).toBe('prompting');
+    });
+
+    it('does not prompt if Face ID is already registered', () => {
+      mockFaceIdService.getFaceStatus.mockReturnValue(of({ registered: true }));
+
+      fixture.detectChanges();
+
+      expect(component.faceRegistered()).toBe(true);
+      expect(component.status()).toBe('idle');
+    });
+
+    it('does not prompt if user chose Not now during the current session', () => {
+      mockFaceIdService.getFaceStatus.mockReturnValue(of({ registered: false }));
+      mockFaceIdService.isDismissedThisSession.mockReturnValue(true);
+
+      fixture.detectChanges();
+
+      expect(component.faceRegistered()).toBe(false);
+      expect(component.status()).toBe('idle');
+    });
+
+    it('dismisses prompt and persists session flag when Not now is clicked', () => {
+      fixture.detectChanges();
+      component.dismissFacePrompt();
+
+      expect(mockFaceIdService.dismissThisSession).toHaveBeenCalled();
+      expect(component.status()).toBe('idle');
+    });
+
+    it('starts camera stream and enters capturing state when Yes, register is selected', async () => {
+      fixture.detectChanges();
+
+      await component.startFaceRegistration();
+
+      expect(component.status()).toBe('capturing');
+      expect(mockFaceIdService.startCamera).toHaveBeenCalled();
+    });
+
+    it('captures face, sends 128-number descriptor to backend, and marks registered on success', async () => {
+      fixture.detectChanges();
+      await component.startFaceRegistration();
+
+      await component.captureAndRegisterFace();
+
+      expect(mockFaceIdService.detectFaceDescriptor).toHaveBeenCalled();
+      expect(mockFaceIdService.stopCamera).toHaveBeenCalled();
+      expect(mockFaceIdService.registerFace).toHaveBeenCalledWith(
+        expect.any(Array),
+      );
+      expect(component.faceRegistered()).toBe(true);
+      expect(component.status()).toBe('success');
+    });
+
+    it('handles face detection failure gracefully and enters error state with retry option', async () => {
+      fixture.detectChanges();
+      await component.startFaceRegistration();
+
+      mockFaceIdService.detectFaceDescriptor.mockRejectedValue(
+        new Error('No face detected. Please try again.'),
+      );
+
+      await component.captureAndRegisterFace();
+
+      expect(component.status()).toBe('error');
+      expect(component.faceErrorMessage()).toContain('No face detected');
+      expect(mockFaceIdService.stopCamera).toHaveBeenCalled();
+    });
+
+    it('removes Face ID when removeFaceId is invoked', () => {
+      fixture.detectChanges();
+      component.faceRegistered.set(true);
+
+      component.removeFaceId();
+
+      expect(mockFaceIdService.removeFace).toHaveBeenCalled();
+      expect(component.faceRegistered()).toBe(false);
+    });
+
+    it('stops camera on ngOnDestroy', () => {
+      fixture.detectChanges();
+      component.ngOnDestroy();
+
+      expect(mockFaceIdService.stopCamera).toHaveBeenCalled();
     });
   });
 });

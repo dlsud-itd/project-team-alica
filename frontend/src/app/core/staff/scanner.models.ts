@@ -23,8 +23,11 @@ export interface StationDetails extends StaffCheckpoint {
   totalScans: number;
 }
 
+export type ScannerMode = 'hybrid' | 'qr' | 'face';
+
 export interface ScanRequest {
-  ticketCode: string;
+  ticketCode?: string;
+  faceDescriptor?: number[];
   deviceInfo?: string;
   notes?: string;
   cooldownSeconds?: number;
@@ -54,4 +57,6 @@ export interface ScanOutcome {
   cooldownRemainingSeconds?: number;
   /** Attendee's booth stamp progress (SUCCESS/DUPLICATE scans only). */
   progress?: ProgressSummary;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }

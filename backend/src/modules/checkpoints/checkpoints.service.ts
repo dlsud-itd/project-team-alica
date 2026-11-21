@@ -62,10 +62,13 @@ export interface ScanOutcomeDto {
   cooldownRemainingSeconds?: number;
   /** Attendee's booth stamp progress, present on SUCCESS/DUPLICATE scans. */
   progress?: ProgressSummaryDto;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }
 
 export class ScanRequestBodyDto {
-  ticketCode!: string;
+  ticketCode?: string;
+  faceDescriptor?: number[];
   deviceInfo?: string;
   notes?: string;
   cooldownSeconds?: number;
@@ -88,6 +91,18 @@ type CheckpointWithEvent = {
   parentId: string | null;
   event: { title: string; organizerId?: string };
 };
+
+export function euclideanDistance(a: number[], b: number[]): number {
+  if (a.length !== b.length) return Infinity;
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) {
+    const diff = a[i] - b[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+export const FACE_MATCH_THRESHOLD = 0.6;
 
 @Injectable()
 export class CheckpointsService {
@@ -126,6 +141,12 @@ export class CheckpointsService {
         : {}),
       ...(outcome.cooldownRemainingSeconds !== undefined
         ? { cooldownRemainingSeconds: outcome.cooldownRemainingSeconds }
+        : {}),
+      ...(outcome.verificationMethod !== undefined
+        ? { verificationMethod: outcome.verificationMethod }
+        : {}),
+      ...(outcome.faceConfidence !== undefined
+        ? { faceConfidence: outcome.faceConfidence }
         : {}),
     };
   }
@@ -376,6 +397,44 @@ export class CheckpointsService {
     return this.toStaffDto(created);
   }
 
+    /**
+   * Soft delete: hides the booth (and its sub-booths) from stamp cards and lists
+   * but keeps every scan log. Never a hard delete, because attendance logs
+   * cascade on checkpoint deletion.
+   */
+  async removeCheckpoint(user: UserSummaryDto, checkpointId: string): Promise<void> {
+    const checkpoint = await this.prisma.checkpoint.findFirst({
+      where: { id: checkpointId, deletedAt: null },
+      include: { event: { select: { organizerId: true } } },
+    });
+    if (!checkpoint) {
+      throw new NotFoundException(`Checkpoint '${checkpointId}' not found.`);
+    }
+    if (checkpoint.type === 'MAIN_ENTRY') {
+      throw new BadRequestException('The main entry gate cannot be removed.');
+    }
+
+    if (user.role !== 'ADMIN' && checkpoint.event?.organizerId !== user.id) {
+      let isCoOrganizer = false;
+      if (this.prisma.eventOrganizer?.findFirst) {
+        const coOrg = await this.prisma.eventOrganizer.findFirst({
+          where: { eventId: checkpoint.eventId, userId: user.id },
+        });
+        if (coOrg) isCoOrganizer = true;
+      }
+      if (!isCoOrganizer) {
+        throw new ForbiddenException('Only organizers can remove booths.');
+      }
+    }
+
+    await this.prisma.checkpoint.updateMany({
+      where: { OR: [{ id: checkpointId }, { parentId: checkpointId }], deletedAt: null },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+
+    this.logger.log(`Checkpoint '${checkpointId}' soft-deleted by user '${user.id}'`);
+  }
+
   async scan(
     user: UserSummaryDto,
     checkpointId: string,
@@ -392,6 +451,132 @@ export class CheckpointsService {
 
     await this.assertStationAccess(user, checkpoint);
 
+    const hasFace = Array.isArray(dto.faceDescriptor) && dto.faceDescriptor.length > 0;
+    const hasTicket = typeof dto.ticketCode === 'string' && dto.ticketCode.trim().length > 0;
+
+    if (!hasFace && !hasTicket) {
+      throw new BadRequestException(
+        'Either ticketCode or faceDescriptor must be provided.',
+      );
+    }
+
+    let ticketCodeToEvaluate = dto.ticketCode?.trim();
+    let verificationMethod: 'QR' | 'FACE_ID' = 'QR';
+    let faceConfidence: number | undefined;
+
+    if (hasFace) {
+      verificationMethod = 'FACE_ID';
+      const descriptor = dto.faceDescriptor!;
+      if (
+        descriptor.length !== 128 ||
+        descriptor.some((n) => typeof n !== 'number' || !Number.isFinite(n))
+      ) {
+        throw new BadRequestException(
+          'Face descriptor must be an array of exactly 128 finite numbers',
+        );
+      }
+
+      // Find attendees of this event who have registered Face ID
+      const attendeesWithFace = await this.prisma.ticket.findMany({
+        where: {
+          eventId: checkpoint.eventId,
+          user: {
+            faceRegisteredAt: { not: null },
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              studentId: true,
+              faceDescriptor: true,
+            },
+          },
+        },
+      });
+
+      let bestMatch: { ticket: (typeof attendeesWithFace)[0]; distance: number } | null = null;
+      let minDistance = Infinity;
+
+      for (const t of attendeesWithFace) {
+        const desc = t.user?.faceDescriptor;
+        if (!desc || desc.length !== 128) continue;
+        const dist = euclideanDistance(descriptor, desc);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestMatch = { ticket: t, distance: dist };
+        }
+      }
+
+      if (bestMatch && minDistance < FACE_MATCH_THRESHOLD) {
+        ticketCodeToEvaluate = bestMatch.ticket.ticketCode;
+        faceConfidence = Math.round(
+          Math.max(
+            60,
+            Math.min(
+              99,
+              ((FACE_MATCH_THRESHOLD - minDistance) / FACE_MATCH_THRESHOLD) * 39 + 60,
+            ),
+          ),
+        );
+      } else {
+        // Face not recognized for this event. Check if face belongs to any user in system
+        const allUsersWithFace = await this.prisma.user.findMany({
+          where: { faceRegisteredAt: { not: null } },
+          select: { id: true, fullName: true, faceDescriptor: true },
+        });
+
+        let anyUserMatch: { user: (typeof allUsersWithFace)[0]; distance: number } | null = null;
+        for (const u of allUsersWithFace) {
+          if (u.faceDescriptor?.length === 128) {
+            const d = euclideanDistance(descriptor, u.faceDescriptor);
+            if (d < FACE_MATCH_THRESHOLD && (!anyUserMatch || d < anyUserMatch.distance)) {
+              anyUserMatch = { user: u, distance: d };
+            }
+          }
+        }
+
+        const notFoundMsg = anyUserMatch
+          ? `Face recognized for ${anyUserMatch.user.fullName}, but no valid ticket found for this event.`
+          : 'Face not recognized. Please scan a QR pass or register Face ID.';
+
+        await this.prisma.attendanceLog.create({
+          data: {
+            ticketCode: anyUserMatch ? `FACE:${anyUserMatch.user.id.slice(0, 8)}` : 'FACE:UNKNOWN',
+            checkpointId: checkpoint.id,
+            scannedByUserId: user.id,
+            scanResult: 'INVALID_TICKET',
+            deviceInfo: dto.deviceInfo ?? null,
+            notes: notFoundMsg,
+          },
+        });
+
+        const outcomeDto: ScanOutcomeDto = {
+          scanResult: 'INVALID_TICKET',
+          message: notFoundMsg,
+          scannedAt: new Date().toISOString(),
+          firstScannedAt: null,
+          checkpoint: {
+            id: checkpoint.id,
+            name: checkpoint.name,
+            type: checkpoint.type,
+          },
+          attendee: null,
+          verificationMethod: 'FACE_ID',
+        };
+
+        throw new NotFoundException({
+          success: false,
+          statusCode: 404,
+          error: 'FACE_NOT_MATCHED',
+          message: notFoundMsg,
+          data: outcomeDto,
+        });
+      }
+    }
+
     const evaluated = await evaluateCheckpointScan(this.prisma, {
       userId: user.id,
       checkpoint: {
@@ -402,10 +587,16 @@ export class CheckpointsService {
         allowMultipleScans: checkpoint.allowMultipleScans,
         requireMainEntry: checkpoint.requireMainEntry,
       },
-      ticketCode: dto.ticketCode,
+      ticketCode: ticketCodeToEvaluate!,
       deviceInfo: dto.deviceInfo,
-      notes: dto.notes,
+      notes:
+        dto.notes ??
+        (verificationMethod === 'FACE_ID'
+          ? `Face ID verified (score: ${faceConfidence}%)`
+          : undefined),
       cooldownSeconds: dto.cooldownSeconds,
+      verificationMethod,
+      faceConfidence,
     });
 
     const outcomeDto = this.toScanOutcomeDto(evaluated.outcome);
@@ -437,7 +628,7 @@ export class CheckpointsService {
     if (evaluated.httpStatus === 409) {
       if (evaluated.errorCode === 'COOLDOWN_ACTIVE') {
         this.logger.debug(
-          `Cooldown blocked scan: booth=${checkpoint.id} ticket=${dto.ticketCode} remaining=${outcomeDto.cooldownRemainingSeconds}s`,
+          `Cooldown blocked scan: booth=${checkpoint.id} ticket=${ticketCodeToEvaluate} remaining=${outcomeDto.cooldownRemainingSeconds}s`,
         );
       }
       throw new ConflictException({

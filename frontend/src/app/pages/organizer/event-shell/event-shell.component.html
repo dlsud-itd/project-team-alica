@@ -183,15 +183,22 @@
         </button>
       </header>
 
-      <div class="dialog-body">
+            <div class="dialog-body">
         <p class="delete-warning">
-          This will remove the event from your dashboard and archive associated ticket records.
+          This event will be hidden from attendees and organizers. Its tickets and scan history are kept.
         </p>
+        @if (deleteError()) {
+          <div class="form-alert" role="alert">
+            <span>{{ deleteError() }}</span>
+          </div>
+        }
       </div>
 
       <footer class="dialog-footer">
-        <button type="button" class="btn-cancel" (click)="closeDelete()">Cancel</button>
-        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()">Delete Event</button>
+        <button type="button" class="btn-cancel" (click)="closeDelete()" [disabled]="isDeleting()">Cancel</button>
+        <button type="button" class="btn-danger-confirm" (click)="confirmDelete()" [disabled]="isDeleting()">
+          {{ isDeleting() ? 'Deleting…' : 'Delete Event' }}
+        </button>
       </footer>
     </section>
   </div>

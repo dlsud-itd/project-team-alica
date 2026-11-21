@@ -486,6 +486,44 @@ describe('EventsService', () => {
     expect(res.approval_status).toBe('Pending');
   });
 
+  it('updates category, banner image, and schedule', async () => {
+    prisma.event.findFirst.mockResolvedValue(dbEvent());
+    prisma.event.update.mockImplementation(({ data }) =>
+      Promise.resolve(
+        dbEvent({
+          category: data.category,
+          bannerImageUrl: data.bannerImageUrl,
+          schedule: data.schedule,
+        }),
+      ),
+    );
+
+    const scheduleData = [
+      {
+        id: 'sch-1',
+        time: '10:00 AM',
+        title: 'Tech Keynote',
+        description: 'Keynote description',
+        type: 'KEYNOTE' as const,
+        location: 'Hall A',
+      },
+    ];
+
+    const res = await service.update(ORGANIZER, 'evt-1', {
+      category: 'WORKSHOP',
+      banner_image_url: 'https://example.com/banner.png',
+      schedule: scheduleData,
+    });
+
+    const { data } = prisma.event.update.mock.calls[0][0];
+    expect(data.category).toBe('WORKSHOP');
+    expect(data.bannerImageUrl).toBe('https://example.com/banner.png');
+    expect(data.schedule).toEqual(scheduleData);
+    expect(res.category).toBe('WORKSHOP');
+    expect(res.banner_image_url).toBe('https://example.com/banner.png');
+    expect(res.schedule).toEqual(scheduleData);
+  });
+
   it('only lists approved events publicly', async () => {
     prisma.event.findMany.mockResolvedValue([]);
     await service.findAll();

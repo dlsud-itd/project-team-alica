@@ -79,6 +79,17 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        fullName: true,
+        role: true,
+        studentId: true,
+        affiliation: true,
+        isActive: true,
+        mustChangePassword: true,
+      },
     });
 
     if (!user || !user.isActive) {
@@ -122,6 +133,7 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({
       where: { email },
+      select: { id: true },
     });
 
     if (existing) {
@@ -174,6 +186,16 @@ export class AuthService {
 
       const user = await this.prisma.user.findUnique({
         where: { id: decoded.sub },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          studentId: true,
+          affiliation: true,
+          isActive: true,
+          mustChangePassword: true,
+        },
       });
 
       if (!user || !user.isActive) {
@@ -213,6 +235,16 @@ export class AuthService {
 
     const account = await this.prisma.user.findUnique({
       where: { id: user.id },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        fullName: true,
+        role: true,
+        studentId: true,
+        affiliation: true,
+        isActive: true,
+      },
     });
     if (!account || !account.isActive) {
       throw new UnauthorizedException('User account not found or inactive');

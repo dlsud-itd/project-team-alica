@@ -47,7 +47,7 @@ describe('EventShellComponent', () => {
       registrants: () => [],
       loadEvents: () => of([MOCK_EVENT]),
       updateEvent: () => of(MOCK_EVENT),
-      deleteEvent: () => undefined,
+      deleteEvent: () => of(undefined),
     };
 
     await TestBed.configureTestingModule({

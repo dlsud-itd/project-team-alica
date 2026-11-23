@@ -1,0 +1,19 @@
+{
+  "$schema": "frontend/node_modules/wrangler/config-schema.json",
+  "name": "checkpoint",
+  "compatibility_date": "2024-11-01",
+  "assets": {
+    "directory": "./frontend/dist/frontend/browser",
+    "not_found_handling": "single-page-application"
+  },
+  "env": {
+    "dev": {
+      "name": "dev-checkpoint",
+      "assets": {
+        "directory": "./frontend/dist/frontend/browser",
+        "not_found_handling": "single-page-application"
+      }
+    }
+  },
+  "previews": {}
+}

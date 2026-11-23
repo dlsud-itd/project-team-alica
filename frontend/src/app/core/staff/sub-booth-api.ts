@@ -1,0 +1,65 @@
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { Observable, map } from 'rxjs';
+import { environment } from '../../../environments/environment';
+import { AuthService } from '../auth/auth.service';
+import { StaffCheckpoint } from './scanner.models';
+
+export interface CreateSubBoothPayload {
+  name: string;
+  location?: string;
+}
+
+@Injectable({ providedIn: 'root' })
+export class SubBoothApi {
+  private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
+  private readonly apiUrl = environment.apiUrl;
+
+  /** All checkpoints (booths, gates, sub-booths) accessible to the current user. */
+  listAll(): Observable<StaffCheckpoint[]> {
+    return this.http
+      .get<{ success: boolean; data: StaffCheckpoint[] }>(`${this.apiUrl}/checkpoints`, {
+        headers: this.buildHeaders(),
+      })
+      .pipe(map((res) => res.data));
+  }
+
+  /** All active checkpoints (booths, gates, sub-booths) for a single event. */
+  listByEvent(eventId: string): Observable<StaffCheckpoint[]> {
+    return this.http
+      .get<{ success: boolean; data: StaffCheckpoint[] }>(
+        `${this.apiUrl}/events/${eventId}/checkpoints`,
+        { headers: this.buildHeaders() },
+      )
+      .pipe(map((res) => res.data));
+  }
+
+  /** Create a sub-booth under the given parent booth. */
+  create(parentId: string, payload: CreateSubBoothPayload): Observable<StaffCheckpoint> {
+    return this.http
+      .post<{ success: boolean; data: StaffCheckpoint }>(
+        `${this.apiUrl}/checkpoints/${parentId}/sub-booths`,
+        payload,
+        { headers: this.buildHeaders() },
+      )
+      .pipe(map((res) => res.data));
+  }
+
+  /** Soft-delete a checkpoint or sub-booth. */
+  remove(checkpointId: string): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<{ success: boolean; message: string }>(
+      `${this.apiUrl}/checkpoints/${checkpointId}`,
+      { headers: this.buildHeaders() },
+    );
+  }
+
+  private buildHeaders(): HttpHeaders {
+    let headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+    const token = this.auth.token();
+    if (token) {
+      headers = headers.set('Authorization', `Bearer ${token}`);
+    }
+    return headers;
+  }
+}

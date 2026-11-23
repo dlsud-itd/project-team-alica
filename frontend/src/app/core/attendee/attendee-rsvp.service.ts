@@ -1,7 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, finalize, from, map, tap } from 'rxjs';
-import * as QRCode from 'qrcode';
+import { Observable, finalize, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AttendeeRsvp } from './attendee-rsvp.models';
 
@@ -56,14 +55,5 @@ export class AttendeeRsvpService {
           );
         }),
       );
-  }
-
-  generateQrCode(payload: string): Observable<string> {
-    const options: QRCode.QRCodeToDataURLOptions = {
-      errorCorrectionLevel: 'M',
-      margin: 2,
-      scale: 8,
-    };
-    return from(QRCode.toDataURL(payload, options));
   }
 }

@@ -60,6 +60,13 @@ CREATE POLICY "Staff can view their event assignments"
   TO authenticated
   USING (auth.uid()::text = "userId");
 
+-- 6b. Create RLS Policies for Event Organizers
+ALTER TABLE "public"."event_organizers" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Organizers can view their event assignments"
+  ON "public"."event_organizers" FOR SELECT
+  TO authenticated
+  USING (true);
+
 -- 7. Create RLS Policies for Checkpoint Staff
 CREATE POLICY "Staff can view their checkpoint assignments"
   ON "public"."checkpoint_staff" FOR SELECT

@@ -80,6 +80,12 @@ export class Login implements OnInit {
         const { user, token } = res.data;
         this.auth.setSession(user, token);
 
+        if (user.mustChangePassword) {
+          this.isLoading = false;
+          this.router.navigate(['/change-password']);
+          return;
+        }
+
         this.successMessage = 'Authentication successful! Redirecting...';
         this.isLoading = false;
         this.router.navigate([this.auth.homeUrl()]);

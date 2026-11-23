@@ -3,12 +3,7 @@
     <!-- Brand Logo & Desktop Primary Navigation -->
     <div class="navbar-brand-group">
       <a routerLink="/events" class="brand-link" aria-label="Checkpoint Home">
-        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="7" height="7" rx="2"></rect>
-          <rect x="14" y="3" width="7" height="7" rx="2"></rect>
-          <rect x="14" y="14" width="7" height="7" rx="2"></rect>
-          <rect x="3" y="14" width="7" height="7" rx="2"></rect>
-        </svg>
+        <img class="brand-icon" src="/logo/ALICA_Logo.png" alt="ALICA logo" />
         <span class="brand-name">checkpoint</span>
       </a>
 
@@ -16,14 +11,9 @@
       <nav class="desktop-nav" aria-label="Primary navigation">
         <a routerLink="/events" routerLinkActive="active" class="nav-item">Events</a>
         @if (auth.isAuthenticated()) {
-          @if (auth.hasRole('ORGANIZER')) {
-            <a routerLink="/organizer/dashboard" routerLinkActive="active" class="nav-item">Dashboard</a>
-          } @else if (auth.hasRole('STAFF')) {
-            <a routerLink="/staff/scanner" routerLinkActive="active" class="nav-item">Scanner</a>
-          } @else if (auth.hasRole('ADMIN')) {
+          <a routerLink="/hub" routerLinkActive="active" class="nav-item">My Hub</a>
+          @if (auth.hasRole('ADMIN')) {
             <a routerLink="/admin/dashboard" routerLinkActive="active" class="nav-item">Admin Console</a>
-          } @else {
-            <a routerLink="/attendee/history" routerLinkActive="active" class="nav-item">My History</a>
           }
         }
       </nav>
@@ -57,4 +47,3 @@
     </div>
   </div>
 </header>
-

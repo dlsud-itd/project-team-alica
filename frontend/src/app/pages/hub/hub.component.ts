@@ -1,0 +1,319 @@
+import { CommonModule, DatePipe } from '@angular/common';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Subscription, interval, startWith, switchMap } from 'rxjs';
+import { AttendeeProgressService } from '../../core/attendee/attendee-progress.service';
+import { StampCardComponent } from '../../shared/stamp-card/stamp-card.component';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { TicketQrService } from '../../core/tickets/ticket-qr.service';
+import { AttendeeRsvp } from '../../core/attendee/attendee-rsvp.models';
+import { AttendeeRsvpService } from '../../core/attendee/attendee-rsvp.service';
+import { OrganizerEventsService } from '../../core/organizer/organizer-events.service';
+import { OrganizerEvent } from '../../core/organizer/organizer.models';
+import { ScannerApi } from '../../core/staff/scanner-api';
+import { StaffCheckpoint } from '../../core/staff/scanner.models';
+import { AuthService } from '../../core/auth/auth.service';
+
+export type HubTab = 'attending' | 'organizing' | 'staffing';
+
+function toDateTimeLocalInput(isoString: string): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+@Component({
+  selector: 'app-hub',
+  standalone: true,
+  imports: [CommonModule, DatePipe, ReactiveFormsModule, RouterLink, StampCardComponent],
+  templateUrl: './hub.component.html',
+  styleUrl: './hub.component.scss',
+})
+export class HubComponent implements OnInit {
+  private readonly rsvpService = inject(AttendeeRsvpService);
+  private readonly organizerService = inject(OrganizerEventsService);
+  private readonly scannerApi = inject(ScannerApi);
+  private readonly ticketQr = inject(TicketQrService);
+  private readonly router = inject(Router);
+  readonly auth = inject(AuthService);
+
+  readonly activeTab = signal<HubTab>('attending');
+
+  // Attending state
+  readonly rsvps = this.rsvpService.rsvps;
+  readonly rsvpsLoading = this.rsvpService.loading;
+  readonly rsvpsError = this.rsvpService.error;
+  readonly activeQrRsvp = signal<AttendeeRsvp | null>(null);
+  readonly qrDataUrl = signal<string>('');
+  readonly qrLoading = signal<boolean>(false);
+  readonly copiedCode = signal<string | null>(null);
+
+  // Booth stamp-card progress (keyed by ticket code)
+  private readonly progressService = inject(AttendeeProgressService);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly progressByTicket = this.progressService.byTicket;
+  /** Stamp earned while the QR pass was open, to animate it. */
+  readonly newStampId = signal<string | null>(null);
+  private progressPoll: Subscription | null = null;
+  /** How often the open QR pass re-checks progress, so a staff scan shows up live. */
+  static readonly PROGRESS_POLL_MS = 5000;
+
+  // Organizing state
+  readonly organizedEvents = this.organizerService.events;
+  readonly organizedLoading = this.organizerService.loading;
+  readonly isCreateModalOpen = signal(false);
+  readonly isSubmittingEvent = signal(false);
+  readonly createEventError = signal('');
+  readonly coOrganizerEmails = signal<string[]>([]);
+  readonly minStart = toDateTimeLocalInput(new Date().toISOString());
+
+  // Staffing state
+  readonly assignedCheckpoints = signal<StaffCheckpoint[]>([]);
+  readonly staffingLoading = signal(false);
+  readonly staffingError = signal('');
+
+  // Counts
+  readonly attendingCount = computed(() => this.rsvps().length);
+  readonly organizingCount = computed(() => this.organizedEvents().length);
+  readonly staffingCount = computed(() => this.assignedCheckpoints().length);
+
+  // Create Event Form
+  readonly eventForm = new FormGroup({
+    name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    description: new FormControl('', { nonNullable: true }),
+    venue: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    starts_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    ends_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    capacity: new FormControl(100, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(1)],
+    }),
+    allow_walk_ins: new FormControl(false, { nonNullable: true }),
+    is_private: new FormControl(false, { nonNullable: true }),
+  });
+
+  ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.stopProgressPoll());
+    this.loadAllData();
+  }
+
+  loadAllData(): void {
+    this.rsvpService.loadMyRsvps().subscribe({
+      next: (items) => {
+        for (const rsvp of items) {
+          if (rsvp.status !== 'Cancelled') {
+            this.progressService.loadProgress(rsvp.ticketCode).subscribe({ error: () => undefined });
+          }
+        }
+        // If user has no RSVPs but organizes events, default to organizing tab
+        if (items.length === 0 && this.organizedEvents().length > 0) {
+          this.activeTab.set('organizing');
+        }
+      },
+      error: () => undefined,
+    });
+
+    this.organizerService.loadEvents().subscribe({
+      next: (events) => {
+        if (this.rsvps().length === 0 && events.length > 0) {
+          this.activeTab.set('organizing');
+        }
+      },
+      error: () => undefined,
+    });
+
+    this.staffingLoading.set(true);
+    this.scannerApi.getMyCheckpoints().subscribe({
+      next: (checkpoints) => {
+        this.assignedCheckpoints.set(checkpoints);
+        this.staffingLoading.set(false);
+        if (this.activeTab() === 'staffing' && checkpoints.length === 0 && !this.auth.hasRole('ADMIN')) {
+          this.activeTab.set(this.rsvps().length > 0 ? 'attending' : (this.organizedEvents().length > 0 ? 'organizing' : 'attending'));
+        }
+      },
+      error: (err) => {
+        this.staffingError.set('Unable to load assigned checkpoints');
+        this.staffingLoading.set(false);
+      },
+    });
+  }
+
+  setTab(tab: HubTab): void {
+    this.activeTab.set(tab);
+  }
+
+  // QR Pass modal
+  openQrPass(rsvp: AttendeeRsvp): void {
+    this.activeQrRsvp.set(rsvp);
+    this.qrLoading.set(true);
+    this.qrDataUrl.set('');
+
+    this.ticketQr
+      .toDataUrl(rsvp)
+      .then((url) => {
+        this.qrDataUrl.set(url);
+        this.qrLoading.set(false);
+      })
+      .catch(() => {
+        this.qrLoading.set(false);
+      });
+
+    if (rsvp.status !== 'Cancelled') {
+      this.startProgressPoll(rsvp.ticketCode);
+    }
+  }
+
+  closeQrPass(): void {
+    this.stopProgressPoll();
+    this.activeQrRsvp.set(null);
+    this.qrDataUrl.set('');
+  }
+
+  /** Re-checks progress while the pass is open so the attendee sees a new stamp right after a scan. */
+  private startProgressPoll(ticketCode: string): void {
+    this.stopProgressPoll();
+    this.newStampId.set(null);
+    // Stamps already known when the pass opened; null until the first load completes,
+    // so nothing is animated on the initial fetch.
+    let known: Set<string> | null = this.visitedIds(ticketCode);
+
+    this.progressPoll = interval(HubComponent.PROGRESS_POLL_MS)
+      .pipe(
+        startWith(0),
+        switchMap(() => this.progressService.loadProgress(ticketCode)),
+      )
+      .subscribe({
+        next: (progress) => {
+          const visited = progress.stamps.filter((s) => s.visited).map((s) => s.checkpointId);
+          const fresh = known ? visited.find((id) => !known!.has(id)) : undefined;
+          if (fresh) {
+            this.newStampId.set(fresh);
+          }
+          known = new Set(visited);
+        },
+        error: () => this.stopProgressPoll(),
+      });
+  }
+
+  private stopProgressPoll(): void {
+    this.progressPoll?.unsubscribe();
+    this.progressPoll = null;
+  }
+
+  private visitedIds(ticketCode: string): Set<string> | null {
+    const progress = this.progressByTicket()[ticketCode];
+    return progress
+      ? new Set(progress.stamps.filter((s) => s.visited).map((s) => s.checkpointId))
+      : null;
+  }
+
+  copyTicketCode(code: string): void {
+    navigator.clipboard?.writeText(code).then(() => {
+      this.copiedCode.set(code);
+      setTimeout(() => this.copiedCode.set(null), 2000);
+    });
+  }
+
+  // Event Creation
+  openCreateModal(): void {
+    this.createEventError.set('');
+    this.coOrganizerEmails.set([]);
+    const now = new Date();
+    const start = new Date(now.getTime() + 60 * 60 * 1000);
+    const end = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+
+    this.eventForm.reset({
+      name: '',
+      description: '',
+      venue: '',
+      starts_at: toDateTimeLocalInput(start.toISOString()),
+      ends_at: toDateTimeLocalInput(end.toISOString()),
+      capacity: 100,
+      allow_walk_ins: false,
+      is_private: false,
+    });
+    this.isCreateModalOpen.set(true);
+  }
+
+  addCoOrganizerEmail(input: HTMLInputElement): void {
+    const email = (input.value || '').trim().toLowerCase();
+    if (!email) return;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      this.createEventError.set('Please enter a valid email address for the co-organizer.');
+      return;
+    }
+    const current = this.coOrganizerEmails();
+    if (!current.includes(email)) {
+      this.coOrganizerEmails.set([...current, email]);
+    }
+    input.value = '';
+    this.createEventError.set('');
+  }
+
+  removeCoOrganizerEmail(index: number): void {
+    const list = [...this.coOrganizerEmails()];
+    list.splice(index, 1);
+    this.coOrganizerEmails.set(list);
+  }
+
+  closeCreateModal(): void {
+    this.isCreateModalOpen.set(false);
+  }
+
+  onSubmitCreateEvent(): void {
+    if (this.eventForm.invalid) {
+      this.eventForm.markAllAsTouched();
+      return;
+    }
+
+    const val = this.eventForm.getRawValue();
+    const startDate = new Date(val.starts_at);
+    const endDate = new Date(val.ends_at);
+
+    if (endDate <= startDate) {
+      this.createEventError.set('End time must be after the start time.');
+      return;
+    }
+
+    this.isSubmittingEvent.set(true);
+    this.createEventError.set('');
+
+    this.organizerService
+      .createEvent({
+        name: val.name.trim(),
+        description: val.description.trim() || '',
+        venue: val.venue.trim(),
+        starts_at: startDate.toISOString(),
+        ends_at: endDate.toISOString(),
+        capacity: Number(val.capacity) || 100,
+        allow_walk_ins: val.allow_walk_ins,
+        is_private: val.is_private,
+        organizerEmails: this.coOrganizerEmails(),
+      })
+      .subscribe({
+        next: (created) => {
+          this.isSubmittingEvent.set(false);
+          this.closeCreateModal();
+          this.router.navigate(['/organizer/events', created.id, 'overview']);
+        },
+        error: (err) => {
+          this.isSubmittingEvent.set(false);
+          this.createEventError.set(err?.error?.message || 'Failed to create event. Please try again.');
+        },
+      });
+  }
+
+  launchScanner(checkpoint: StaffCheckpoint): void {
+    this.router.navigate(['/staff/scanner'], {
+      queryParams: { checkpointId: checkpoint.id },
+    });
+  }
+}

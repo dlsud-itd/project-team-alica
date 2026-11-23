@@ -122,3 +122,9 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Guest account import
+
+The organizer guest-list import endpoint, CSV/XLSX format, SMTP settings,
+first-login password reset, and development-only credential response are
+documented in [docs/guest-import.md](./docs/guest-import.md).

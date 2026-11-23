@@ -1,8 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { ActivatedRoute, ParamMap, Router, convertToParamMap } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { UserProfileComponent } from './user_profile.component';
 import { UserProfileService } from './user_profile.service';
+import { AuthService } from '../core/auth/auth.service';
+import { TicketQrService } from '../core/tickets/ticket-qr.service';
+import { FaceIdService } from '../core/face-id/face-id.service';
 import {
   UserProfile,
   UserRole,
@@ -14,11 +17,27 @@ describe('UserProfileComponent', () => {
   let fixture: ComponentFixture<UserProfileComponent>;
   let mockUserProfileService: {
     getProfile: ReturnType<typeof vi.fn>;
-    generateQrCode: ReturnType<typeof vi.fn>;
     saveProfile: ReturnType<typeof vi.fn>;
   };
+  let mockTicketQr: { render: ReturnType<typeof vi.fn> };
+  let routeParams: BehaviorSubject<ParamMap>;
   let mockRouter: {
     navigate: ReturnType<typeof vi.fn>;
+  };
+  let mockAuthService: {
+    changePassword: ReturnType<typeof vi.fn>;
+    logout: ReturnType<typeof vi.fn>;
+  };
+  let mockFaceIdService: {
+    getFaceStatus: ReturnType<typeof vi.fn>;
+    registerFace: ReturnType<typeof vi.fn>;
+    removeFace: ReturnType<typeof vi.fn>;
+    isDismissedThisSession: ReturnType<typeof vi.fn>;
+    dismissThisSession: ReturnType<typeof vi.fn>;
+    clearSessionDismissal: ReturnType<typeof vi.fn>;
+    startCamera: ReturnType<typeof vi.fn>;
+    stopCamera: ReturnType<typeof vi.fn>;
+    detectFaceDescriptor: ReturnType<typeof vi.fn>;
   };
 
   const mockProfile: UserProfile = {
@@ -38,11 +57,39 @@ describe('UserProfileComponent', () => {
   beforeEach(async () => {
     mockUserProfileService = {
       getProfile: vi.fn().mockReturnValue(of(mockProfile)),
-      generateQrCode: vi.fn().mockReturnValue(of('data:image/png;base64,mockQrCode')),
       saveProfile: vi.fn().mockReturnValue(of(mockProfile)),
     };
+    mockTicketQr = {
+      render: vi.fn().mockReturnValue(of('data:image/png;base64,mockQrCode')),
+    };
+    routeParams = new BehaviorSubject(convertToParamMap({ ticketCode: 'CHK-2026-9812A' }));
     mockRouter = {
       navigate: vi.fn().mockReturnValue(Promise.resolve(true)),
+    };
+    mockAuthService = {
+      changePassword: vi.fn().mockReturnValue(of({
+        id: 'user-1',
+        email: mockProfile.email,
+        fullName: mockProfile.fullName,
+        role: 'ATTENDEE',
+        mustChangePassword: false,
+      })),
+      logout: vi.fn(),
+    };
+    mockFaceIdService = {
+      getFaceStatus: vi.fn().mockReturnValue(of({ registered: false })),
+      registerFace: vi.fn().mockReturnValue(of({
+        success: true,
+        message: 'Face ID registered successfully',
+        registeredAt: new Date().toISOString(),
+      })),
+      removeFace: vi.fn().mockReturnValue(of({ success: true, message: 'Face ID removed successfully' })),
+      isDismissedThisSession: vi.fn().mockReturnValue(false),
+      dismissThisSession: vi.fn(),
+      clearSessionDismissal: vi.fn(),
+      startCamera: vi.fn().mockResolvedValue({} as MediaStream),
+      stopCamera: vi.fn(),
+      detectFaceDescriptor: vi.fn().mockResolvedValue(Array.from({ length: 128 }, () => 0.05)),
     };
 
     await TestBed.configureTestingModule({
@@ -55,13 +102,16 @@ describe('UserProfileComponent', () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            paramMap: of(convertToParamMap({ ticketCode: 'CHK-2026-9812A' })),
+            paramMap: routeParams.asObservable(),
           },
         },
         {
           provide: Router,
           useValue: mockRouter,
         },
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: TicketQrService, useValue: mockTicketQr },
+        { provide: FaceIdService, useValue: mockFaceIdService },
       ],
     }).compileComponents();
 
@@ -80,12 +130,31 @@ describe('UserProfileComponent', () => {
     expect(mockUserProfileService.getProfile).toHaveBeenCalledWith(
       'CHK-2026-9812A'
     );
-    expect(mockUserProfileService.generateQrCode).toHaveBeenCalledWith(
-      'CHK-2026-9812A'
-    );
+    expect(mockTicketQr.render).toHaveBeenCalledWith(mockProfile);
     expect(component.userProfile).toEqual(mockProfile);
     expect(component.qrDataUrl).toBe('data:image/png;base64,mockQrCode');
     expect(component.isLoading).toBe(false);
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('#ticket_qr_image')).not.toBeNull();
+    expect(compiled.querySelector('#tickets_hint')).toBeNull();
+    expect(compiled.textContent).not.toContain('UNIQUE ID');
+  });
+
+  it('should not render a QR on /profile without a ticket code and point to My Hub', () => {
+    routeParams.next(convertToParamMap({}));
+    fixture.detectChanges();
+
+    expect(mockUserProfileService.getProfile).toHaveBeenCalledWith(undefined);
+    expect(mockTicketQr.render).not.toHaveBeenCalled();
+    expect(component.isTicketView).toBe(false);
+    expect(component.qrDataUrl).toBe('');
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('#ticket_qr_image')).toBeNull();
+    expect(compiled.querySelector('#download_qr_pass_btn')).toBeNull();
+    expect(compiled.querySelector('#tickets_hint')).not.toBeNull();
+    expect(compiled.querySelector('#go_to_hub_link')?.textContent).toContain('My Hub');
   });
 
   it('should NOT render ATTENDEE role badge for standard accounts', () => {
@@ -227,7 +296,7 @@ describe('UserProfileComponent', () => {
       component.confirmPassword = 'abc';
       component.submitChangePassword();
 
-      expect(component.passwordError).toBe('New password must be at least 6 characters long.');
+      expect(component.passwordError).toBe('New password must be at least 8 characters long.');
     });
 
     it('should validate password mismatch', () => {
@@ -251,21 +320,114 @@ describe('UserProfileComponent', () => {
       component.confirmPassword = 'newpassword123';
       component.submitChangePassword();
 
+      expect(mockAuthService.changePassword).toHaveBeenCalledWith(
+        'oldpassword123',
+        'newpassword123',
+      );
       expect(component.passwordError).toBe('');
       expect(component.passwordSuccess).toBe('Password updated successfully!');
     });
 
-    it('should clear storage and navigate to root on signOut', () => {
-      const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
-      const clearSpy = vi.spyOn(Storage.prototype, 'clear');
-
+    it('should clear the authenticated session and navigate home on signOut', () => {
       component.signOut();
 
-      expect(removeItemSpy).toHaveBeenCalledWith('checkpoint_user');
-      expect(removeItemSpy).toHaveBeenCalledWith('registered_attendee');
-      expect(clearSpy).toHaveBeenCalled();
+      expect(mockAuthService.logout).toHaveBeenCalledWith(null);
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
     });
   });
-});
 
+  describe('Face ID Registration Feature', () => {
+    it('prompts user on init if Face ID is not registered and not dismissed', () => {
+      mockFaceIdService.getFaceStatus.mockReturnValue(of({ registered: false }));
+      mockFaceIdService.isDismissedThisSession.mockReturnValue(false);
+
+      fixture.detectChanges();
+
+      expect(component.faceRegistered()).toBe(false);
+      expect(component.status()).toBe('prompting');
+    });
+
+    it('does not prompt if Face ID is already registered', () => {
+      mockFaceIdService.getFaceStatus.mockReturnValue(of({ registered: true }));
+
+      fixture.detectChanges();
+
+      expect(component.faceRegistered()).toBe(true);
+      expect(component.status()).toBe('idle');
+    });
+
+    it('does not prompt if user chose Not now during the current session', () => {
+      mockFaceIdService.getFaceStatus.mockReturnValue(of({ registered: false }));
+      mockFaceIdService.isDismissedThisSession.mockReturnValue(true);
+
+      fixture.detectChanges();
+
+      expect(component.faceRegistered()).toBe(false);
+      expect(component.status()).toBe('idle');
+    });
+
+    it('dismisses prompt and persists session flag when Not now is clicked', () => {
+      fixture.detectChanges();
+      component.dismissFacePrompt();
+
+      expect(mockFaceIdService.dismissThisSession).toHaveBeenCalled();
+      expect(component.status()).toBe('idle');
+    });
+
+    it('starts camera stream and enters capturing state when Yes, register is selected', async () => {
+      fixture.detectChanges();
+
+      await component.startFaceRegistration();
+
+      expect(component.status()).toBe('capturing');
+      expect(mockFaceIdService.startCamera).toHaveBeenCalled();
+    });
+
+    it('captures face, sends 128-number descriptor to backend, and marks registered on success', async () => {
+      fixture.detectChanges();
+      await component.startFaceRegistration();
+
+      await component.captureAndRegisterFace();
+
+      expect(mockFaceIdService.detectFaceDescriptor).toHaveBeenCalled();
+      expect(mockFaceIdService.stopCamera).toHaveBeenCalled();
+      expect(mockFaceIdService.registerFace).toHaveBeenCalledWith(
+        expect.any(Array),
+      );
+      expect(component.faceRegistered()).toBe(true);
+      expect(component.status()).toBe('success');
+    });
+
+    it('handles face detection failure gracefully and enters error state with retry option', async () => {
+      fixture.detectChanges();
+      await component.startFaceRegistration();
+
+      mockFaceIdService.detectFaceDescriptor.mockRejectedValue(
+        new Error('No face detected. Please try again.'),
+      );
+
+      await component.captureAndRegisterFace();
+
+      expect(component.status()).toBe('error');
+      expect(component.faceErrorMessage()).toContain('No face detected');
+      expect(mockFaceIdService.stopCamera).toHaveBeenCalled();
+    });
+
+    it('removes Face ID when removeFaceId is invoked', () => {
+      fixture.detectChanges();
+      component.faceRegistered.set(true);
+
+      component.removeFaceId();
+
+      expect(mockFaceIdService.removeFace).toHaveBeenCalled();
+      expect(component.faceRegistered()).toBe(false);
+    });
+
+    it('stops camera on ngOnDestroy', () => {
+      fixture.detectChanges();
+      component.ngOnDestroy();
+
+      expect(mockFaceIdService.stopCamera).toHaveBeenCalled();
+    });
+  });
+});

@@ -1,26 +1,44 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   AdminEventDto,
   CreateEventDto,
   EventsService,
   EventResponseDto,
+  EventDetailResponseDto,
   EventRegistrantDto,
+  EventLiveOverviewDto,
+  EventCheckpointDto,
+  EventOrganizerDto,
+  EventStaffDto,
+  OrganizerCandidateDto,
+  ScanResultDto,
   OrganizerEventDto,
   ReviewEventDto,
   UpdateEventDto,
+  type GuestImportFile,
+  type GuestImportResult,
+  type GuestImportMappingDto,
+  type GuestFilePreviewDto,
 } from './events.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
+import type { RegistrantProgressDto } from '../checkpoints/ticket-progress.js';
 
 @Controller('events')
 export class EventsController {
@@ -73,6 +91,17 @@ export class EventsController {
     };
   }
 
+  @Get(':idOrSlug')
+  async getEventDetails(
+    @Param('idOrSlug') idOrSlug: string,
+  ): Promise<{ success: boolean; data: EventDetailResponseDto }> {
+    const data = await this.eventsService.findOne(idOrSlug);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Patch(':eventId/review')
   @UseGuards(JwtAuthGuard)
   async reviewEvent(
@@ -101,6 +130,16 @@ export class EventsController {
     };
   }
 
+  @Delete(':eventId')
+  @UseGuards(JwtAuthGuard)
+  async deleteEvent(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.eventsService.remove(user, eventId);
+    return { success: true, message: 'Event deleted successfully' };
+  }
+
   @Get(':eventId/registrants')
   @UseGuards(JwtAuthGuard)
   async getRegistrants(
@@ -112,6 +151,17 @@ export class EventsController {
       success: true,
       data,
     };
+  }
+  
+  
+  @Get(':eventId/progress')
+  @UseGuards(JwtAuthGuard)
+  async getEventProgress(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: RegistrantProgressDto[] }> {
+    const data = await this.eventsService.getEventProgress(user, eventId);
+    return { success: true, data };
   }
 
   @Patch(':eventId/registrants/:registrantId/check-in')
@@ -166,5 +216,174 @@ export class EventsController {
       success: true,
       data,
     };
+  }
+
+  @Post(':eventId/guests/import-users')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    }),
+  )
+  @Header('Cache-Control', 'no-store')
+  async importGuestUsers(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @UploadedFile() file: GuestImportFile | undefined,
+    @Body('includeCredentials') includeCredentials?: string | boolean,
+    @Body('mapping') mapping?: string | GuestImportMappingDto,
+  ): Promise<{ success: boolean; data: GuestImportResult }> {
+    let parsedMapping: GuestImportMappingDto | undefined;
+    if (typeof mapping === 'string' && mapping.trim()) {
+      try {
+        parsedMapping = JSON.parse(mapping);
+      } catch {
+        throw new BadRequestException('Invalid mapping JSON format');
+      }
+    } else if (typeof mapping === 'object' && mapping !== null) {
+      parsedMapping = mapping;
+    }
+
+    const data = await this.eventsService.importGuestUsers(
+      user,
+      eventId,
+      file,
+      includeCredentials,
+      parsedMapping,
+    );
+    return { success: true, data };
+  }
+
+  @Get(':eventId/live-overview')
+  @UseGuards(JwtAuthGuard)
+  async getLiveOverview(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventLiveOverviewDto }> {
+    const data = await this.eventsService.getLiveOverview(user, eventId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':eventId/checkpoints')
+  @UseGuards(JwtAuthGuard)
+  async getEventCheckpoints(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventCheckpointDto[] }> {
+    const data = await this.eventsService.getEventCheckpoints(user, eventId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post(':eventId/checkpoints/:checkpointId/scan')
+  @UseGuards(JwtAuthGuard)
+  async recordScan(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('checkpointId') checkpointId: string,
+    @Body() body: { ticketCode?: string; faceDescriptor?: number[] } | string,
+  ): Promise<{ success: boolean; data: ScanResultDto }> {
+    const data = await this.eventsService.recordScan(
+      user,
+      eventId,
+      checkpointId,
+      body,
+    );
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':eventId/scans/export')
+  @UseGuards(JwtAuthGuard)
+  async exportScans(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: string }> {
+    const data = await this.eventsService.exportScansCsv(user, eventId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':eventId/staff')
+  @UseGuards(JwtAuthGuard)
+  async getStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventStaffDto[] }> {
+    const data = await this.eventsService.getStaff(user, eventId);
+    return { success: true, data };
+  }
+
+  @Post(':eventId/staff')
+  @UseGuards(JwtAuthGuard)
+  async addStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Body('email') email: string,
+  ): Promise<{ success: boolean; data: EventStaffDto }> {
+    const data = await this.eventsService.addStaff(user, eventId, email);
+    return { success: true, data };
+  }
+
+  @Delete(':eventId/staff/:userId')
+  @UseGuards(JwtAuthGuard)
+  async removeStaff(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('userId') targetUserId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.eventsService.removeStaff(user, eventId, targetUserId);
+    return { success: true, message: 'Staff member removed successfully' };
+  }
+
+  @Get('organizers/candidates')
+  @UseGuards(JwtAuthGuard)
+  async searchOrganizerCandidates(
+    @CurrentUser() user: UserSummaryDto,
+    @Query('query') query = '',
+  ): Promise<{ success: boolean; data: OrganizerCandidateDto[] }> {
+    const data = await this.eventsService.searchOrganizerCandidates(user, query);
+    return { success: true, data };
+  }
+
+  @Get(':eventId/organizers')
+  @UseGuards(JwtAuthGuard)
+  async getOrganizers(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+  ): Promise<{ success: boolean; data: EventOrganizerDto[] }> {
+    const data = await this.eventsService.getOrganizers(user, eventId);
+    return { success: true, data };
+  }
+
+  @Post(':eventId/organizers')
+  @UseGuards(JwtAuthGuard)
+  async addOrganizer(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Body('email') email: string,
+  ): Promise<{ success: boolean; data: EventOrganizerDto }> {
+    const data = await this.eventsService.addOrganizer(user, eventId, email);
+    return { success: true, data };
+  }
+
+  @Delete(':eventId/organizers/:userId')
+  @UseGuards(JwtAuthGuard)
+  async removeOrganizer(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Param('userId') targetUserId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.eventsService.removeOrganizer(user, eventId, targetUserId);
+    return { success: true, message: 'Organizer removed successfully' };
   }
 }

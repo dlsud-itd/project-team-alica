@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { GUARDS_METADATA } from '@nestjs/common/constants.js';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RegistrationsController } from './registrations.controller.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -63,6 +64,16 @@ describe('RegistrationsController', () => {
         ticketCode: 'CHK-2026-9812A',
         status: 'Cancelled',
       }),
+      getProgress: vi.fn().mockResolvedValue({
+        ticketCode: 'CHK-2026-9812A',
+        eventId: 'evt-1',
+        eventName: 'Tech Summit 2026',
+        visitedCount: 3,
+        totalCount: 5,
+        percent: 60,
+        completed: false,
+        stamps: [],
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -98,10 +109,22 @@ describe('RegistrationsController', () => {
   });
 
   it('should retrieve a registration by ticket code', async () => {
-    const res = await controller.getByTicketCode('CHK-2026-9812A');
+    const res = await controller.getByTicketCode(mockUser, 'CHK-2026-9812A');
     expect(res.success).toBe(true);
     expect(res.data.ticketCode).toBe('CHK-2026-9812A');
     expect(res.data.fullName).toBe('Juan Dela Cruz');
+    expect(service.findByTicketCode).toHaveBeenCalledWith(
+      mockUser,
+      'CHK-2026-9812A',
+    );
+  });
+
+  it('should require JWT auth to look up a ticket by code', () => {
+    const guards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      RegistrationsController.prototype.getByTicketCode,
+    );
+    expect(guards).toContain(JwtAuthGuard);
   });
 
   it('should return RSVP list for current user', async () => {
@@ -117,5 +140,13 @@ describe('RegistrationsController', () => {
     expect(res.success).toBe(true);
     expect(res.data.status).toBe('Cancelled');
     expect(service.cancelRsvp).toHaveBeenCalledWith(mockUser, 'CHK-2026-9812A');
+  });
+
+  it('should return booth stamp progress for a ticket', async () => {
+    const res = await controller.getProgress(mockUser, 'CHK-2026-9812A');
+    expect(res.success).toBe(true);
+    expect(res.data.visitedCount).toBe(3);
+    expect(res.data.totalCount).toBe(5);
+    expect(service.getProgress).toHaveBeenCalledWith(mockUser, 'CHK-2026-9812A');
   });
 });

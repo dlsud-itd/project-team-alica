@@ -29,45 +29,45 @@ describe('role-based routing', () => {
     expect(router.url).toBe('/login?returnUrl=%2Fadmin%2Fdashboard');
   });
 
-  it('allows guests to open the profile page', async () => {
-    await router.navigateByUrl('/profile');
-    expect(router.url).toBe('/profile');
+  it('allows guests to open the profile page with a ticket code', async () => {
+    await router.navigateByUrl('/profile/CHK-1234');
+    expect(router.url).toBe('/profile/CHK-1234');
   });
 
-  it('sends guest staff routes to the operator login', async () => {
+  it('sends guest staff routes to the shared login', async () => {
     await router.navigateByUrl('/staff/scanner');
-    expect(router.url).toBe('/staff/login?returnUrl=%2Fstaff%2Fscanner');
+    expect(router.url).toBe('/login?returnUrl=%2Fstaff%2Fscanner');
   });
 
-  it('allows a user into their own role area', async () => {
-    auth.setSession(userWith('ORGANIZER'), 'token');
-    await router.navigateByUrl('/organizer/dashboard');
-    expect(router.url).toBe('/organizer/dashboard');
-  });
-
-  it('redirects a user away from another role area to their home', async () => {
-    auth.setSession(userWith('ATTENDEE'), 'token');
+  it('allows an admin into the admin area', async () => {
+    auth.setSession(userWith('ADMIN'), 'token');
     await router.navigateByUrl('/admin/dashboard');
-    expect(router.url).toBe('/events');
+    expect(router.url).toBe('/admin/dashboard');
   });
 
-  it('keeps logged-in users off the login page', async () => {
-    auth.setSession(userWith('STAFF'), 'token');
+  it('redirects a regular user away from admin area to hub', async () => {
+    auth.setSession(userWith('USER'), 'token');
+    await router.navigateByUrl('/admin/dashboard');
+    expect(router.url).toBe('/hub');
+  });
+
+  it('keeps logged-in users off the login page by redirecting to their home', async () => {
+    auth.setSession(userWith('USER'), 'token');
     await router.navigateByUrl('/login');
-    expect(router.url).toBe('/staff/scanner');
+    expect(router.url).toBe('/hub');
   });
 
   it('lets every role use the shared profile route', async () => {
-    for (const role of ['ADMIN', 'ATTENDEE', 'STAFF', 'ORGANIZER'] as const) {
+    for (const role of ['ADMIN', 'USER', 'ATTENDEE', 'STAFF', 'ORGANIZER'] as const) {
       auth.setSession(userWith(role), 'token');
       await router.navigateByUrl('/profile');
       expect(router.url).toBe('/profile');
     }
   });
 
-  it('redirects the attendee landing route to the shared profile', async () => {
-    auth.setSession(userWith('ATTENDEE'), 'token');
+  it('redirects the attendee landing route to the hub', async () => {
+    auth.setSession(userWith('USER'), 'token');
     await router.navigateByUrl('/attendee');
-    expect(router.url).toBe('/profile');
+    expect(router.url).toBe('/hub');
   });
 });

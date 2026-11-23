@@ -6,9 +6,16 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { TicketStatus, type Event, type Ticket } from '@prisma/client';
+import { Prisma, TicketStatus, type Event, type Ticket } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
+import { generateTicketCode } from '../../common/ticket-code.js';
+import {
+  canViewTicket,
+  computeTicketProgress,
+  findTicketByAnyCode,
+  type TicketProgressDto,
+} from '../checkpoints/ticket-progress.js';
 
 export class CreateRegistrationDto {
   eventId!: string;
@@ -114,24 +121,18 @@ export class RegistrationsService {
     const firstName = nameParts[0] || 'Attendee';
     const lastName = nameParts.slice(1).join(' ') || 'Delegate';
 
-    // Generate unique Checkpoint ticket code
-    const randomSuffix =
-      Math.floor(1000 + Math.random() * 9000).toString() + 'A';
-    const ticketCode = `CHK-2026-${randomSuffix}`;
-
-    const ticket = await this.prisma.ticket.create({
-      data: {
-        eventId: dto.eventId,
-        userId: dto.userId || null,
-        firstName,
-        lastName,
-        email: dto.email,
-        studentId: dto.studentId || null,
-        ticketType: 'STUDENT',
-        ticketCode,
-        qrPayload: ticketCode,
-      },
-    });
+    const ticket = await this.createTicketWithUniqueCode((ticketCode) => ({
+      eventId: dto.eventId,
+      userId: dto.userId || null,
+      firstName,
+      lastName,
+      email: dto.email,
+      studentId: dto.studentId || null,
+      ticketType: 'STUDENT',
+      ticketCode,
+      // The QR encodes this exact value.
+      qrPayload: ticketCode,
+    }));
 
     return {
       ticketCode: ticket.ticketCode,
@@ -170,7 +171,8 @@ export class RegistrationsService {
       status: 'PENDING',
       identificationNumber: user.studentId || undefined,
       issuedAt: new Date().toISOString(),
-      qrPayload: user.id,
+      // No ticket yet, so nothing scannable to encode.
+      qrPayload: '',
     };
   }
 
@@ -221,11 +223,34 @@ export class RegistrationsService {
     return this.toAttendeeRsvp(updated, updated.event);
   }
 
-  async findByTicketCode(ticketCode: string): Promise<TicketProfileDto> {
+  /** Booth stamp-card progress for a ticket (owner, event organizers/staff, or admin). */
+  async getProgress(
+    user: UserSummaryDto,
+    ticketCode: string,
+  ): Promise<TicketProgressDto> {
+    const ticket = await findTicketByAnyCode(this.prisma, ticketCode);
+    if (!ticket) {
+      throw new NotFoundException(`Ticket '${ticketCode}' not found`);
+    }
+
+    if (!(await canViewTicket(this.prisma, user, ticket))) {
+      throw new ForbiddenException(
+        'You do not have access to this ticket’s progress',
+      );
+    }
+
+    return computeTicketProgress(this.prisma, ticket);
+  }
+
+  /** A ticket's details, visible to its owner, the event's organizers/staff, or an admin. */
+  async findByTicketCode(
+    user: UserSummaryDto,
+    ticketCode: string,
+  ): Promise<TicketProfileDto> {
     const ticket = await this.prisma.ticket.findUnique({
       where: { ticketCode },
       include: {
-        event: { select: { title: true } },
+        event: { select: { title: true, organizerId: true } },
       },
     });
 
@@ -233,6 +258,10 @@ export class RegistrationsService {
       throw new NotFoundException(
         `Registration with ticket code '${ticketCode}' not found`,
       );
+    }
+
+    if (!(await canViewTicket(this.prisma, user, ticket))) {
+      throw new ForbiddenException('You do not have access to this ticket');
     }
 
     return this.toTicketProfile(ticket);
@@ -308,4 +337,35 @@ export class RegistrationsService {
       qrPayload: ticket.qrPayload,
     };
   }
+
+  /**
+   * Creates a ticket with a short random code, drawing a new code if the
+   * unique ticketCode constraint ever rejects one.
+   */
+  private async createTicketWithUniqueCode(
+    buildData: (ticketCode: string) => Prisma.TicketUncheckedCreateInput,
+  ): Promise<Ticket> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.prisma.ticket.create({
+          data: buildData(generateTicketCode()),
+        });
+      } catch (error) {
+        if (!isTicketCodeCollision(error) || attempt >= TICKET_CODE_ATTEMPTS) {
+          throw error;
+        }
+      }
+    }
+  }
+}
+
+/** Fresh codes to try if a generated ticket code is already taken. */
+const TICKET_CODE_ATTEMPTS = 5;
+
+function isTicketCodeCollision(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002' &&
+    String(error.meta?.target ?? '').includes('ticketCode')
+  );
 }

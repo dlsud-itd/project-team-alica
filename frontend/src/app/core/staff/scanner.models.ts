@@ -1,0 +1,62 @@
+import { ProgressSummary } from '../attendee/attendee-progress.models';
+
+// Mirrors the Prisma enums in backend/prisma/schema.prisma.
+export type CheckpointType = 'MAIN_ENTRY' | 'SESSION' | 'BOOTH' | 'EXIT';
+export type ScanResult = 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET';
+
+/** A checkpoint the signed-in staff member is assigned to (checkpoint_staff). */
+export interface StaffCheckpoint {
+  parentId?: string | null;
+  id: string;
+  name: string;
+  location: string | null;
+  type: CheckpointType;
+  allowMultipleScans: boolean;
+  requireMainEntry: boolean;
+  cooldownSeconds?: number;
+  eventId: string;
+  eventName: string;
+}
+
+export interface StationDetails extends StaffCheckpoint {
+  subBooths: StaffCheckpoint[];
+  totalScans: number;
+}
+
+export type ScannerMode = 'hybrid' | 'qr' | 'face';
+
+export interface ScanRequest {
+  ticketCode?: string;
+  faceDescriptor?: number[];
+  deviceInfo?: string;
+  notes?: string;
+  cooldownSeconds?: number;
+}
+
+export interface ScanAttendee {
+  fullName: string;
+  studentId: string | null;
+  ticketType: string;
+  ticketCode: string;
+}
+
+/**
+ * Normalized result of POST /checkpoints/:boothId/scan. The API answers DUPLICATE
+ * with 409 and INVALID_TICKET with 404; both are mapped into this shape.
+ */
+export interface ScanOutcome {
+  scanResult: ScanResult;
+  message: string;
+  scannedAt: string;
+  /** First successful scan at this checkpoint, set for DUPLICATE results. */
+  firstScannedAt: string | null;
+  checkpoint: Pick<StaffCheckpoint, 'id' | 'name' | 'type'>;
+  attendee: ScanAttendee | null;
+  cooldownActive?: boolean;
+  cooldownSeconds?: number;
+  cooldownRemainingSeconds?: number;
+  /** Attendee's booth stamp progress (SUCCESS/DUPLICATE scans only). */
+  progress?: ProgressSummary;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
+}

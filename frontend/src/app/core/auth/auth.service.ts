@@ -1,9 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { AuthUser, ROLE_HOME, UserRole } from './auth.models';
+import { AuthUser, ROLE_HOME, SavedProfile, UserRole } from './auth.models';
 
 export type RegisterPayload = {
   fullName: string;
@@ -24,6 +24,11 @@ export interface AuthResponse {
     user: AuthUser;
     token: string;
   };
+}
+
+export interface ChangePasswordResponse {
+  success: boolean;
+  data: AuthUser;
 }
 
 const STORAGE_KEY = 'checkpoint.session';
@@ -50,6 +55,51 @@ export class AuthService {
 
   register(data: RegisterPayload): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.api}/auth/register`, data);
+  }
+
+  changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Observable<AuthUser> {
+    return this.http
+      .post<ChangePasswordResponse>(`${this.api}/auth/change-password`, {
+        currentPassword,
+        newPassword,
+      })
+      .pipe(
+        map((response) => response.data),
+        tap((user) => {
+          const currentSession = this.session();
+          if (currentSession) {
+            this.setSession(user, currentSession.token);
+          }
+        }),
+      );
+  }
+
+  getProfiles(): Observable<SavedProfile[]> {
+    return this.http
+      .get<{ success: boolean; data: SavedProfile[] }>(`${this.api}/auth/profiles`)
+      .pipe(map((res) => res.data));
+  }
+
+  saveProfile(profile: {
+    profileName: string;
+    fullName: string;
+    studentId?: string;
+    contactNumber?: string;
+    affiliation?: string;
+    isDefault?: boolean;
+  }): Observable<SavedProfile> {
+    return this.http
+      .post<{ success: boolean; data: SavedProfile }>(`${this.api}/auth/profiles`, profile)
+      .pipe(map((res) => res.data));
+  }
+
+  deleteProfile(profileId: string): Observable<void> {
+    return this.http
+      .delete<{ success: boolean; message: string }>(`${this.api}/auth/profiles/${profileId}`)
+      .pipe(map(() => undefined));
   }
 
   /** Call this after a successful login/register API response. */

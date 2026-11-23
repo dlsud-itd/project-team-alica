@@ -1,3 +1,6 @@
+import { ProgressSummary } from '../attendee/attendee-progress.models';
+import { TicketProgress } from '../attendee/attendee-progress.models';
+
 export type UUID = string;
 
 export type RegistrationStatus = 'Registered' | 'Checked In' | 'Cancelled';
@@ -5,6 +8,16 @@ export type RegistrationStatus = 'Registered' | 'Checked In' | 'Cancelled';
 export type EventStatus = 'Upcoming' | 'In progress' | 'Completed';
 
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface EventScheduleItem {
+  id: string;
+  time: string;
+  title: string;
+  description: string;
+  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BOOTH' | 'GATE' | string;
+  location?: string;
+  checkpointId?: string;
+}
 
 export interface OrganizerEvent {
   id: UUID;
@@ -26,6 +39,123 @@ export interface OrganizerEvent {
   review_notes: string | null;
   reviewed_at: string | null;
   submitted_at: string;
+  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category_label?: string;
+  checkpoints_count?: number;
+  admitted_count?: number;
+  is_private?: boolean;
+  banner_image_url?: string | null;
+  schedule?: EventScheduleItem[];
+  organizers?: EventOrganizer[];
+}
+
+export interface EventLiveKpis {
+  totalRsvps: number;
+  checkedInAttendees: number;
+  attendanceRate: number;
+  venueOccupancy: number;
+  maxCapacity: number | null;
+  activeStationsCount: number;
+  totalVerifiedScans: number;
+}
+
+export interface HourlyFlowPoint {
+  hour: string;
+  scans: number;
+}
+
+export interface StationTraffic {
+  id: string;
+  name: string;
+  type: string;
+  scans: number;
+  percentage: number;
+}
+
+export interface RecentScanItem {
+  id: string;
+  attendeeName: string;
+  affiliation: string;
+  ticketCode: string;
+  stationName: string;
+  scannedAt: string;
+  status: string;
+  statusLabel: string;
+}
+
+export interface EventLiveOverview {
+  id: string;
+  organizerId?: string;
+  name: string;
+  slug: string;
+  category: string;
+  categoryLabel: string;
+  capacity: number | null;
+  venue: string;
+  startsAt: string;
+  endsAt: string;
+  kpis: EventLiveKpis;
+  hourlyFlow: HourlyFlowPoint[];
+  stationTraffic: StationTraffic[];
+  recentScans: RecentScanItem[];
+  organizers?: EventOrganizer[];
+}
+
+export interface EventCheckpoint {
+  id: string;
+  name: string;
+  location: string | null;
+  type: string;
+  allowMultipleScans: boolean;
+  requireMainEntry: boolean;
+  cooldownSeconds?: number;
+  eventId: string;
+  eventName: string;
+  parentId?: string | null;
+}
+
+export interface EventOrganizer {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+  isPrimary: boolean;
+}
+
+export interface OrganizerCandidate {
+  id: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+}
+
+export interface EventStaff {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  affiliation: string | null;
+  assignedAt: string;
+}
+
+export interface RecordScanResponse {
+  scanResult: 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET';
+  ticketCode: string;
+  attendeeName?: string;
+  affiliation?: string;
+  stationName?: string;
+  scannedAt: string;
+  firstScannedAt?: string | null;
+  message: string;
+  cooldownActive?: boolean;
+  cooldownSeconds?: number;
+  cooldownRemainingSeconds?: number;
+  /** Attendee's booth stamp progress (SUCCESS/DUPLICATE scans only). */
+  progress?: ProgressSummary;
+  verificationMethod?: 'QR' | 'FACE_ID';
+  faceConfidence?: number;
 }
 
 type EditableEventFields =
@@ -35,11 +165,22 @@ type EditableEventFields =
   | 'starts_at'
   | 'ends_at'
   | 'capacity'
-  | 'allow_walk_ins';
+  | 'allow_walk_ins'
+  | 'is_private'
+  | 'category'
+  | 'banner_image_url';
 
-export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>>;
+export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>> & {
+  schedule?: EventScheduleItem[];
+  organizerEmails?: string[];
+};
 
-export type NewOrganizerEvent = Pick<OrganizerEvent, EditableEventFields> & { capacity: number };
+export type NewOrganizerEvent = Pick<OrganizerEvent, 'name' | 'venue' | 'starts_at' | 'ends_at'> &
+  Partial<Pick<OrganizerEvent, EditableEventFields>> & {
+    capacity: number;
+    schedule?: EventScheduleItem[];
+    organizerEmails?: string[];
+  };
 
 export interface EventRegistrant {
   id: UUID;
@@ -50,4 +191,29 @@ export interface EventRegistrant {
   ticket_id: string;
   registered_at: string;
   status: RegistrationStatus;
+}
+
+export interface GuestFilePreview {
+  fileName: string;
+  totalRows: number;
+  detectedHeaders: string[];
+  sampleRows: string[][];
+}
+
+export interface GuestImportMapping {
+  hasHeaders?: boolean;
+  nameMode?: 'single' | 'split';
+  fullNameColumn?: string | number;
+  firstNameColumn?: string | number;
+  lastNameColumn?: string | number;
+  emailColumn: string | number;
+  studentIdColumn?: string | number;
+  contactNumberColumn?: string | number;
+  affiliationColumn?: string | number;
+}
+
+/** One row of GET /events/:eventId/progress. */
+export interface EventRegistrantProgress extends TicketProgress {
+  /** Same as EventRegistrant.id */
+  ticketId: string;
 }

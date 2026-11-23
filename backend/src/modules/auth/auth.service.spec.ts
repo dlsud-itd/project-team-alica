@@ -24,6 +24,7 @@ describe('AuthService', () => {
     studentId: '2023-01982-MN-0',
     affiliation: 'College of Science and Computer Studies',
     isActive: true,
+    mustChangePassword: false,
   };
 
   beforeEach(async () => {
@@ -31,6 +32,7 @@ describe('AuthService', () => {
       user: {
         findUnique: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
       },
     };
 
@@ -89,8 +91,38 @@ describe('AuthService', () => {
 
       expect(res.user.email).toBe('amc.umandal@gmail.com');
       expect(res.user.fullName).toBe('Alen Mikel Umandal');
+      expect(res.user.mustChangePassword).toBe(false);
       expect(typeof res.token).toBe('string');
       expect(res.token.length).toBeGreaterThan(10);
+    });
+
+    describe('changePassword', () => {
+      it('updates the password hash and clears the first-login requirement', async () => {
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({
+          ...mockUser,
+          mustChangePassword: true,
+        } as any);
+        vi.spyOn(prisma.user, 'update').mockResolvedValue({} as any);
+        vi.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+        vi.spyOn(bcrypt, 'hash').mockResolvedValue('new-hash' as never);
+
+        const result = await service.changePassword(
+          {
+            id: mockUser.id,
+            email: mockUser.email,
+            fullName: mockUser.fullName,
+            role: mockUser.role,
+            mustChangePassword: true,
+          },
+          { currentPassword: 'Temporary123', newPassword: 'Permanent123' },
+        );
+
+        expect(prisma.user.update.mock.calls[0][0]).toEqual({
+          where: { id: mockUser.id },
+          data: { passwordHash: 'new-hash', mustChangePassword: false },
+        });
+        expect(result.mustChangePassword).toBe(false);
+      });
     });
   });
 

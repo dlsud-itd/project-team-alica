@@ -1,11 +1,27 @@
-import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  ChangeDetectorRef,
+  inject,
+  viewChild,
+  ElementRef,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { of, from, timer } from 'rxjs';
 import { switchMap, catchError, map } from 'rxjs/operators';
 import { UserProfileService } from './user_profile.service';
 import { AuthService } from '../core/auth/auth.service';
+import { AttendeeProgressService } from '../core/attendee/attendee-progress.service';
+import { TicketProgress } from '../core/attendee/attendee-progress.models';
+import { StampCardComponent } from '../shared/stamp-card/stamp-card.component';
+import { TicketQrService } from '../core/tickets/ticket-qr.service';
+import { FaceIdService } from '../core/face-id/face-id.service';
+import { FaceIdStatus } from '../core/face-id/face-id.model';
 import {
   UserProfile,
   UserRole,
@@ -24,13 +40,15 @@ type SaveFilePickerWindow = Window & {
 @Component({
   selector: 'app-user-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, StampCardComponent],
   templateUrl: './user_profile.component.html',
   styleUrl: './user_profile.component.scss',
 })
-export class UserProfileComponent implements OnInit {
+export class UserProfileComponent implements OnInit, OnDestroy {
   userProfile: UserProfile | null = null;
   qrDataUrl = '';
+  /** True on /profile/:ticketCode; the QR pass is only shown for a specific ticket. */
+  isTicketView = false;
   isLoading = true;
   errorMessage = '';
   isCodeCopied = false;
@@ -47,9 +65,19 @@ export class UserProfileComponent implements OnInit {
   passwordError = '';
   passwordSuccess = '';
 
+  // Face ID Biometric registration state
+  readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
+  readonly status = signal<FaceIdStatus>('idle');
+  readonly faceRegistered = signal<boolean>(false);
+  readonly faceErrorMessage = signal<string>('');
+
   readonly userRole = UserRole;
   readonly profileStatus = ProfileStatus;
   private readonly auth = inject(AuthService, { optional: true });
+  private readonly progressService = inject(AttendeeProgressService);
+  ticketProgress: TicketProgress | null = null;
+  private readonly ticketQr = inject(TicketQrService);
+  private readonly faceIdService = inject(FaceIdService, { optional: true });
 
   constructor(
     private readonly userProfileService: UserProfileService,
@@ -60,6 +88,166 @@ export class UserProfileComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadUserProfile();
+    this.checkFaceIdStatus();
+  }
+
+  ngOnDestroy(): void {
+    if (this.faceIdService) {
+      this.faceIdService.stopCamera(this.video()?.nativeElement);
+    }
+  }
+
+  /**
+   * Checks whether Face ID is registered for the logged in user.
+   * If not registered and not dismissed this session, automatically prompts the user.
+   */
+  checkFaceIdStatus(): void {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    this.faceIdService.getFaceStatus().subscribe({
+      next: (res) => {
+        this.faceRegistered.set(res.registered);
+        if (!res.registered && !this.faceIdService?.isDismissedThisSession()) {
+          this.status.set('prompting');
+          this.cdr.markForCheck();
+        }
+      },
+      error: () => {
+        this.faceRegistered.set(false);
+      },
+    });
+  }
+
+  /** Opens the registration prompt modal. */
+  promptFaceRegistration(): void {
+    this.status.set('prompting');
+    this.faceErrorMessage.set('');
+    this.cdr.markForCheck();
+  }
+
+  /** Dismisses Face ID prompt for the rest of this session. */
+  dismissFacePrompt(): void {
+    if (this.faceIdService) {
+      this.faceIdService.dismissThisSession();
+    }
+    this.status.set('idle');
+    this.cdr.markForCheck();
+  }
+
+  /** Initiates camera feed and transitions to capturing view. */
+  async startFaceRegistration(): Promise<void> {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    this.faceErrorMessage.set('');
+    this.status.set('loading');
+    this.cdr.markForCheck();
+
+    try {
+      this.status.set('capturing');
+      this.cdr.detectChanges();
+
+      const videoEl = this.video()?.nativeElement;
+      if (!videoEl) {
+        throw new Error('Video preview element is not ready. Please try again.');
+      }
+
+      await this.faceIdService.startCamera(videoEl);
+      this.cdr.markForCheck();
+    } catch (err: unknown) {
+      this.status.set('error');
+      this.faceErrorMessage.set(
+        err instanceof Error ? err.message : 'Failed to initialize camera.',
+      );
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Captures the face from live video, generates 128-number descriptor,
+   * stops camera tracks, and persists the descriptor to the backend.
+   */
+  async captureAndRegisterFace(): Promise<void> {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    const videoEl = this.video()?.nativeElement;
+    if (!videoEl) {
+      this.status.set('error');
+      this.faceErrorMessage.set('Camera stream is unavailable.');
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.status.set('loading');
+    this.cdr.markForCheck();
+
+    try {
+      const descriptor = await this.faceIdService.detectFaceDescriptor(videoEl);
+      this.faceIdService.stopCamera(videoEl);
+
+      this.faceIdService.registerFace(descriptor).subscribe({
+        next: () => {
+          this.faceRegistered.set(true);
+          this.status.set('success');
+          this.faceIdService?.clearSessionDismissal();
+          this.cdr.markForCheck();
+        },
+        error: (err: HttpErrorResponse) => {
+          const msg = err.error?.message || 'Server failed to save Face ID.';
+          this.status.set('error');
+          this.faceErrorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
+          this.cdr.markForCheck();
+        },
+      });
+    } catch (err: unknown) {
+      this.faceIdService.stopCamera(videoEl);
+      this.status.set('error');
+      this.faceErrorMessage.set(
+        err instanceof Error
+          ? err.message
+          : 'Could not detect face. Please try again.',
+      );
+      this.cdr.markForCheck();
+    }
+  }
+
+  /** Cancels face registration and stops camera stream. */
+  cancelFaceRegistration(): void {
+    if (this.faceIdService) {
+      this.faceIdService.stopCamera(this.video()?.nativeElement);
+    }
+    this.status.set('idle');
+    this.faceErrorMessage.set('');
+    this.cdr.markForCheck();
+  }
+
+  /** Closes any open Face ID modal dialog. */
+  closeFaceModal(): void {
+    this.cancelFaceRegistration();
+  }
+
+  /** Removes stored Face ID registration for the logged-in user. */
+  removeFaceId(): void {
+    if (!this.faceIdService) {
+      return;
+    }
+
+    this.faceIdService.removeFace().subscribe({
+      next: () => {
+        this.faceRegistered.set(false);
+        this.faceIdService?.clearSessionDismissal();
+        this.cdr.markForCheck();
+      },
+      error: (err: HttpErrorResponse) => {
+        const msg = err.error?.message || 'Failed to remove Face ID.';
+        alert(Array.isArray(msg) ? msg.join(', ') : msg);
+      },
+    });
   }
 
   loadUserProfile(): void {
@@ -70,15 +258,19 @@ export class UserProfileComponent implements OnInit {
     this.activatedRoute.paramMap
       .pipe(
         map((params) => params.get('ticketCode') || undefined),
-        switchMap((ticketCode) =>
-          this.userProfileService.getProfile(ticketCode)
-        ),
+        switchMap((ticketCode) => {
+          this.isTicketView = !!ticketCode;
+          this.qrDataUrl = '';
+          return this.userProfileService.getProfile(ticketCode);
+        }),
         switchMap((profile: UserProfile) => {
           this.userProfile = profile;
-          return this.userProfileService.generateQrCode(profile.qrPayload);
+          this.loadProgress(profile.ticketCode);
+          return this.isTicketView ? this.ticketQr.render(profile) : of('');
         }),
-        catchError(() => {
-          this.errorMessage = 'Failed to load user profile and QR code.';
+        catchError((error: unknown) => {
+          const response = error instanceof HttpErrorResponse ? error : null;
+          this.errorMessage = this.describeLoadError(response);
           this.isLoading = false;
           this.cdr.markForCheck();
           return of('');
@@ -97,6 +289,19 @@ export class UserProfileComponent implements OnInit {
           this.cdr.markForCheck();
         },
       });
+  }
+
+  /** Booth stamp-card for this ticket; hidden when there is no ticket or no access. */
+  private loadProgress(ticketCode: string): void {
+    this.ticketProgress = null;
+    if (!ticketCode) return;
+    this.progressService.loadProgress(ticketCode).subscribe({
+      next: (progress) => {
+        this.ticketProgress = progress;
+        this.cdr.markForCheck();
+      },
+      error: () => undefined,
+    });
   }
 
   getAvatarInitials(): string {
@@ -294,21 +499,13 @@ export class UserProfileComponent implements OnInit {
     this.userProfile.fullName =
       `${this.userProfile.firstName} ${this.userProfile.lastName}`.trim();
 
-    this.userProfileService.saveProfile(this.userProfile)
-      .pipe(
-        switchMap((profile) =>
-          this.userProfileService.generateQrCode(profile.qrPayload)
-        )
-      )
-      .subscribe({
-        next: (newQrUrl) => {
-          if (newQrUrl) {
-            this.qrDataUrl = newQrUrl;
-          }
-          this.isEditing = false;
-          this.cdr.markForCheck();
-        },
-      });
+    // The QR encodes the ticket's payload, not the name, so it doesn't need re-rendering.
+    this.userProfileService.saveProfile(this.userProfile).subscribe({
+      next: () => {
+        this.isEditing = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   // Password Management
@@ -339,8 +536,8 @@ export class UserProfileComponent implements OnInit {
       return;
     }
 
-    if (this.newPassword.length < 6) {
-      this.passwordError = 'New password must be at least 6 characters long.';
+    if (this.newPassword.length < 8) {
+      this.passwordError = 'New password must be at least 8 characters long.';
       this.cdr.markForCheck();
       return;
     }
@@ -351,12 +548,27 @@ export class UserProfileComponent implements OnInit {
       return;
     }
 
-    this.passwordSuccess = 'Password updated successfully!';
-    this.cdr.markForCheck();
+    if (!this.auth) {
+      this.passwordError = 'Sign in before changing your password.';
+      this.cdr.markForCheck();
+      return;
+    }
 
-    from(timer(1500)).subscribe({
+    this.auth.changePassword(this.currentPassword, this.newPassword).subscribe({
       next: () => {
-        this.closeChangePassword();
+        this.passwordSuccess = 'Password updated successfully!';
+        this.currentPassword = '';
+        this.newPassword = '';
+        this.confirmPassword = '';
+        this.cdr.markForCheck();
+        from(timer(1500)).subscribe(() => this.closeChangePassword());
+      },
+      error: (error: HttpErrorResponse) => {
+        const message = error.error?.message;
+        this.passwordError = Array.isArray(message)
+          ? message.join(', ')
+          : message ?? 'Could not change your password. Please try again.';
+        this.cdr.markForCheck();
       },
     });
   }
@@ -394,6 +606,21 @@ export class UserProfileComponent implements OnInit {
         return 'badge-speaker';
       default:
         return 'badge-attendee';
+    }
+  }
+
+  private describeLoadError(response: HttpErrorResponse | null): string {
+    switch (response?.status) {
+      case 401:
+        return 'Sign in to load your profile.';
+      case 403:
+        return /change your password/i.test(String(response.error?.message ?? ''))
+          ? 'Change your temporary password before opening your profile.'
+          : 'You do not have access to this ticket.';
+      case 404:
+        return 'This ticket could not be found.';
+      default:
+        return 'Failed to load user profile and QR code.';
     }
   }
 }

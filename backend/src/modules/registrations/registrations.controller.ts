@@ -17,6 +17,7 @@ import {
   TicketProfileDto,
   AttendeeRsvpDto,
 } from './registrations.service.js';
+import type { TicketProgressDto } from '../checkpoints/ticket-progress.js';
 
 @Controller('registrations')
 export class RegistrationsController {
@@ -70,11 +71,26 @@ export class RegistrationsController {
     };
   }
 
+  @Get(':ticketCode/progress')
+  @UseGuards(JwtAuthGuard)
+  async getProgress(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('ticketCode') ticketCode: string,
+  ): Promise<{ success: boolean; data: TicketProgressDto }> {
+    const data = await this.service.getProgress(user, ticketCode);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get(':ticketCode')
+  @UseGuards(JwtAuthGuard)
   async getByTicketCode(
+    @CurrentUser() user: UserSummaryDto,
     @Param('ticketCode') ticketCode: string,
   ): Promise<{ success: boolean; data: TicketProfileDto }> {
-    const data = await this.service.findByTicketCode(ticketCode);
+    const data = await this.service.findByTicketCode(user, ticketCode);
     return {
       success: true,
       data,

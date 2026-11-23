@@ -99,54 +99,89 @@
       <!-- Column 1: Checkpoint Digital ID & QR Code Card -->
       <aside class="id-card-wrapper" id="id_card_wrapper">
         <div class="digital-id-card" id="digital_id_card">
-          <div class="id-card-top">
-            <span class="brand-sub">CHECKPOINT OFFICIAL</span>
-            <h2 class="id-title">Checkpoint ID Pass</h2>
-          </div>
+          @if (isTicketView) {
+            <div class="id-card-top">
+              <span class="brand-sub">CHECKPOINT TICKET</span>
+              <h2 class="id-title">{{ userProfile.eventName || 'Event Ticket' }}</h2>
+            </div>
 
-          <div class="qr-box" id="qr_box">
-            @if (qrDataUrl) {
-              <img class="qr-image"
-                  id="unique_id_qr_image"
-                  [src]="qrDataUrl"
-                  alt="User Unique ID QR Code" />
-            } @else {
-              <div class="qr-placeholder" id="qr_loading_placeholder">
-                Generating QR Pass...
-              </div>
-            }
-          </div>
+            <div class="qr-box" id="qr_box">
+              @if (qrDataUrl) {
+                <img class="qr-image"
+                    id="ticket_qr_image"
+                    [src]="qrDataUrl"
+                    alt="Ticket QR Code" />
+              } @else {
+                <div class="qr-placeholder" id="qr_loading_placeholder">
+                  Generating QR Pass...
+                </div>
+              }
+            </div>
 
-          <!-- Intuitive Click-to-Copy Pill -->
-          <button type="button"
-              class="ticket-code-pill"
-              id="ticket_code_pill"
-              (click)="copyTicketCode()"
-              title="Click to copy Unique ID">
-            <span class="pill-label">UNIQUE ID</span>
-            <span class="pill-code" id="unique_ticket_code_display">
-              {{ isCodeCopied ? 'Copied to Clipboard!' : userProfile.ticketCode || 'No ticket yet' }}
-            </span>
-          </button>
-
-          <p class="scan-instruction">
-            Present this unique QR code at entrance checkpoints and
-            scan stations for instant verification.
-          </p>
-
-          <div class="id-card-actions">
+            <!-- Intuitive Click-to-Copy Pill -->
             <button type="button"
-                class="action-button primary-button full-width"
-                id="download_qr_pass_btn"
-                (click)="downloadQrCode()">
-              Download QR (PNG)
+                class="ticket-code-pill"
+                id="ticket_code_pill"
+                (click)="copyTicketCode()"
+                title="Click to copy ticket code">
+              <span class="pill-label">TICKET CODE</span>
+              <span class="pill-code" id="unique_ticket_code_display">
+                {{ isCodeCopied ? 'Copied to Clipboard!' : userProfile.ticketCode }}
+              </span>
             </button>
-          </div>
+
+            <p class="scan-instruction">
+              Present this ticket QR at this event's entrance and
+              scan stations. Each event you register for has its own ticket.
+            </p>
+
+            <div class="id-card-actions">
+              <button type="button"
+                  class="action-button primary-button full-width"
+                  id="download_qr_pass_btn"
+                  (click)="downloadQrCode()">
+                Download QR (PNG)
+              </button>
+            </div>
+          } @else {
+            <div class="id-card-top">
+              <span class="brand-sub">CHECKPOINT</span>
+              <h2 class="id-title">Your Tickets</h2>
+            </div>
+
+            <p class="scan-instruction" id="tickets_hint">
+              Each event you register for has its own ticket QR.
+              Open My Hub to view the pass for a specific event.
+            </p>
+
+            <div class="id-card-actions">
+              <a routerLink="/hub"
+                  class="action-button primary-button full-width"
+                  id="go_to_hub_link">
+                Go to My Hub
+              </a>
+            </div>
+          }
         </div>
       </aside>
 
       <!-- Column 2: Account and Identification Information -->
       <main class="account-details-panel" id="account_details_panel">
+        @if (ticketProgress && ticketProgress.totalCount > 0) {
+          <div class="panel-card" id="event_passport_card">
+            <div class="panel-header">
+              <h2 class="panel-title">Event Passport</h2>
+              <span class="panel-sub">
+                Booths stamped at {{ ticketProgress.eventName }}
+              </span>
+            </div>
+            <app-stamp-card
+              [progress]="ticketProgress"
+              [stamps]="ticketProgress.stamps"
+            />
+          </div>
+        }
+
         <div class="panel-card" id="identity_details_card">
           <div class="panel-header">
             <h2 class="panel-title">Personal Account Details</h2>
@@ -273,14 +308,63 @@
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
             <p class="notice-text">
-              Your Unique ID and QR Pass are tied to your registered
-              identity. Do not share your private QR pass with
-              unauthorized parties.
+              Each ticket QR is tied to your registration for that event.
+              Do not share your ticket QR passes with unauthorized parties.
             </p>
           </div>
 
           <!-- Account Security & Session Actions -->
           <div class="account-actions-section" id="account_actions_section">
+            <!-- Face ID Registration Card -->
+            <div class="face-id-card" id="face_id_card">
+              <div class="face-id-info">
+                <div class="face-id-icon-circle">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+                    <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                    <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+                    <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                    <line x1="9" y1="9" x2="9.01" y2="9"/>
+                    <line x1="15" y1="9" x2="15.01" y2="9"/>
+                  </svg>
+                </div>
+                <div class="face-id-texts">
+                  <span class="face-id-label">Facial Recognition (Face ID)</span>
+                  @if (faceRegistered()) {
+                    <div class="face-status-badge badge-registered" id="face_registered_badge">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span>Face ID registered</span>
+                    </div>
+                  } @else {
+                    <span class="face-status-badge badge-unregistered" id="face_unregistered_badge">
+                      Not registered
+                    </span>
+                  }
+                </div>
+              </div>
+
+              <div class="face-id-actions">
+                @if (faceRegistered()) {
+                  <button type="button"
+                      class="action-button danger-button face-remove-btn"
+                      id="remove_face_id_btn"
+                      (click)="removeFaceId()">
+                    Remove Face ID
+                  </button>
+                } @else {
+                  <button type="button"
+                      class="action-button secondary-button face-register-btn"
+                      id="register_face_id_btn"
+                      (click)="startFaceRegistration()">
+                    Register Face ID
+                  </button>
+                }
+              </div>
+            </div>
+
             <div class="action-buttons-group">
               <button type="button"
                   class="action-button secondary-button"
@@ -458,6 +542,197 @@
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    }
+
+    <!-- Face ID Registration Modal Dialog -->
+    @if (status() !== 'idle') {
+      <div class="modal-backdrop"
+          id="face_id_modal_backdrop"
+          (click)="status() === 'prompting' ? dismissFacePrompt() : closeFaceModal()">
+        <div class="modal-dialog face-id-dialog"
+            id="face_id_dialog"
+            (click)="$event.stopPropagation()"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="face_modal_heading">
+          <div class="modal-header">
+            <div>
+              <h3 class="modal-heading" id="face_modal_heading">
+                @switch (status()) {
+                  @case ('prompting') { Register Face ID }
+                  @case ('capturing') { Capture Your Face }
+                  @case ('loading') { Processing Face ID }
+                  @case ('success') { Face ID Registered }
+                  @case ('error') { Face ID Error }
+                  @default { Face ID }
+                }
+              </h3>
+              <p class="modal-description">
+                @switch (status()) {
+                  @case ('prompting') { Fast, contact-free check-ins at event checkpoints. }
+                  @case ('capturing') { Align your face within the guide and look directly at the camera. }
+                  @case ('loading') { Generating secure numeric descriptor... }
+                  @case ('success') { Your biometric descriptor has been saved successfully. }
+                  @case ('error') { Registration could not be completed. }
+                  @default { Biometric identification }
+                }
+              </p>
+            </div>
+            <button type="button"
+                class="modal-close-button"
+                id="face_modal_close_button"
+                (click)="status() === 'prompting' ? dismissFacePrompt() : closeFaceModal()"
+                aria-label="Close modal">
+              <svg xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Prompting State -->
+          @if (status() === 'prompting') {
+            <div class="face-modal-body">
+              <div class="face-prompt-graphic">
+                <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#0f6e56" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
+                  <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                  <path d="M21 17v2a2 2 0 0 1-2 2h-2"/>
+                  <path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                  <line x1="9" y1="9" x2="9.01" y2="9"/>
+                  <line x1="15" y1="9" x2="15.01" y2="9"/>
+                </svg>
+              </div>
+              <p class="face-prompt-text">
+                Do you want to register your Face ID?
+              </p>
+              <p class="face-prompt-privacy">
+                Your face is converted into a 128-number descriptor directly on your device. Your photo is never stored or uploaded.
+              </p>
+            </div>
+            <div class="modal-footer-actions">
+              <button type="button"
+                  class="action-button secondary-button"
+                  id="face_prompt_not_now_btn"
+                  (click)="dismissFacePrompt()">
+                Not now
+              </button>
+              <button type="button"
+                  class="action-button primary-button"
+                  id="face_prompt_register_btn"
+                  (click)="startFaceRegistration()">
+                Yes, register
+              </button>
+            </div>
+          }
+
+          <!-- Capturing or Loading State -->
+          @if (status() === 'capturing' || status() === 'loading') {
+            <div class="face-modal-body">
+              <div class="camera-container" id="camera_container">
+                <video #video
+                    autoplay
+                    playsinline
+                    muted
+                    class="camera-video"
+                    id="face_video_preview"></video>
+                <div class="face-oval-guide" aria-hidden="true"></div>
+
+                @if (status() === 'loading') {
+                  <div class="camera-loading-overlay">
+                    <div class="spinner"></div>
+                    <p class="overlay-text">Extracting descriptor...</p>
+                  </div>
+                }
+              </div>
+              <p class="camera-hint">
+                Hold your phone or face steady inside the oval.
+              </p>
+            </div>
+            <div class="modal-footer-actions">
+              <button type="button"
+                  class="action-button secondary-button"
+                  id="cancel_capture_btn"
+                  [disabled]="status() === 'loading'"
+                  (click)="cancelFaceRegistration()">
+                Cancel
+              </button>
+              <button type="button"
+                  class="action-button primary-button"
+                  id="capture_face_btn"
+                  [disabled]="status() === 'loading'"
+                  (click)="captureAndRegisterFace()">
+                Capture Face
+              </button>
+            </div>
+          }
+
+          <!-- Success State -->
+          @if (status() === 'success') {
+            <div class="face-modal-body success-body">
+              <div class="face-success-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+              </div>
+              <h4 class="face-success-heading">Face ID Registered!</h4>
+              <p class="face-prompt-privacy">
+                Your Face ID descriptor has been saved. You can now use facial recognition for quick check-ins at supported checkpoints.
+              </p>
+            </div>
+            <div class="modal-footer-actions">
+              <button type="button"
+                  class="action-button primary-button"
+                  id="face_success_done_btn"
+                  (click)="closeFaceModal()">
+                Done
+              </button>
+            </div>
+          }
+
+          <!-- Error State -->
+          @if (status() === 'error') {
+            <div class="face-modal-body">
+              <div class="modal-alert alert-danger" id="face_error_alert">
+                <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>{{ faceErrorMessage() || 'Face registration failed.' }}</span>
+              </div>
+              <p class="camera-hint">
+                Please make sure camera access is allowed, your face is clearly visible within the oval outline, and lighting is adequate.
+              </p>
+            </div>
+            <div class="modal-footer-actions">
+              <button type="button"
+                  class="action-button secondary-button"
+                  id="face_error_cancel_btn"
+                  (click)="cancelFaceRegistration()">
+                Cancel
+              </button>
+              <button type="button"
+                  class="action-button primary-button"
+                  id="face_error_retry_btn"
+                  (click)="startFaceRegistration()">
+                Try Again
+              </button>
+            </div>
+          }
         </div>
       </div>
     }

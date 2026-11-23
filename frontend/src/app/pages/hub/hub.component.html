@@ -144,7 +144,7 @@
                   </svg>
                   <span>View Pass</span>
                 </button>
-                <a [routerLink]="['/profile', rsvp.ticketCode]" class="btn-secondary-link">Full Details</a>
+                <a [routerLink]="['/events', rsvp.eventSlug || rsvp.eventId]" [queryParams]="{ passport: 'true' }" class="btn-secondary-link">Full Details</a>
               </div>
             </article>
           }
@@ -335,21 +335,6 @@
         </div>
 
         <p class="modal-instruction">Present this pass at venue gates and session stations for instant check-in.</p>
-
-        @if (progressByTicket()[rsvp.ticketCode]; as progress) {
-          @if (progress.totalCount > 0) {
-            <div class="modal-progress">
-              @if (newStampId()) {
-                <p class="stamp-toast" role="status">New stamp collected!</p>
-              }
-              <app-stamp-card
-                [progress]="progress"
-                [stamps]="progress.stamps"
-                [highlightId]="newStampId()"
-              />
-            </div>
-          }
-        }
       </div>
 
       <div class="modal-footer">

@@ -27,4 +27,17 @@ export class AttendeeProgressService {
       ),
     );
   }
+
+  /** Loads per-user progress for a specific event (or null if not registered). */
+  loadMyProgressForEvent(eventIdOrSlug: string): Observable<TicketProgress | null> {
+    const url = `${environment.apiUrl}/registrations/event/${encodeURIComponent(eventIdOrSlug)}/progress`;
+    return this.http.get<ApiResponse<TicketProgress | null>>(url).pipe(
+      map((res) => res.data),
+      tap((progress) => {
+        if (progress?.ticketCode) {
+          this.cache.update((current) => ({ ...current, [progress.ticketCode]: progress }));
+        }
+      }),
+    );
+  }
 }

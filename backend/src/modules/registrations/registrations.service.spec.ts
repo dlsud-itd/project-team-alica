@@ -15,7 +15,7 @@ import type { UserSummaryDto } from '../auth/auth.service.js';
 describe('RegistrationsService', () => {
   let service: RegistrationsService;
   let prisma: {
-    event: { findUnique: ReturnType<typeof vi.fn> };
+    event: { findUnique: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
     ticket: {
       findUnique: ReturnType<typeof vi.fn>;
       findMany: ReturnType<typeof vi.fn>;
@@ -24,6 +24,8 @@ describe('RegistrationsService', () => {
       create: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
+    checkpoint: { findMany: ReturnType<typeof vi.fn> };
+    attendanceLog: { findMany: ReturnType<typeof vi.fn> };
     eventOrganizer: { findFirst: ReturnType<typeof vi.fn> };
     eventStaff: { findFirst: ReturnType<typeof vi.fn> };
     checkpointStaff: { findFirst: ReturnType<typeof vi.fn> };
@@ -38,7 +40,7 @@ describe('RegistrationsService', () => {
 
   beforeEach(async () => {
     prisma = {
-      event: { findUnique: vi.fn() },
+      event: { findUnique: vi.fn(), findFirst: vi.fn() },
       ticket: {
         findUnique: vi.fn(),
         findMany: vi.fn(),
@@ -47,6 +49,8 @@ describe('RegistrationsService', () => {
         create: vi.fn(),
         update: vi.fn(),
       },
+      checkpoint: { findMany: vi.fn().mockResolvedValue([]) },
+      attendanceLog: { findMany: vi.fn().mockResolvedValue([]) },
       eventOrganizer: { findFirst: vi.fn().mockResolvedValue(null) },
       eventStaff: { findFirst: vi.fn().mockResolvedValue(null) },
       checkpointStaff: { findFirst: vi.fn().mockResolvedValue(null) },
@@ -427,6 +431,67 @@ describe('RegistrationsService', () => {
       await expect(
         service.cancelRsvp(mockUser, 'CHK-NONEXISTENT'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getMyProgressForEvent', () => {
+    it('throws NotFoundException if event does not exist', async () => {
+      prisma.event.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getMyProgressForEvent(mockUser, 'evt-unknown'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns null if user has no ticket for the event', async () => {
+      prisma.event.findFirst.mockResolvedValue({
+        id: 'evt-1',
+        title: 'Tech Summit',
+        organizerId: 'usr-org',
+      });
+      prisma.ticket.findFirst.mockResolvedValue(null);
+
+      const result = await service.getMyProgressForEvent(mockUser, 'evt-1');
+      expect(result).toBeNull();
+    });
+
+    it('returns computed progress when user has an active ticket', async () => {
+      prisma.event.findFirst.mockResolvedValue({
+        id: 'evt-1',
+        title: 'Tech Summit',
+        organizerId: 'usr-org',
+      });
+      prisma.ticket.findFirst.mockResolvedValue({
+        id: 'tkt-1',
+        ticketCode: 'CHK-2026-9812A',
+        eventId: 'evt-1',
+        userId: mockUser.id,
+        email: mockUser.email,
+        event: { title: 'Tech Summit', organizerId: 'usr-org' },
+      });
+      prisma.checkpoint.findMany.mockResolvedValue([
+        {
+          id: 'chk-1',
+          name: 'Booth 1',
+          location: 'Hall A',
+          type: 'BOOTH',
+          parentId: null,
+        },
+      ]);
+      prisma.attendanceLog.findMany.mockResolvedValue([
+        {
+          checkpointId: 'chk-1',
+          scannedAt: new Date(),
+        },
+      ]);
+
+      const result = await service.getMyProgressForEvent(mockUser, 'evt-1');
+      expect(result).not.toBeNull();
+      expect(result?.ticketCode).toBe('CHK-2026-9812A');
+      expect(result?.visitedCount).toBe(1);
+      expect(result?.totalCount).toBe(1);
+      expect(result?.percent).toBe(100);
+      expect(result?.completed).toBe(true);
     });
   });
 });

@@ -74,6 +74,16 @@ describe('RegistrationsController', () => {
         completed: false,
         stamps: [],
       }),
+      getMyProgressForEvent: vi.fn().mockResolvedValue({
+        ticketCode: 'CHK-2026-9812A',
+        eventId: 'evt-1',
+        eventName: 'Tech Summit 2026',
+        visitedCount: 3,
+        totalCount: 5,
+        percent: 60,
+        completed: false,
+        stamps: [],
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -148,5 +158,14 @@ describe('RegistrationsController', () => {
     expect(res.data.visitedCount).toBe(3);
     expect(res.data.totalCount).toBe(5);
     expect(service.getProgress).toHaveBeenCalledWith(mockUser, 'CHK-2026-9812A');
+  });
+
+  it('should return per-user booth stamp progress for an event', async () => {
+    const res = await controller.getMyProgressForEvent(mockUser, 'evt-1');
+    expect(res.success).toBe(true);
+    expect(res.data).not.toBeNull();
+    expect(res.data!.visitedCount).toBe(3);
+    expect(res.data!.totalCount).toBe(5);
+    expect(service.getMyProgressForEvent).toHaveBeenCalledWith(mockUser, 'evt-1');
   });
 });

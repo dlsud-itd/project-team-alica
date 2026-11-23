@@ -215,7 +215,7 @@
                   </a>
                 }
                 @case ('REGISTERED') {
-                  <a routerLink="/profile" class="btn-card-action btn-pass" aria-label="View Ticket Pass for {{ event.title }}">
+                  <a [routerLink]="['/events', event.slug || event.id]" [queryParams]="{ passport: 'true' }" class="btn-card-action btn-pass" aria-label="View Ticket Pass for {{ event.title }}">
                     <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                       <line x1="16" y1="2" x2="16" y2="6"></line>

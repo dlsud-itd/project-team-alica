@@ -16,9 +16,6 @@ import { of, from, timer } from 'rxjs';
 import { switchMap, catchError, map } from 'rxjs/operators';
 import { UserProfileService } from './user_profile.service';
 import { AuthService } from '../core/auth/auth.service';
-import { AttendeeProgressService } from '../core/attendee/attendee-progress.service';
-import { TicketProgress } from '../core/attendee/attendee-progress.models';
-import { StampCardComponent } from '../shared/stamp-card/stamp-card.component';
 import { TicketQrService } from '../core/tickets/ticket-qr.service';
 import { FaceIdService } from '../core/face-id/face-id.service';
 import { FaceIdStatus } from '../core/face-id/face-id.model';
@@ -40,7 +37,7 @@ type SaveFilePickerWindow = Window & {
 @Component({
   selector: 'app-user-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, StampCardComponent],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './user_profile.component.html',
   styleUrl: './user_profile.component.scss',
 })
@@ -74,8 +71,6 @@ export class UserProfileComponent implements OnInit, OnDestroy {
   readonly userRole = UserRole;
   readonly profileStatus = ProfileStatus;
   private readonly auth = inject(AuthService, { optional: true });
-  private readonly progressService = inject(AttendeeProgressService);
-  ticketProgress: TicketProgress | null = null;
   private readonly ticketQr = inject(TicketQrService);
   private readonly faceIdService = inject(FaceIdService, { optional: true });
 
@@ -265,7 +260,6 @@ export class UserProfileComponent implements OnInit, OnDestroy {
         }),
         switchMap((profile: UserProfile) => {
           this.userProfile = profile;
-          this.loadProgress(profile.ticketCode);
           return this.isTicketView ? this.ticketQr.render(profile) : of('');
         }),
         catchError((error: unknown) => {
@@ -289,19 +283,6 @@ export class UserProfileComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
       });
-  }
-
-  /** Booth stamp-card for this ticket; hidden when there is no ticket or no access. */
-  private loadProgress(ticketCode: string): void {
-    this.ticketProgress = null;
-    if (!ticketCode) return;
-    this.progressService.loadProgress(ticketCode).subscribe({
-      next: (progress) => {
-        this.ticketProgress = progress;
-        this.cdr.markForCheck();
-      },
-      error: () => undefined,
-    });
   }
 
   getAvatarInitials(): string {

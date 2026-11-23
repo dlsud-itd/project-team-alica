@@ -105,6 +105,49 @@
       <div class="event-layout-grid">
         <!-- Main Column (Left): About, Schedule, Speakers -->
         <main class="main-column">
+          <!-- Digital Stamp Card / Event Passport Section -->
+          @if (isPassportVisible() || userProgress()) {
+            <section class="details-section passport-section" id="event_passport_section">
+              <div class="section-badge-header">
+                <span class="section-eyebrow">DIGITAL STAMP CARD</span>
+                @if (userProgress()?.ticketCode) {
+                  <span class="passport-ticket-badge">Ticket #{{ userProgress()!.ticketCode }}</span>
+                }
+              </div>
+              <h2 class="section-title">Event Passport</h2>
+              <p class="passport-desc">
+                Collect stamps by visiting checkpoint booths across the venue during the event.
+              </p>
+
+              @if (userProgress(); as progress) {
+                <app-stamp-card
+                  [progress]="progress"
+                  [stamps]="progress.stamps"
+                  [compact]="!isPassportVisible()"
+                />
+              } @else if (progressLoading()) {
+                <div class="passport-loading-state">
+                  <div class="spinner-small" aria-hidden="true"></div>
+                  <span>Loading your digital stamp card...</span>
+                </div>
+              } @else if (!auth.isAuthenticated()) {
+                <div class="passport-empty-state">
+                  <p>Please log in to view your personalized event passport and booth stamps.</p>
+                  <a routerLink="/login" class="btn-login-prompt">Sign In</a>
+                </div>
+              } @else if (!isRegistered()) {
+                <div class="passport-empty-state">
+                  <p>You have not registered for this event yet. Claim your pass below to start collecting stamps!</p>
+                  <button type="button" class="btn-claim-prompt" (click)="openRsvpModal()">Claim Ticket Pass</button>
+                </div>
+              } @else {
+                <div class="passport-empty-state">
+                  <p>No booth stamps available for this event yet.</p>
+                </div>
+              }
+            </section>
+          }
+
           <!-- About Event Section -->
           <section class="details-section about-section">
             <h2 class="section-title">About Event</h2>
@@ -262,12 +305,21 @@
                   <span>RSVP for Event / Claim Pass</span>
                 </button>
               } @else if (isRegistered()) {
-                <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>Already Registered (Go to Pass)</span>
-                </a>
+                @if (isPassportVisible()) {
+                  <div class="registered-status-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>Registered Attendee</span>
+                  </div>
+                } @else {
+                  <a [routerLink]="[]" [queryParams]="{ passport: 'true' }" class="btn-primary-cta btn-already-registered">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>View Ticket Pass</span>
+                  </a>
+                }
               } @else {
                 <button
                   type="button"
@@ -293,12 +345,21 @@
       @if (!preview()) {
       <footer class="mobile-fixed-bottom-bar" aria-label="Mobile Action Bar">
         @if (isRegistered()) {
-          <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span>Already Registered (Go to Pass)</span>
-          </a>
+          @if (isPassportVisible()) {
+            <div class="registered-status-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Registered Attendee</span>
+            </div>
+          } @else {
+            <a [routerLink]="[]" [queryParams]="{ passport: 'true' }" class="btn-primary-cta btn-already-registered">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>View Ticket Pass</span>
+            </a>
+          }
         } @else {
           <button
             type="button"

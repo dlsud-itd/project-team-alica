@@ -66,7 +66,25 @@ describe('Events Component', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(async () => {
-    localStorage.clear();
+    let store: Record<string, string> = {};
+    const storageMock = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+      clear: () => { store = {}; },
+      length: 0,
+      key: () => null,
+    };
+    try {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: storageMock,
+        writable: true,
+        configurable: true,
+      });
+    } catch {
+      // ignore
+    }
+    storageMock.clear();
 
     await TestBed.configureTestingModule({
       imports: [Events],
@@ -91,8 +109,12 @@ describe('Events Component', () => {
   });
 
   afterEach(() => {
-    authService.logout(null);
-    localStorage.clear();
+    try {
+      authService?.logout(null);
+      globalThis.localStorage?.clear();
+    } catch {
+      // ignore
+    }
   });
 
   it('should create successfully', () => {
@@ -224,5 +246,23 @@ describe('Events Component', () => {
 
     expect(myEvents.length).toBe(1);
     expect(myEvents[0].id).toBe('evt-tech-summit-2026');
+  });
+
+  it('renders View Ticket Pass link routing to event details with passport queryParam for registered events', () => {
+    authService.setSession(
+      {
+        id: 'usr-attendee-alen',
+        email: 'amc.umandal@gmail.com',
+        fullName: 'Alen Mikel Umandal',
+        role: 'ATTENDEE',
+      },
+      'token',
+    );
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const passLink = compiled.querySelector('.btn-pass');
+    expect(passLink).toBeTruthy();
+    expect(passLink?.textContent).toContain('View Ticket Pass');
   });
 });

@@ -242,6 +242,49 @@ export class RegistrationsService {
     return computeTicketProgress(this.prisma, ticket);
   }
 
+  /** Booth stamp-card progress for the current user at a specific event. Returns null if not registered. */
+  async getMyProgressForEvent(
+    user: UserSummaryDto,
+    eventIdOrSlug: string,
+  ): Promise<TicketProgressDto | null> {
+    const event = await this.prisma.event.findFirst({
+      where: {
+        OR: [{ id: eventIdOrSlug }, { slug: eventIdOrSlug }],
+        deletedAt: null,
+      },
+      select: { id: true, title: true, organizerId: true },
+    });
+
+    if (!event) {
+      throw new NotFoundException(`Event '${eventIdOrSlug}' not found`);
+    }
+
+    const ticket = await this.prisma.ticket.findFirst({
+      where: {
+        eventId: event.id,
+        OR: [
+          { userId: user.id },
+          { email: { equals: user.email, mode: 'insensitive' } },
+        ],
+        status: { not: TicketStatus.CANCELLED },
+      },
+      select: {
+        id: true,
+        ticketCode: true,
+        eventId: true,
+        userId: true,
+        email: true,
+        event: { select: { title: true, organizerId: true } },
+      },
+    });
+
+    if (!ticket) {
+      return null;
+    }
+
+    return computeTicketProgress(this.prisma, ticket);
+  }
+
   /** A ticket's details, visible to its owner, the event's organizers/staff, or an admin. */
   async findByTicketCode(
     user: UserSummaryDto,

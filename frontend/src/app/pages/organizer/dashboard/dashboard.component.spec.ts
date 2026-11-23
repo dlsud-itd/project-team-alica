@@ -237,6 +237,9 @@ describe('OrganizerDashboard', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Delete Event');
 
     component.confirmDelete();
+    const deleteReq = httpMock.expectOne(`${API}/${targetEvent.id}`);
+    expect(deleteReq.request.method).toBe('DELETE');
+    deleteReq.flush({ success: true, data: undefined });
     fixture.detectChanges();
 
     expect(component.deletingEvent()).toBeNull();

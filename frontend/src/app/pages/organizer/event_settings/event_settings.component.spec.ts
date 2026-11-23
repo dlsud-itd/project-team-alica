@@ -74,6 +74,7 @@ describe('EventSettingsComponent', () => {
   };
   let mockAuth: {
     user: () => { id: string; role: string; fullName: string; email: string } | null;
+    token: () => string;
   };
   let mockRouter: {
     navigate: ReturnType<typeof vi.fn>;
@@ -110,6 +111,7 @@ describe('EventSettingsComponent', () => {
         fullName: 'Primary Organizer',
         email: 'primary@alica.ph',
       }),
+      token: () => 'mock-jwt-token',
     };
 
     mockRouter = {

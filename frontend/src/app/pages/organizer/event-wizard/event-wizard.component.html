@@ -122,6 +122,28 @@
             <p>Specify the general parameters, timing, and venue for this event.</p>
           </div>
 
+          <!-- Event Visibility Picker -->
+          <div class="form-group span-full">
+            <span class="field-label">Event Visibility</span>
+            <div class="visibility-options">
+              <label class="radio-card" [class.selected]="!detailsForm.controls.is_private.value">
+                <input type="radio" [value]="false" formControlName="is_private" />
+                <div class="radio-card-content">
+                  <span class="radio-title">Public Event</span>
+                  <span class="radio-desc">Listed on the global Events page. Requires quick Admin review before appearing publicly.</span>
+                </div>
+              </label>
+
+              <label class="radio-card" [class.selected]="detailsForm.controls.is_private.value">
+                <input type="radio" [value]="true" formControlName="is_private" />
+                <div class="radio-card-content">
+                  <span class="radio-title">Private Event</span>
+                  <span class="radio-desc">Immediately active. Unlisted from the global feed; attendees join via direct link or imported roster.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div class="form-group">
             <label for="wizard-event-name">Event Name *</label>
             <input
@@ -667,6 +689,12 @@
                 <h4>General Details</h4>
               </div>
               <dl class="review-dl">
+                <div class="review-row">
+                  <dt>Visibility</dt>
+                  <dd>
+                    <span class="badge-format">{{ detailsForm.controls.is_private.value ? 'Private' : 'Public' }}</span>
+                  </dd>
+                </div>
                 <div class="review-row">
                   <dt>Title</dt>
                   <dd><strong>{{ detailsForm.controls.name.value }}</strong></dd>

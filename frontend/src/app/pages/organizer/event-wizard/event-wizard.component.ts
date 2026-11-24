@@ -48,6 +48,7 @@ export class EventWizardComponent {
       validators: [Validators.required, Validators.min(1)],
     }),
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
+    is_private: new FormControl(false, { nonNullable: true }),
     description: new FormControl('', { nonNullable: true }),
   });
 
@@ -333,6 +334,7 @@ export class EventWizardComponent {
       ends_at: endDate.toISOString(),
       capacity: Number(raw.capacity),
       allow_walk_ins: raw.allow_walk_ins,
+      is_private: raw.is_private,
       category: raw.category || 'Conference',
       tags: raw.tags || [],
       organizerEmails: this.coOrganizerEmails(),

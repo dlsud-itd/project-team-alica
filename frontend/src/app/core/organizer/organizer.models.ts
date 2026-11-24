@@ -136,6 +136,8 @@ export interface OrganizerCandidate {
   affiliation: string | null;
 }
 
+export type StaffAccessLevel = 'ALL_SCANNERS' | 'SPECIFIC_BOOTH';
+
 export interface EventStaff {
   id: string;
   userId: string;
@@ -143,6 +145,37 @@ export interface EventStaff {
   fullName: string;
   affiliation: string | null;
   assignedAt: string;
+  accessLevel?: StaffAccessLevel;
+  checkpointId?: string | null;
+  checkpointName?: string | null;
+}
+
+export interface WizardEntrance {
+  id?: string;
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+}
+
+export interface WizardSubBooth {
+  id?: string;
+  name: string;
+  location?: string;
+}
+
+export interface WizardBooth {
+  id?: string;
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+  subBooths?: WizardSubBooth[];
+}
+
+export interface WizardStaffAssignment {
+  email: string;
+  accessLevel: StaffAccessLevel;
+  checkpointName?: string;
 }
 
 export interface RecordScanResponse {
@@ -186,6 +219,9 @@ export type NewOrganizerEvent = Pick<OrganizerEvent, 'name' | 'venue' | 'starts_
     capacity: number;
     schedule?: EventScheduleItem[];
     organizerEmails?: string[];
+    entrances?: WizardEntrance[];
+    booths?: WizardBooth[];
+    staffAssignments?: WizardStaffAssignment[];
   };
 
 export interface EventRegistrant {

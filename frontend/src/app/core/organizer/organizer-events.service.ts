@@ -6,6 +6,7 @@ import {
   EventCheckpoint,
   EventOrganizer,
   EventStaff,
+  StaffAccessLevel,
   EventLiveOverview,
   EventRegistrant,
   GuestFilePreview,
@@ -303,15 +304,27 @@ export class OrganizerEventsService {
       .pipe(map((res) => res.data));
   }
 
-  addStaff(eventId: UUID, email: string): Observable<EventStaff> {
+  addStaff(
+    eventId: UUID,
+    email: string,
+    accessLevel?: StaffAccessLevel,
+    checkpointId?: string,
+  ): Observable<EventStaff> {
     return this.http
-      .post<ApiResponse<EventStaff>>(`${this.api}/${eventId}/staff`, { email })
+      .post<ApiResponse<EventStaff>>(`${this.api}/${eventId}/staff`, {
+        email,
+        accessLevel,
+        checkpointId,
+      })
       .pipe(map((res) => res.data));
   }
 
-  removeStaff(eventId: UUID, userId: string): Observable<void> {
+  removeStaff(eventId: UUID, userId: string, checkpointId?: string): Observable<void> {
+    const params = checkpointId ? { checkpointId } : undefined;
     return this.http
-      .delete<ApiResponse<unknown>>(`${this.api}/${eventId}/staff/${userId}`)
+      .delete<ApiResponse<unknown>>(`${this.api}/${eventId}/staff/${userId}`, {
+        params,
+      })
       .pipe(map(() => undefined));
   }
 

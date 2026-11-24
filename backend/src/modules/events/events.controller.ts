@@ -25,6 +25,7 @@ import {
   EventCheckpointDto,
   EventOrganizerDto,
   EventStaffDto,
+  StaffAccessLevel,
   OrganizerCandidateDto,
   ScanResultDto,
   OrganizerEventDto,
@@ -357,8 +358,16 @@ export class EventsController {
     @CurrentUser() user: UserSummaryDto,
     @Param('eventId') eventId: string,
     @Body('email') email: string,
+    @Body('accessLevel') accessLevel?: StaffAccessLevel,
+    @Body('checkpointId') checkpointId?: string,
   ): Promise<{ success: boolean; data: EventStaffDto }> {
-    const data = await this.eventsService.addStaff(user, eventId, email);
+    const data = await this.eventsService.addStaff(
+      user,
+      eventId,
+      email,
+      accessLevel,
+      checkpointId,
+    );
     return { success: true, data };
   }
 
@@ -368,8 +377,9 @@ export class EventsController {
     @CurrentUser() user: UserSummaryDto,
     @Param('eventId') eventId: string,
     @Param('userId') targetUserId: string,
+    @Query('checkpointId') checkpointId?: string,
   ): Promise<{ success: boolean; message: string }> {
-    await this.eventsService.removeStaff(user, eventId, targetUserId);
+    await this.eventsService.removeStaff(user, eventId, targetUserId, checkpointId);
     return { success: true, message: 'Staff member removed successfully' };
   }
 

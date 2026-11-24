@@ -989,3 +989,316 @@
     cursor: not-allowed;
   }
 }
+
+/* ==========================================================================
+   Co-Organizer Autocomplete & Guest Invite UI
+   ========================================================================== */
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  margin: -2px 0 8px;
+}
+
+.relative-autocomplete {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-with-icon {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+
+  .input-search-icon {
+    position: absolute;
+    left: 12px;
+    width: 16px;
+    height: 16px;
+    color: var(--ink-2);
+    pointer-events: none;
+  }
+
+  input#wizard-co-org-input {
+    width: 100%;
+    padding-left: 36px;
+  }
+}
+
+.co-org-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.dropdown-state-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.spinner-inline {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dropdown-section-header {
+  padding: 8px 14px 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--line);
+}
+
+.candidate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.candidate-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.15s ease;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--brand-soft);
+  }
+}
+
+.candidate-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.candidate-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.candidate-name {
+  font-size: 0.875rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.candidate-email {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.candidate-affiliation {
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  margin-top: 1px;
+}
+
+.candidate-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--brand);
+  background: var(--brand-soft);
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Not Found / Guest Invite Section in Dropdown */
+.dropdown-not-found {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.not-found-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+
+  .not-found-icon {
+    color: var(--ink-2);
+  }
+}
+
+.not-found-desc {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  line-height: 1.45;
+  margin: 0;
+
+  code {
+    background: var(--surface-subtle);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--brand);
+  }
+}
+
+.btn-dropdown-invite {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 6px 14px;
+  background: var(--brand);
+  color: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: var(--brand-dark);
+  }
+}
+
+/* Configured Co-Organizer Chips */
+.co-organizer-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.co-organizer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  color: var(--ink);
+}
+
+.pill-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .pill-name {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .pill-email {
+    color: var(--ink-2);
+  }
+}
+
+.status-tag {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+
+  &.tag-registered {
+    background: var(--brand-soft);
+    color: var(--brand);
+  }
+
+  &.tag-guest {
+    background: #e9ecef;
+    color: #495057;
+  }
+}
+
+.btn-pill-remove {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 2px;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: #dc2626;
+  }
+}
+
+/* Review Step Co-Organizers */
+.review-co-orgs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.review-co-org-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+
+.review-sub-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--brand-soft);
+  color: var(--brand);
+
+  &.guest {
+    background: #e9ecef;
+    color: #495057;
+  }
+}

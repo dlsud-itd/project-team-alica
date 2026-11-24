@@ -10,6 +10,7 @@ describe('EventWizardComponent', () => {
   let fixture: ComponentFixture<EventWizardComponent>;
   let mockOrganizerEvents: {
     createEvent: ReturnType<typeof vi.fn>;
+    searchOrganizerCandidates: ReturnType<typeof vi.fn>;
   };
 
   const sampleEvent: OrganizerEvent = {
@@ -35,6 +36,7 @@ describe('EventWizardComponent', () => {
   beforeEach(async () => {
     mockOrganizerEvents = {
       createEvent: vi.fn().mockReturnValue(of(sampleEvent)),
+      searchOrganizerCandidates: vi.fn().mockReturnValue(of([])),
     };
 
     await TestBed.configureTestingModule({
@@ -198,5 +200,52 @@ describe('EventWizardComponent', () => {
       }),
     );
     expect(savedSpy).toHaveBeenCalledWith(sampleEvent);
+  });
+
+  describe('co-organizer lookup & guest account invites', () => {
+    it('searches candidates and selects registered user', async () => {
+      const candidate = {
+        id: 'usr-cand-1',
+        email: 'userinsystem@gmail.com',
+        fullName: 'Juan System',
+        affiliation: 'CICS',
+      };
+      mockOrganizerEvents.searchOrganizerCandidates.mockReturnValue(of([candidate]));
+
+      component.onCoOrgInput('userinsyst');
+      expect(component.coOrgInputText()).toBe('userinsyst');
+      expect(component.showCoOrgDropdown()).toBe(true);
+
+      // Select candidate
+      component.selectCandidate(candidate);
+      expect(component.coOrganizerEmails()).toEqual(['userinsystem@gmail.com']);
+      expect(component.coOrganizerMetadata()['userinsystem@gmail.com']).toEqual({
+        fullName: 'Juan System',
+        isRegistered: true,
+      });
+      expect(component.coOrgInputText()).toBe('');
+      expect(component.showCoOrgDropdown()).toBe(false);
+    });
+
+    it('adds unregistered user as a guest invite', () => {
+      component.onCoOrgInput('usernotinsystem@gmail.com');
+      component.addCoOrganizerEmail();
+
+      expect(component.coOrganizerEmails()).toEqual(['usernotinsystem@gmail.com']);
+      expect(component.coOrganizerMetadata()['usernotinsystem@gmail.com']).toEqual({
+        fullName: 'usernotinsystem',
+        isRegistered: false,
+      });
+    });
+
+    it('removes co-organizer and clears metadata', () => {
+      component.addCoOrganizerEmail('co1@example.com');
+      component.addCoOrganizerEmail('co2@example.com');
+      expect(component.coOrganizerEmails().length).toBe(2);
+
+      component.removeCoOrganizerEmail(0);
+      expect(component.coOrganizerEmails()).toEqual(['co2@example.com']);
+      expect(component.coOrganizerMetadata()['co1@example.com']).toBeUndefined();
+    });
   });
 });

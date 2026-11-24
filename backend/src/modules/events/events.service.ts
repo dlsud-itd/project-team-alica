@@ -1661,9 +1661,33 @@ export class EventsService {
           select: { id: true, email: true },
         });
         const foundEmailSet = new Set(foundUsers.map((u) => u.email.toLowerCase()));
+        const usedPasswords = new Set<string>();
+
         for (const em of cleanEmails) {
           if (!foundEmailSet.has(em)) {
-            throw new NotFoundException(`User with email '${em}' not found`);
+            // Provision guest organizer account and send password setup invitation
+            const temporaryPassword = this.generateUniqueTemporaryPassword(usedPasswords);
+            const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+            const guestUser = await this.prisma.user.create({
+              data: {
+                email: em,
+                passwordHash,
+                fullName: em.split('@')[0],
+                role: UserRole.ORGANIZER,
+                isActive: true,
+                mustChangePassword: true,
+              },
+              select: { id: true, email: true },
+            });
+            foundUsers.push(guestUser);
+            foundEmailSet.add(em);
+
+            await this.invitationMailer.sendOrganizerInvitation({
+              eventTitle: event.title,
+              email: em,
+              temporaryPassword,
+              invitedBy: user.fullName || user.email,
+            });
           }
         }
         await this.prisma.eventOrganizer.createMany({
@@ -1909,9 +1933,31 @@ export class EventsService {
             })
           : [];
       const foundEmailSet = new Set(targetUsers.map((u) => u.email.toLowerCase()));
+      const usedPasswords = new Set<string>();
       for (const em of cleanEmails) {
         if (!foundEmailSet.has(em)) {
-          throw new NotFoundException(`User with email '${em}' not found`);
+          const temporaryPassword = this.generateUniqueTemporaryPassword(usedPasswords);
+          const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+          const guestUser = await this.prisma.user.create({
+            data: {
+              email: em,
+              passwordHash,
+              fullName: em.split('@')[0],
+              role: UserRole.ORGANIZER,
+              isActive: true,
+              mustChangePassword: true,
+            },
+            select: { id: true, email: true },
+          });
+          targetUsers.push(guestUser);
+          foundEmailSet.add(em);
+
+          await this.invitationMailer.sendOrganizerInvitation({
+            eventTitle: event.title,
+            email: em,
+            temporaryPassword,
+            invitedBy: user.fullName || user.email,
+          });
         }
       }
       const targetUserIds = targetUsers
@@ -3033,14 +3079,31 @@ export class EventsService {
     if (!cleanEmail) {
       throw new BadRequestException('Organizer email is required');
     }
-    const targetUser = await this.prisma.user.findUnique({
+    let targetUser = await this.prisma.user.findUnique({
       where: { email: cleanEmail },
       select: { id: true, email: true, fullName: true, affiliation: true },
     });
     if (!targetUser) {
-      throw new NotFoundException(
-        `User with email '${cleanEmail}' not found. They must register an account first.`,
-      );
+      const temporaryPassword = this.generateUniqueTemporaryPassword(new Set());
+      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+      targetUser = await this.prisma.user.create({
+        data: {
+          email: cleanEmail,
+          passwordHash,
+          fullName: cleanEmail.split('@')[0],
+          role: UserRole.ORGANIZER,
+          isActive: true,
+          mustChangePassword: true,
+        },
+        select: { id: true, email: true, fullName: true, affiliation: true },
+      });
+
+      await this.invitationMailer.sendOrganizerInvitation({
+        eventTitle: event.title,
+        email: cleanEmail,
+        temporaryPassword,
+        invitedBy: user.fullName || user.email,
+      });
     }
     if (targetUser.id === event.organizerId) {
       throw new BadRequestException('This user is already the primary organizer');

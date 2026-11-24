@@ -1089,7 +1089,6 @@ describe('EventsService', () => {
             location: 'Booth 101',
             allowMultipleScans: true,
             requireMainEntry: true,
-            subBooths: [{ name: 'Robo Arms Demo', location: 'Table A' }],
           },
         ],
         staffAssignments: [
@@ -1116,14 +1115,6 @@ describe('EventsService', () => {
           data: expect.objectContaining({
             name: 'AI Robotics Booth',
             type: 'BOOTH',
-          }),
-        }),
-      );
-      expect(prisma.checkpoint.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            name: 'Robo Arms Demo',
-            parentId: 'chk-ai-robotics-booth',
           }),
         }),
       );

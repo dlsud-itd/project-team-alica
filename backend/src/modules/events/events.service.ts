@@ -372,7 +372,6 @@ export interface CreateEventBoothDto {
   location?: string;
   allowMultipleScans?: boolean;
   requireMainEntry?: boolean;
-  subBooths?: { name: string; location?: string }[];
 }
 
 export interface CreateEventStaffAssignmentDto {
@@ -1745,25 +1744,6 @@ export class EventsService {
           },
         });
         checkpointMap.set(boothName.toLowerCase(), createdBooth);
-
-        if (Array.isArray(booth.subBooths) && booth.subBooths.length > 0) {
-          for (const sub of booth.subBooths) {
-            const subName = sub.name?.trim();
-            if (!subName) continue;
-            const createdSub = await this.prisma.checkpoint.create({
-              data: {
-                eventId: event.id,
-                parentId: createdBooth.id,
-                name: subName,
-                location: sub.location?.trim() || null,
-                type: CheckpointType.BOOTH,
-                allowMultipleScans: booth.allowMultipleScans ?? true,
-                requireMainEntry: booth.requireMainEntry ?? false,
-              },
-            });
-            checkpointMap.set(subName.toLowerCase(), createdSub);
-          }
-        }
       }
     }
 

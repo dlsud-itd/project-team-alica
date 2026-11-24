@@ -158,19 +158,12 @@ export interface WizardEntrance {
   allowMultipleScans?: boolean;
 }
 
-export interface WizardSubBooth {
-  id?: string;
-  name: string;
-  location?: string;
-}
-
 export interface WizardBooth {
   id?: string;
   name: string;
   location?: string;
   allowMultipleScans?: boolean;
   requireMainEntry?: boolean;
-  subBooths?: WizardSubBooth[];
 }
 
 export interface WizardSpeaker {

@@ -80,6 +80,19 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
   readonly editingScheduleIndex = signal<number | null>(null);
   readonly scheduleError = signal('');
 
+  // Activity Booths management (replaces Program Schedule section)
+  readonly booths = computed(() =>
+    this.stations().filter((s) => s.type === 'BOOTH'),
+  );
+  readonly showAddBoothForm = signal(false);
+  readonly isAddingBooth = signal(false);
+  readonly boothName = signal('');
+  readonly boothLocation = signal('');
+  readonly boothRequireMainEntry = signal(false);
+  readonly boothAllowMultiScan = signal(true);
+  readonly boothError = signal('');
+  readonly boothSuccess = signal('');
+
   // Organizers state
   readonly organizers = signal<EventOrganizer[]>([]);
   readonly organizersLoading = signal(false);
@@ -355,6 +368,75 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
   removeScheduleItem(index: number): void {
     const updated = this.scheduleItems().filter((_, i) => i !== index);
     this.scheduleItems.set(updated);
+  }
+
+  // Activity Booths management
+  openAddBooth(): void {
+    this.boothName.set('');
+    this.boothLocation.set('');
+    this.boothRequireMainEntry.set(false);
+    this.boothAllowMultiScan.set(true);
+    this.boothError.set('');
+    this.showAddBoothForm.set(true);
+  }
+
+  closeAddBooth(): void {
+    this.showAddBoothForm.set(false);
+    this.boothError.set('');
+  }
+
+  saveBooth(): void {
+    const name = this.boothName().trim();
+    const eventId = this.eventId();
+    if (!name) {
+      this.boothError.set('Booth name is required.');
+      return;
+    }
+    if (!eventId) return;
+
+    this.isAddingBooth.set(true);
+    this.boothError.set('');
+    this.boothSuccess.set('');
+
+    this.stationsApi
+      .createCheckpoint({
+        eventId,
+        name,
+        location: this.boothLocation().trim() || undefined,
+        type: 'BOOTH',
+        allowMultipleScans: this.boothAllowMultiScan(),
+        requireMainEntry: this.boothRequireMainEntry(),
+      })
+      .subscribe({
+        next: (created) => {
+          this.isAddingBooth.set(false);
+          this.closeAddBooth();
+          this.boothSuccess.set(`Booth "${created.name}" created successfully.`);
+          this.loadStations(eventId);
+        },
+        error: (err: { error?: { message?: string } }) => {
+          this.isAddingBooth.set(false);
+          this.boothError.set(err.error?.message ?? 'Could not create booth.');
+        },
+      });
+  }
+
+  removeBooth(boothId: string): void {
+    const eventId = this.eventId();
+    if (!boothId || !eventId) return;
+
+    this.boothError.set('');
+    this.boothSuccess.set('');
+
+    this.stationsApi.remove(boothId).subscribe({
+      next: () => {
+        this.boothSuccess.set('Booth removed successfully.');
+        this.loadStations(eventId);
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.boothError.set(err.error?.message ?? 'Could not remove booth.');
+      },
+    });
   }
 
   loadOrganizers(eventId: string): void {

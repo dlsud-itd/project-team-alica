@@ -111,6 +111,7 @@ model Event {
   tags           String[]            @default([])
   bannerImageUrl String?
   schedule       Json?
+  speakers       Json?
   startDate      DateTime
   endDate        DateTime
   capacity     Int?

@@ -13,6 +13,7 @@ import {
   StaffAccessLevel,
   WizardBooth,
   WizardEntrance,
+  WizardSpeaker,
   WizardStaffAssignment,
   WizardSubBooth,
 } from '../../../core/organizer/organizer.models';
@@ -66,6 +67,82 @@ export class EventWizardComponent {
     this.detailsForm.controls.is_private.valueChanges,
     { initialValue: this.detailsForm.controls.is_private.value }
   );
+
+  // --- Step 1: Banner Image ---
+  readonly bannerImageUrl = signal<string | null>(null);
+  readonly imageError = signal('');
+
+  onBannerSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    this.imageError.set('');
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      this.imageError.set('Please select a valid image file (PNG, JPG, or WebP).');
+      input.value = '';
+      return;
+    }
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      this.imageError.set('Image file size must be less than 2MB.');
+      input.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.bannerImageUrl.set(reader.result as string);
+    };
+    reader.onerror = () => {
+      this.imageError.set('Failed to read image file. Please try again.');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removeBannerImage(): void {
+    this.bannerImageUrl.set(null);
+    this.imageError.set('');
+  }
+
+  // --- Step 1: Featured Speakers ---
+  readonly speakers = signal<WizardSpeaker[]>([]);
+  readonly speakerName = signal('');
+  readonly speakerRole = signal('');
+  readonly speakerCompany = signal('');
+  readonly speakerTopic = signal('');
+  readonly speakerError = signal('');
+
+  addSpeaker(): void {
+    const name = this.speakerName().trim();
+    if (!name) {
+      this.speakerError.set('Speaker name is required.');
+      return;
+    }
+
+    this.speakers.update((list) => [
+      ...list,
+      {
+        id: 'spk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        name,
+        role: this.speakerRole().trim() || undefined,
+        company: this.speakerCompany().trim() || undefined,
+        topic: this.speakerTopic().trim() || undefined,
+      },
+    ]);
+
+    this.speakerName.set('');
+    this.speakerRole.set('');
+    this.speakerCompany.set('');
+    this.speakerTopic.set('');
+    this.speakerError.set('');
+  }
+
+  removeSpeaker(index: number): void {
+    this.speakers.update((list) => list.filter((_, i) => i !== index));
+  }
 
   readonly coOrganizerEmails = signal<string[]>([]);
   readonly coOrganizerMetadata = signal<
@@ -473,13 +550,28 @@ export class EventWizardComponent {
   nextStep(): void {
     const current = this.currentStep();
     if (current === 1) {
+      if (this.speakerName().trim()) {
+        this.addSpeaker();
+      }
+      if (this.coOrgInputText().trim() && this.isEmailFormat(this.coOrgInputText())) {
+        this.addCoOrganizerEmail();
+      }
       if (!this.canProceedFromStep1()) return;
       this.currentStep.set(2);
     } else if (current === 2) {
+      if (this.entranceName().trim()) {
+        this.addEntrance();
+      }
       this.currentStep.set(3);
     } else if (current === 3) {
+      if (this.boothName().trim()) {
+        this.addBooth();
+      }
       this.currentStep.set(4);
     } else if (current === 4) {
+      if (this.staffEmail().trim() && this.staffEmail().includes('@')) {
+        this.addStaffAssignment();
+      }
       this.currentStep.set(5);
     }
   }
@@ -521,6 +613,8 @@ export class EventWizardComponent {
       is_private: raw.is_private,
       category: raw.category || 'Conference',
       tags: raw.tags || [],
+      banner_image_url: this.bannerImageUrl() || undefined,
+      speakers: this.speakers().length > 0 ? this.speakers() : undefined,
       organizerEmails: this.coOrganizerEmails(),
       entrances: this.entrances().length > 0 ? this.entrances() : undefined,
       booths: this.booths().length > 0 ? this.booths() : undefined,

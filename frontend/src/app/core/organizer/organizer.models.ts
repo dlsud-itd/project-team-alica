@@ -48,6 +48,7 @@ export interface OrganizerEvent {
   admitted_count?: number;
   is_private?: boolean;
   banner_image_url?: string | null;
+  speakers?: WizardSpeaker[];
   schedule?: EventScheduleItem[];
   organizers?: EventOrganizer[];
 }
@@ -172,6 +173,15 @@ export interface WizardBooth {
   subBooths?: WizardSubBooth[];
 }
 
+export interface WizardSpeaker {
+  id?: string;
+  name: string;
+  role?: string;
+  company?: string;
+  topic?: string;
+  avatarUrl?: string;
+}
+
 export interface WizardStaffAssignment {
   email: string;
   accessLevel: StaffAccessLevel;
@@ -222,6 +232,7 @@ export type NewOrganizerEvent = Pick<OrganizerEvent, 'name' | 'venue' | 'starts_
     entrances?: WizardEntrance[];
     booths?: WizardBooth[];
     staffAssignments?: WizardStaffAssignment[];
+    speakers?: WizardSpeaker[];
   };
 
 export interface EventRegistrant {

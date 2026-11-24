@@ -217,38 +217,40 @@
           }
 
           <!-- Featured Speakers Section -->
-          <section class="details-section speakers-section">
-            <h2 class="section-title">Featured Speakers</h2>
+          @if (ev.speakers && ev.speakers.length > 0) {
+            <section class="details-section speakers-section">
+              <h2 class="section-title">Featured Speakers</h2>
 
-            <div class="speakers-grid">
-              @for (speaker of ev.speakers; track speaker.id) {
-                <article class="speaker-card">
-                  <div class="speaker-avatar-wrap">
-                    @if (speaker.avatarUrl) {
-                      <img
-                        [src]="speaker.avatarUrl"
-                        [alt]="speaker.name"
-                        class="speaker-avatar-img"
-                        loading="lazy"
-                      />
-                    } @else {
-                      <div class="speaker-avatar-fallback">
-                        {{ speaker.name.charAt(0) }}
-                      </div>
-                    }
-                  </div>
+              <div class="speakers-grid">
+                @for (speaker of ev.speakers; track speaker.id) {
+                  <article class="speaker-card">
+                    <div class="speaker-avatar-wrap">
+                      @if (speaker.avatarUrl) {
+                        <img
+                          [src]="speaker.avatarUrl"
+                          [alt]="speaker.name"
+                          class="speaker-avatar-img"
+                          loading="lazy"
+                        />
+                      } @else {
+                        <div class="speaker-avatar-fallback">
+                          {{ speaker.name.charAt(0) }}
+                        </div>
+                      }
+                    </div>
 
-                  <div class="speaker-info">
-                    <h3 class="speaker-name">{{ speaker.name }}</h3>
-                    <p class="speaker-role">{{ speaker.role }} · {{ speaker.company }}</p>
-                    @if (speaker.topic) {
-                      <p class="speaker-topic">Keynote: "{{ speaker.topic }}"</p>
-                    }
-                  </div>
-                </article>
-              }
-            </div>
-          </section>
+                    <div class="speaker-info">
+                      <h3 class="speaker-name">{{ speaker.name }}</h3>
+                      <p class="speaker-role">{{ speaker.role }} · {{ speaker.company }}</p>
+                      @if (speaker.topic) {
+                        <p class="speaker-topic">Keynote: "{{ speaker.topic }}"</p>
+                      }
+                    </div>
+                  </article>
+                }
+              </div>
+            </section>
+          }
         </main>
 
         <!-- Sidebar Column (Right on Desktop): Sticky RSVP & Info Card -->

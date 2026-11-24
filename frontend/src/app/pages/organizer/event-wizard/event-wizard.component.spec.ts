@@ -248,4 +248,37 @@ describe('EventWizardComponent', () => {
       expect(component.coOrganizerMetadata()['co1@example.com']).toBeUndefined();
     });
   });
+
+  describe('staff email lookup & autofill in Step 4', () => {
+    it('searches staff candidates and selects candidate to autofill staffEmail', () => {
+      const candidate = {
+        id: 'usr-staff-1',
+        email: 'staff.operator@alica.ph',
+        fullName: 'Staff Operator',
+        affiliation: 'Security',
+      };
+      mockOrganizerEvents.searchOrganizerCandidates.mockReturnValue(of([candidate]));
+
+      component.onStaffEmailInput('staff.op');
+      expect(component.staffEmail()).toBe('staff.op');
+      expect(component.showStaffDropdown()).toBe(true);
+
+      component.selectStaffCandidate(candidate);
+      expect(component.staffEmail()).toBe('staff.operator@alica.ph');
+      expect(component.showStaffDropdown()).toBe(false);
+      expect(component.staffCandidates()).toEqual([]);
+    });
+
+    it('resets dropdown when adding staff assignment', () => {
+      component.staffEmail.set('scanner.duty@checkpoint.ph');
+      component.staffAccessLevel.set('ALL_SCANNERS');
+      component.showStaffDropdown.set(true);
+
+      component.addStaffAssignment();
+
+      expect(component.staffAssignments().some((s) => s.email === 'scanner.duty@checkpoint.ph')).toBe(true);
+      expect(component.staffEmail()).toBe('');
+      expect(component.showStaffDropdown()).toBe(false);
+    });
+  });
 });

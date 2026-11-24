@@ -95,8 +95,31 @@ export class EventWizardComponent {
         this.isSearchingCoOrg.set(false);
       });
 
+    const staffSub = this.staffSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          const trimmed = query.trim();
+          if (trimmed.length < 2) {
+            this.isSearchingStaff.set(false);
+            return of([]);
+          }
+          this.isSearchingStaff.set(true);
+          return this.organizerEvents.searchOrganizerCandidates(trimmed).pipe(
+            catchError(() => of([])),
+            finalize(() => this.isSearchingStaff.set(false)),
+          );
+        }),
+      )
+      .subscribe((candidates) => {
+        this.staffCandidates.set(candidates);
+        this.isSearchingStaff.set(false);
+      });
+
     destroyRef.onDestroy(() => {
       sub.unsubscribe();
+      staffSub.unsubscribe();
     });
   }
 
@@ -122,6 +145,10 @@ export class EventWizardComponent {
   readonly staffAccessLevel = signal<StaffAccessLevel>('ALL_SCANNERS');
   readonly staffCheckpointName = signal('');
   readonly staffError = signal('');
+  readonly staffCandidates = signal<OrganizerCandidate[]>([]);
+  readonly isSearchingStaff = signal(false);
+  readonly showStaffDropdown = signal(false);
+  private readonly staffSearch$ = new Subject<string>();
 
   // Available station options for restricted staff access
   readonly availableStations = computed(() => {
@@ -333,6 +360,38 @@ export class EventWizardComponent {
   }
 
   // Step 4: Staff assignment methods
+  onStaffEmailInput(value: string): void {
+    this.staffEmail.set(value);
+    this.staffError.set('');
+    const trimmed = value.trim();
+    if (trimmed.length >= 2) {
+      this.showStaffDropdown.set(true);
+      this.staffSearch$.next(trimmed);
+    } else {
+      this.showStaffDropdown.set(false);
+      this.staffCandidates.set([]);
+    }
+  }
+
+  onStaffFocus(): void {
+    if (this.staffEmail().trim().length >= 2) {
+      this.showStaffDropdown.set(true);
+    }
+  }
+
+  onStaffBlur(): void {
+    setTimeout(() => {
+      this.showStaffDropdown.set(false);
+    }, 200);
+  }
+
+  selectStaffCandidate(candidate: OrganizerCandidate): void {
+    this.staffEmail.set(candidate.email.trim().toLowerCase());
+    this.showStaffDropdown.set(false);
+    this.staffCandidates.set([]);
+    this.staffError.set('');
+  }
+
   addStaffAssignment(): void {
     const email = this.staffEmail().trim().toLowerCase();
     if (!email || !email.includes('@') || !email.includes('.')) {
@@ -369,6 +428,8 @@ export class EventWizardComponent {
     ]);
 
     this.staffEmail.set('');
+    this.showStaffDropdown.set(false);
+    this.staffCandidates.set([]);
     this.staffError.set('');
   }
 

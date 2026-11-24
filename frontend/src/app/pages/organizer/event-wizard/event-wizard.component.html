@@ -603,15 +603,89 @@
               <div class="builder-error">{{ staffError() }}</div>
             }
             <div class="builder-grid">
-              <div class="form-group span-full">
+              <div class="form-group span-full relative-autocomplete">
                 <label for="staff-email-input">Staff Email Address *</label>
-                <input
-                  id="staff-email-input"
-                  type="email"
-                  [value]="staffEmail()"
-                  (input)="staffEmail.set($any($event.target).value)"
-                  placeholder="e.g. staff.operator@alica.ph"
-                />
+                <div class="input-with-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-search-icon" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <input
+                    #staffInput
+                    id="staff-email-input"
+                    type="text"
+                    [value]="staffEmail()"
+                    (input)="onStaffEmailInput(staffInput.value)"
+                    (focus)="onStaffFocus()"
+                    (blur)="onStaffBlur()"
+                    placeholder="Search by name or enter email (e.g. staff.operator@alica.ph)"
+                    (keydown.escape)="showStaffDropdown.set(false)"
+                    autocomplete="off"
+                  />
+                </div>
+
+                <!-- Staff Autocomplete Dropdown Menu -->
+                @if (showStaffDropdown()) {
+                  <div class="co-org-dropdown staff-dropdown" (mousedown)="$event.preventDefault()">
+                    @if (isSearchingStaff()) {
+                      <div class="dropdown-state-loading">
+                        <span class="spinner-inline" aria-hidden="true"></span>
+                        <span>Searching directory…</span>
+                      </div>
+                    } @else if (staffCandidates().length > 0) {
+                      <div class="dropdown-section-header">Matched Registered Users</div>
+                      <ul class="candidate-list" role="listbox">
+                        @for (candidate of staffCandidates(); track candidate.id) {
+                          <li
+                            class="candidate-item"
+                            role="option"
+                            (click)="selectStaffCandidate(candidate)"
+                          >
+                            <div class="candidate-avatar">
+                              {{ candidate.fullName.charAt(0).toUpperCase() }}
+                            </div>
+                            <div class="candidate-info">
+                              <strong class="candidate-name">{{ candidate.fullName }}</strong>
+                              <span class="candidate-email">{{ candidate.email }}</span>
+                              @if (candidate.affiliation) {
+                                <span class="candidate-affiliation">{{ candidate.affiliation }}</span>
+                              }
+                            </div>
+                            <span class="candidate-badge">Registered</span>
+                          </li>
+                        }
+                      </ul>
+                    } @else if (staffEmail().trim().length >= 2) {
+                      <div class="dropdown-not-found">
+                        <div class="not-found-header">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="not-found-icon" aria-hidden="true">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                            <line x1="23" y1="11" x2="17" y2="11"></line>
+                          </svg>
+                          <strong>User not found in system</strong>
+                        </div>
+                        @if (isEmailFormat(staffEmail())) {
+                          <p class="not-found-desc">
+                            <strong>{{ staffEmail().trim().toLowerCase() }}</strong> will be provisioned as a staff operator and sent an invitation setup email upon event creation.
+                          </p>
+                          <button
+                            type="button"
+                            class="btn-dropdown-invite"
+                            (click)="showStaffDropdown.set(false)"
+                          >
+                            Use this email
+                          </button>
+                        } @else {
+                          <p class="not-found-desc">
+                            Enter their full email address (e.g. <code>{{ staffEmail().trim().toLowerCase() }}&#64;alica.ph</code>) to invite them.
+                          </p>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             </div>
 

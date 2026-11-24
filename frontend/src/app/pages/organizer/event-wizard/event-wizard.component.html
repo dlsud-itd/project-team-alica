@@ -225,6 +225,59 @@
             ></textarea>
           </div>
 
+          <!-- Event Cover Image -->
+          <div class="form-group span-full">
+            <span class="field-label">Event Cover Image (Optional)</span>
+            <p class="field-hint">Upload a prominent cover banner for attendee discovery and pass headers (PNG, JPG, or WebP, up to 2MB).</p>
+
+            @if (imageError()) {
+              <div class="builder-error">{{ imageError() }}</div>
+            }
+
+            <div class="image-upload-wrapper">
+              @if (bannerImageUrl()) {
+                <div class="image-preview-container">
+                  <img [src]="bannerImageUrl()" alt="Event Cover Banner Preview" class="cover-image-preview" />
+                  <div class="image-actions-overlay">
+                    <label class="btn-change-image" for="wizard-banner-file-input">
+                      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      <span>Replace Image</span>
+                    </label>
+                    <button type="button" class="btn-remove-image" (click)="removeBannerImage()" aria-label="Remove cover image">
+                      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <label for="wizard-banner-file-input" class="image-dropzone" tabindex="0">
+                  <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                  <span class="dropzone-title">Upload event banner image</span>
+                  <span class="dropzone-hint">PNG, JPG, or WebP up to 2MB (Recommended ratio 16:9)</span>
+                </label>
+              }
+
+              <input
+                id="wizard-banner-file-input"
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                (change)="onBannerSelected($event)"
+                style="display: none;"
+              />
+            </div>
+          </div>
+
           <div class="form-group co-organizer-autocomplete-group">
             <label for="wizard-co-org-input">Co-Organizers (Optional)</label>
             <p class="field-hint">Search existing users by name or enter an email to invite external collaborators.</p>
@@ -344,6 +397,114 @@
                       ×
                     </button>
                   </span>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Featured Speakers Section -->
+          <div class="form-group span-full speaker-builder-section">
+            <span class="field-label">Featured Speakers (Optional)</span>
+            <p class="field-hint">Add keynote speakers, guest presenters, or panelists to highlight on the public event page.</p>
+
+            <div class="speaker-builder-card">
+              @if (speakerError()) {
+                <div class="builder-error">{{ speakerError() }}</div>
+              }
+              <div class="builder-grid">
+                <div class="form-group">
+                  <label for="wizard-speaker-name">Speaker Name *</label>
+                  <input
+                    id="wizard-speaker-name"
+                    type="text"
+                    [value]="speakerName()"
+                    (input)="speakerName.set($any($event.target).value)"
+                    placeholder="e.g. Dr. Maria Santos"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="wizard-speaker-role">Role / Title</label>
+                  <input
+                    id="wizard-speaker-role"
+                    type="text"
+                    [value]="speakerRole()"
+                    (input)="speakerRole.set($any($event.target).value)"
+                    placeholder="e.g. Keynote Lead / AI Researcher"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+              </div>
+              <div class="builder-grid">
+                <div class="form-group">
+                  <label for="wizard-speaker-company">Organization / Affiliation</label>
+                  <input
+                    id="wizard-speaker-company"
+                    type="text"
+                    [value]="speakerCompany()"
+                    (input)="speakerCompany.set($any($event.target).value)"
+                    placeholder="e.g. Department of Computer Science"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="wizard-speaker-topic">Keynote Topic / Session</label>
+                  <input
+                    id="wizard-speaker-topic"
+                    type="text"
+                    [value]="speakerTopic()"
+                    (input)="speakerTopic.set($any($event.target).value)"
+                    placeholder="e.g. Navigating Frontiers of Machine Learning"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+              </div>
+              <div class="builder-action-row">
+                <button type="button" class="btn-builder-add" (click)="addSpeaker()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Add Speaker</span>
+                </button>
+              </div>
+            </div>
+
+            @if (speakers().length > 0) {
+              <div class="speakers-list">
+                @for (speaker of speakers(); track speaker.id; let i = $index) {
+                  <div class="speaker-card-pill">
+                    <div class="speaker-avatar-circle">
+                      {{ speaker.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="speaker-pill-details">
+                      <strong class="speaker-pill-name">{{ speaker.name }}</strong>
+                      <div class="speaker-pill-meta">
+                        @if (speaker.role) {
+                          <span class="speaker-meta-item">{{ speaker.role }}</span>
+                        }
+                        @if (speaker.company) {
+                          <span class="speaker-meta-item">• {{ speaker.company }}</span>
+                        }
+                      </div>
+                      @if (speaker.topic) {
+                        <div class="speaker-pill-topic">
+                          <em>Keynote: "{{ speaker.topic }}"</em>
+                        </div>
+                      }
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-speaker-remove"
+                      (click)="removeSpeaker(i)"
+                      [attr.aria-label]="'Remove ' + speaker.name"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
                 }
               </div>
             }
@@ -854,6 +1015,11 @@
                 </svg>
                 <h4>General Details</h4>
               </div>
+              @if (bannerImageUrl()) {
+                <div class="review-banner-container">
+                  <img [src]="bannerImageUrl()" alt="Event Cover Banner" class="review-banner-image" />
+                </div>
+              }
               <dl class="review-dl">
                 <div class="review-row">
                   <dt>Visibility</dt>
@@ -1000,6 +1166,34 @@
                 </ul>
               }
             </div>
+
+            <!-- 5. Featured Speakers -->
+            @if (speakers().length > 0) {
+              <div class="review-card">
+                <div class="review-card-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                  <h4>Featured Speakers ({{ speakers().length }})</h4>
+                </div>
+                <ul class="review-item-list">
+                  @for (spk of speakers(); track spk.id) {
+                    <li>
+                      <strong>{{ spk.name }}</strong>
+                      <span class="sub-text">
+                        {{ spk.role || 'Featured Speaker' }}{{ spk.company ? ' • ' + spk.company : '' }}
+                        @if (spk.topic) {
+                          — <em>"{{ spk.topic }}"</em>
+                        }
+                      </span>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
           </div>
         </div>
       }

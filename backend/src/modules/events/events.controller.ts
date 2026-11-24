@@ -25,7 +25,7 @@ import {
   EventCheckpointDto,
   EventOrganizerDto,
   EventStaffDto,
-  StaffAccessLevel,
+  type StaffAccessLevel,
   OrganizerCandidateDto,
   ScanResultDto,
   OrganizerEventDto,

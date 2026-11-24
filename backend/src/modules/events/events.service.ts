@@ -201,6 +201,7 @@ export interface OrganizerEventDto {
   organizers?: EventOrganizerDto[];
   banner_image_url?: string | null;
   schedule?: EventScheduleItemDto[];
+  speakers?: CreateEventSpeakerDto[];
 }
 
 export interface EventLiveKpisDto {
@@ -333,6 +334,7 @@ export class UpdateEventDto {
   tags?: string[];
   banner_image_url?: string;
   schedule?: EventScheduleItemDto[];
+  speakers?: CreateEventSpeakerDto[];
   organizerEmails?: string[];
 }
 
@@ -348,6 +350,15 @@ export interface EventStaffDto {
   accessLevel?: StaffAccessLevel;
   checkpointId?: string | null;
   checkpointName?: string | null;
+}
+
+export interface CreateEventSpeakerDto {
+  id?: string;
+  name: string;
+  role?: string;
+  company?: string;
+  avatarUrl?: string;
+  topic?: string;
 }
 
 export interface CreateEventEntranceDto {
@@ -383,6 +394,7 @@ export class CreateEventDto {
   tags?: string[];
   banner_image_url?: string;
   schedule?: EventScheduleItemDto[];
+  speakers?: CreateEventSpeakerDto[];
   organizerEmails?: string[];
   entrances?: CreateEventEntranceDto[];
   booths?: CreateEventBoothDto[];
@@ -1360,7 +1372,22 @@ export class EventsService {
     return [];
   }
 
-  private buildFeaturedSpeakers(ev: { slug: string; organizer?: { fullName: string; affiliation: string | null } }): EventSpeakerDto[] {
+  private buildFeaturedSpeakers(ev: {
+    slug: string;
+    speakers?: any;
+    organizer?: { fullName: string; affiliation: string | null };
+  }): EventSpeakerDto[] {
+    if (ev.speakers && Array.isArray(ev.speakers) && ev.speakers.length > 0) {
+      return (ev.speakers as any[]).map((s, idx) => ({
+        id: s.id || `spk-${idx + 1}`,
+        name: s.name,
+        role: s.role || 'Keynote Speaker',
+        company: s.company || '',
+        avatarUrl: s.avatarUrl,
+        topic: s.topic,
+      }));
+    }
+
     if (ev.slug === 'devcon-manila-2026') {
       return [
         {
@@ -1477,26 +1504,7 @@ export class EventsService {
       ];
     }
 
-    const orgName = ev.organizer?.fullName ?? 'Campus Organizer';
-    const orgAffil = ev.organizer?.affiliation ?? 'Organizing Committee';
-    return [
-      {
-        id: 'spk-def-1',
-        name: orgName,
-        role: 'Keynote Lead',
-        company: orgAffil,
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        topic: 'Welcome & Executive Remarks',
-      },
-      {
-        id: 'spk-def-2',
-        name: 'Alex Martin',
-        role: 'Program Director',
-        company: 'Campus Event Operations',
-        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-        topic: 'Event Guidelines & Milestone Tracker',
-      },
-    ];
+    return [];
   }
 
   private resolveBannerImage(
@@ -1641,6 +1649,7 @@ export class EventsService {
         tags: Array.isArray(dto.tags) ? dto.tags.map((t) => t.trim()).filter(Boolean) : [],
         bannerImageUrl: dto.banner_image_url ?? null,
         schedule: dto.schedule ? (dto.schedule as any) : undefined,
+        speakers: dto.speakers ? (dto.speakers as any) : undefined,
       },
       include: {
         organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
@@ -1903,6 +1912,10 @@ export class EventsService {
 
     if (dto.schedule !== undefined) {
       data.schedule = dto.schedule ? (dto.schedule as any) : null;
+    }
+
+    if (dto.speakers !== undefined) {
+      data.speakers = dto.speakers ? (dto.speakers as any) : null;
     }
 
     const [startDate, endDate] = this.parseDateRange(
@@ -2356,6 +2369,7 @@ export class EventsService {
           : ev.slug
             ? this.buildScheduleTimeline({ slug: ev.slug, checkpoints: (ev as any).checkpoints || [] })
             : undefined,
+      speakers: (ev as any).speakers && Array.isArray((ev as any).speakers) ? (ev as any).speakers : undefined,
       ...(organizersList.length > 0 ? { organizers: organizersList } : {}),
     };
   }

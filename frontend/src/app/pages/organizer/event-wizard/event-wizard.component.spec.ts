@@ -297,4 +297,68 @@ describe('EventWizardComponent', () => {
       expect(submitBtn.textContent.trim()).toBe('Submit Event for Review');
     });
   });
+
+  describe('banner image and featured speakers', () => {
+    it('manages cover banner image selection and removal', () => {
+      expect(component.bannerImageUrl()).toBeNull();
+
+      component.bannerImageUrl.set('data:image/png;base64,mockImageData');
+      expect(component.bannerImageUrl()).toBe('data:image/png;base64,mockImageData');
+
+      component.removeBannerImage();
+      expect(component.bannerImageUrl()).toBeNull();
+    });
+
+    it('adds and removes featured speakers', () => {
+      component.speakerName.set('Dr. Ada Lovelace');
+      component.speakerRole.set('Keynote Lead');
+      component.speakerCompany.set('Computing Lab');
+      component.speakerTopic.set('Algorithmic Foundations');
+
+      component.addSpeaker();
+      expect(component.speakers().length).toBe(1);
+      expect(component.speakers()[0].name).toBe('Dr. Ada Lovelace');
+      expect(component.speakers()[0].role).toBe('Keynote Lead');
+      expect(component.speakers()[0].company).toBe('Computing Lab');
+      expect(component.speakers()[0].topic).toBe('Algorithmic Foundations');
+      expect(component.speakerName()).toBe('');
+
+      component.removeSpeaker(0);
+      expect(component.speakers().length).toBe(0);
+    });
+
+    it('auto-commits pending inputs on nextStep across steps', () => {
+      const futureStart = new Date(Date.now() + 86400000).toISOString().slice(0, 16);
+      const futureEnd = new Date(Date.now() + 172800000).toISOString().slice(0, 16);
+
+      component.detailsForm.patchValue({
+        name: 'Auto-commit Test Event',
+        venue: 'Hall 1',
+        starts_at: futureStart,
+        ends_at: futureEnd,
+        capacity: 100,
+      });
+
+      // Pending speaker in Step 1
+      component.speakerName.set('Grace Hopper');
+      component.nextStep(); // moves to step 2 and auto-commits speaker
+      expect(component.speakers().length).toBe(1);
+      expect(component.speakers()[0].name).toBe('Grace Hopper');
+      expect(component.currentStep()).toBe(2);
+
+      // Pending entrance in Step 2
+      component.entranceName.set('Gate Alpha');
+      component.nextStep(); // moves to step 3 and auto-commits entrance
+      expect(component.entrances().length).toBe(1);
+      expect(component.entrances()[0].name).toBe('Gate Alpha');
+      expect(component.currentStep()).toBe(3);
+
+      // Pending booth in Step 3
+      component.boothName.set('Booth Beta');
+      component.nextStep(); // moves to step 4 and auto-commits booth
+      expect(component.booths().length).toBe(1);
+      expect(component.booths()[0].name).toBe('Booth Beta');
+      expect(component.currentStep()).toBe(4);
+    });
+  });
 });

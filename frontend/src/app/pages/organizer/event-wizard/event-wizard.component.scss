@@ -1307,3 +1307,253 @@
     color: #495057;
   }
 }
+
+/* Cover Image Upload in Wizard */
+.image-upload-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.image-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 20px;
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  background-color: var(--surface-subtle);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--brand);
+    background-color: var(--brand-soft);
+  }
+
+  .dropzone-icon {
+    width: 32px;
+    height: 32px;
+    color: var(--muted);
+  }
+
+  .dropzone-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .dropzone-hint {
+    font-size: 0.75rem;
+    color: var(--ink-2);
+  }
+}
+
+.image-preview-container {
+  position: relative;
+  width: 100%;
+  max-height: 220px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background-color: #111827;
+
+  .cover-image-preview {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .image-actions-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 14px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .btn-change-image {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #111827;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #ffffff;
+    }
+
+    .btn-icon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  .btn-remove-image {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(239, 68, 68, 0.85);
+    border: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #ffffff;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #dc2626;
+    }
+
+    .btn-icon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+}
+
+/* Featured Speakers Builder */
+.speaker-builder-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.speaker-builder-card {
+  padding: 16px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.builder-action-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.speakers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.speaker-card-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: #94a3b8;
+  }
+}
+
+.speaker-avatar-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.speaker-pill-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.speaker-pill-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.speaker-pill-meta {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.speaker-pill-topic {
+  font-size: 0.75rem;
+  color: var(--brand);
+  margin-top: 1px;
+}
+
+.btn-speaker-remove {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: #ef4444;
+    background: #fee2e2;
+  }
+}
+
+/* Review Banner & Speaker Styles */
+.review-banner-container {
+  width: 100%;
+  height: 140px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+}
+
+.review-banner-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

@@ -4,6 +4,7 @@ import {
   EventEmitter,
   HostListener,
   Input,
+  OnDestroy,
   OnInit,
   Output,
   computed,
@@ -24,7 +25,7 @@ import {
   templateUrl: './category-tag-selector.component.html',
   styleUrl: './category-tag-selector.component.scss',
 })
-export class CategoryTagSelectorComponent implements OnInit {
+export class CategoryTagSelectorComponent implements OnInit, OnDestroy {
   @Input() set category(val: string | null | undefined) {
     const next = val || 'Conference';
     this.selectedCategory.set(next);
@@ -77,15 +78,33 @@ export class CategoryTagSelectorComponent implements OnInit {
 
   constructor(private readonly elementRef: ElementRef) {}
 
+  private readonly onCaptureClick = (event: MouseEvent): void => {
+    if (!this.elementRef.nativeElement.contains(event.target as Node)) {
+      this.isDropdownOpen.set(false);
+    }
+  };
+
   ngOnInit(): void {
     if (!this.selectedCategory()) {
       this.selectCategory('Conference');
     }
+    document.addEventListener('click', this.onCaptureClick, true);
+  }
+
+  ngOnDestroy(): void {
+    document.removeEventListener('click', this.onCaptureClick, true);
   }
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    if (!this.elementRef.nativeElement.contains(event.target)) {
+    if (!this.elementRef.nativeElement.contains(event.target as Node)) {
+      this.isDropdownOpen.set(false);
+    }
+  }
+
+  onComboboxFocusOut(event: FocusEvent): void {
+    const related = event.relatedTarget as Node | null;
+    if (!related || !this.elementRef.nativeElement.contains(related)) {
       this.isDropdownOpen.set(false);
     }
   }

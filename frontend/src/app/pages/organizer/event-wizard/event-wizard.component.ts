@@ -32,6 +32,12 @@ export class EventWizardComponent {
   @Output() close = new EventEmitter<void>();
   @Output() saved = new EventEmitter<OrganizerEvent>();
 
+  onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.close.emit();
+    }
+  }
+
   readonly currentStep = signal<WizardStep>(1);
   readonly errorMessage = signal('');
   readonly isSaving = signal(false);

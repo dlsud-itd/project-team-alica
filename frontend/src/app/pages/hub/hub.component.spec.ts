@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { HubComponent } from './hub.component';
 import { AttendeeRsvpService } from '../../core/attendee/attendee-rsvp.service';
@@ -79,6 +79,17 @@ describe('HubComponent', () => {
     expect(component.isCreateModalOpen()).toBe(true);
     component.closeCreateModal();
     expect(component.isCreateModalOpen()).toBe(false);
+  });
+
+  it('handles wizard saved event and navigates to event overview', () => {
+    const router = TestBed.inject(Router);
+    const navSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.openCreateModal();
+    expect(component.isCreateModalOpen()).toBe(true);
+
+    component.onWizardSaved({ id: 'evt-created' } as OrganizerEvent);
+    expect(component.isCreateModalOpen()).toBe(false);
+    expect(navSpy).toHaveBeenCalledWith(['/organizer/events', 'evt-created', 'overview']);
   });
 
   it('does not display the staffing tab button for normal users with no assignments', () => {

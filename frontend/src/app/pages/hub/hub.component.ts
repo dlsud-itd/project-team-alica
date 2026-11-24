@@ -3,6 +3,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { Subscription, interval, startWith, switchMap } from 'rxjs';
 import { AttendeeProgressService } from '../../core/attendee/attendee-progress.service';
 import { StampCardComponent } from '../../shared/stamp-card/stamp-card.component';
+import { EventWizardComponent } from '../organizer/event-wizard/event-wizard.component';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { TicketQrService } from '../../core/tickets/ticket-qr.service';
@@ -32,7 +33,14 @@ function toDateTimeLocalInput(isoString: string): string {
 @Component({
   selector: 'app-hub',
   standalone: true,
-  imports: [CommonModule, DatePipe, ReactiveFormsModule, RouterLink, StampCardComponent],
+  imports: [
+    CommonModule,
+    DatePipe,
+    ReactiveFormsModule,
+    RouterLink,
+    StampCardComponent,
+    EventWizardComponent,
+  ],
   templateUrl: './hub.component.html',
   styleUrl: './hub.component.scss',
 })
@@ -266,6 +274,12 @@ export class HubComponent implements OnInit {
 
   closeCreateModal(): void {
     this.isCreateModalOpen.set(false);
+  }
+
+  onWizardSaved(created: OrganizerEvent): void {
+    this.closeCreateModal();
+    this.organizerService.loadEvents().subscribe({ error: () => undefined });
+    this.router.navigate(['/organizer/events', created.id, 'overview']);
   }
 
   onSubmitCreateEvent(): void {

@@ -1762,11 +1762,31 @@ export class EventsService {
       for (const assignment of dto.staffAssignments) {
         const cleanEmail = assignment.email?.trim().toLowerCase();
         if (!cleanEmail) continue;
-        const staffUser = await this.prisma.user.findUnique({
+        let staffUser = await this.prisma.user.findUnique({
           where: { email: cleanEmail },
           select: { id: true, email: true },
         });
-        if (!staffUser) continue;
+        if (!staffUser) {
+          const temporaryPassword = this.generateUniqueTemporaryPassword(new Set());
+          const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+          staffUser = await this.prisma.user.create({
+            data: {
+              email: cleanEmail,
+              passwordHash,
+              fullName: cleanEmail.split('@')[0],
+              role: UserRole.STAFF,
+              isActive: true,
+              mustChangePassword: true,
+            },
+            select: { id: true, email: true },
+          });
+          await this.invitationMailer.sendOrganizerInvitation({
+            eventTitle: event.title,
+            email: cleanEmail,
+            temporaryPassword,
+            invitedBy: user.fullName || user.email,
+          });
+        }
 
         if (
           assignment.accessLevel === 'SPECIFIC_BOOTH' &&

@@ -1021,7 +1021,8 @@
     pointer-events: none;
   }
 
-  input#wizard-co-org-input {
+  input#wizard-co-org-input,
+  input#staff-email-input {
     width: 100%;
     padding-left: 36px;
   }

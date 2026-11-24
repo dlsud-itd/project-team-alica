@@ -4,7 +4,7 @@
     <label for="event-category-combobox" class="field-label">
       Primary Category <span class="required-mark" aria-hidden="true">*</span>
     </label>
-    <div class="combobox-wrapper">
+    <div class="combobox-wrapper" (focusout)="onComboboxFocusOut($event)">
       <div class="input-with-icon">
         <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>

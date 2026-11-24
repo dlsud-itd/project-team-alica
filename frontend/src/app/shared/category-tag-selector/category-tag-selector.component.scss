@@ -40,8 +40,8 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
   &:focus-within {
-    border-color: var(--brand-primary, #2563eb);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    border-color: var(--color-forest-green, #0f6e56);
+    box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.12);
   }
 
   .field-icon {
@@ -133,10 +133,10 @@
   }
 
   &.selected {
-    background: rgba(37, 99, 235, 0.08);
+    background: var(--color-mint-light, #e1f5ee);
 
     .category-name {
-      color: var(--brand-primary, #2563eb);
+      color: var(--color-forest-green, #0f6e56);
       font-weight: 600;
     }
   }
@@ -160,7 +160,7 @@
   .check-icon {
     width: 16px;
     height: 16px;
-    color: var(--brand-primary, #2563eb);
+    color: var(--color-forest-green, #0f6e56);
     flex-shrink: 0;
   }
 }
@@ -223,8 +223,8 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
   &:focus-within {
-    border-color: var(--brand-primary, #2563eb);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    border-color: var(--color-forest-green, #0f6e56);
+    box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.12);
   }
 }
 
@@ -323,9 +323,9 @@
   transition: all 0.12s ease;
 
   &:hover {
-    background: rgba(37, 99, 235, 0.06);
-    border-color: var(--brand-primary, #2563eb);
-    color: var(--brand-primary, #2563eb);
+    background: rgba(15, 110, 86, 0.08);
+    border-color: var(--color-forest-green, #0f6e56);
+    color: var(--color-forest-green, #0f6e56);
   }
 
   .plus-icon {

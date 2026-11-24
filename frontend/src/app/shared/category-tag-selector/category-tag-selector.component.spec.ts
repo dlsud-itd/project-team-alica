@@ -54,4 +54,25 @@ describe('CategoryTagSelectorComponent', () => {
     component.onTagKeydown(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(component.selectedTags()).toContain('Keynote');
   });
+
+  it('should close dropdown when clicking outside', () => {
+    component.isDropdownOpen.set(true);
+    expect(component.isDropdownOpen()).toBe(true);
+
+    const outsideElement = document.createElement('div');
+    document.body.appendChild(outsideElement);
+
+    outsideElement.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(component.isDropdownOpen()).toBe(false);
+
+    document.body.removeChild(outsideElement);
+  });
+
+  it('should close dropdown on combobox focusout', () => {
+    component.isDropdownOpen.set(true);
+    expect(component.isDropdownOpen()).toBe(true);
+
+    component.onComboboxFocusOut(new FocusEvent('focusout', { relatedTarget: document.body }));
+    expect(component.isDropdownOpen()).toBe(false);
+  });
 });

@@ -94,7 +94,40 @@ export class EventWizardComponent {
 
     const reader = new FileReader();
     reader.onload = () => {
-      this.bannerImageUrl.set(reader.result as string);
+      const rawDataUrl = reader.result as string;
+      try {
+        const img = new Image();
+        img.onload = () => {
+          const maxWidth = 1280;
+          const maxHeight = 720;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const optimized = canvas.toDataURL('image/jpeg', 0.85);
+            this.bannerImageUrl.set(optimized);
+          } else {
+            this.bannerImageUrl.set(rawDataUrl);
+          }
+        };
+        img.onerror = () => {
+          this.bannerImageUrl.set(rawDataUrl);
+        };
+        img.src = rawDataUrl;
+      } catch {
+        this.bannerImageUrl.set(rawDataUrl);
+      }
     };
     reader.onerror = () => {
       this.imageError.set('Failed to read image file. Please try again.');

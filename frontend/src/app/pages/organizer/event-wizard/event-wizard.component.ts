@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, EventEmitter, Output, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, of } from 'rxjs';
@@ -60,6 +61,11 @@ export class EventWizardComponent {
     is_private: new FormControl(false, { nonNullable: true }),
     description: new FormControl('', { nonNullable: true }),
   });
+
+  readonly isPrivateEvent = toSignal(
+    this.detailsForm.controls.is_private.valueChanges,
+    { initialValue: this.detailsForm.controls.is_private.value }
+  );
 
   readonly coOrganizerEmails = signal<string[]>([]);
   readonly coOrganizerMetadata = signal<

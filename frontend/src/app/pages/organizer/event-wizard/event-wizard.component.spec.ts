@@ -281,4 +281,20 @@ describe('EventWizardComponent', () => {
       expect(component.showStaffDropdown()).toBe(false);
     });
   });
+
+  describe('review and submit labels for public vs private event', () => {
+    it('renders "Create Private Event" when is_private is true and "Submit Event for Review" when false', () => {
+      component.currentStep.set(5);
+      component.detailsForm.controls.is_private.setValue(true);
+      fixture.detectChanges();
+
+      const submitBtn = fixture.nativeElement.querySelector('.btn-submit');
+      expect(submitBtn.textContent.trim()).toBe('Create Private Event');
+
+      component.detailsForm.controls.is_private.setValue(false);
+      fixture.detectChanges();
+
+      expect(submitBtn.textContent.trim()).toBe('Submit Event for Review');
+    });
+  });
 });

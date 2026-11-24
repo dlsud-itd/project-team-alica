@@ -251,52 +251,58 @@
 
       <!-- Pagination Controls -->
       @if (totalPages() > 1) {
-        <nav class="pagination-nav" aria-label="Events pagination">
-          <button
-            type="button"
-            class="btn-pagination-nav"
-            [disabled]="currentPage() === 1"
-            (click)="prevPage()"
-            aria-label="Previous page"
-          >
-            <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-            <span>Previous</span>
-          </button>
+        <footer class="events-pagination-container">
+          <span class="pagination-meta">
+            Showing <strong>{{ startIndex() }}</strong> to <strong>{{ endIndex() }}</strong> of <strong>{{ filteredEvents().length }}</strong> events
+          </span>
 
-          <div class="pagination-pages">
-            @for (p of pageNumbers(); track $index) {
-              @if (p === '...') {
-                <span class="pagination-ellipsis" aria-hidden="true">&hellip;</span>
-              } @else {
-                <button
-                  type="button"
-                  class="btn-page-number"
-                  [class.active]="p === currentPage()"
-                  [attr.aria-current]="p === currentPage() ? 'page' : null"
-                  (click)="goToPage(p)"
-                  [attr.aria-label]="'Page ' + p"
-                >
-                  {{ p }}
-                </button>
+          <nav class="pagination-nav" aria-label="Events pagination">
+            <button
+              type="button"
+              class="btn-pagination-nav"
+              [disabled]="currentPage() === 1"
+              (click)="prevPage()"
+              aria-label="Previous page"
+            >
+              <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              <span>Previous</span>
+            </button>
+
+            <div class="pagination-pages">
+              @for (p of pageNumbers(); track $index) {
+                @if (p === '...') {
+                  <span class="pagination-ellipsis" aria-hidden="true">&hellip;</span>
+                } @else {
+                  <button
+                    type="button"
+                    class="btn-page-number"
+                    [class.active]="p === currentPage()"
+                    [attr.aria-current]="p === currentPage() ? 'page' : null"
+                    (click)="goToPage(p)"
+                    [attr.aria-label]="'Page ' + p"
+                  >
+                    {{ p }}
+                  </button>
+                }
               }
-            }
-          </div>
+            </div>
 
-          <button
-            type="button"
-            class="btn-pagination-nav"
-            [disabled]="currentPage() === totalPages()"
-            (click)="nextPage()"
-            aria-label="Next page"
-          >
-            <span>Next</span>
-            <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-        </nav>
+            <button
+              type="button"
+              class="btn-pagination-nav"
+              [disabled]="currentPage() === totalPages()"
+              (click)="nextPage()"
+              aria-label="Next page"
+            >
+              <span>Next</span>
+              <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </nav>
+        </footer>
       }
     } @else {
       <!-- Empty Search State -->

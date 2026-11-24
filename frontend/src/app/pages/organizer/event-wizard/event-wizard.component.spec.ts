@@ -108,20 +108,18 @@ describe('EventWizardComponent', () => {
     expect(component.entrances()[0].name).toBe('VIP Entrance');
   });
 
-  it('configures booths with sub-booths in Step 3', () => {
+  it('configures booths in Step 3', () => {
     component.currentStep.set(3);
 
     component.boothName.set('Robotics Showcase');
     component.boothLocation.set('Hall A');
-    component.boothSubName.set('Demo Station 1');
     component.boothRequireMainEntry.set(true);
     component.addBooth();
 
     expect(component.booths().length).toBe(1);
     expect(component.booths()[0].name).toBe('Robotics Showcase');
+    expect(component.booths()[0].location).toBe('Hall A');
     expect(component.booths()[0].requireMainEntry).toBe(true);
-    expect(component.booths()[0].subBooths?.length).toBe(1);
-    expect(component.booths()[0].subBooths?.[0].name).toBe('Demo Station 1');
 
     component.removeBooth(0);
     expect(component.booths().length).toBe(0);

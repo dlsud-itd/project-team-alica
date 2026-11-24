@@ -660,37 +660,25 @@
                 />
               </div>
             </div>
-            <div class="builder-grid">
-              <div class="form-group">
-                <label for="booth-sub-input">Initial Sub-booth (Optional)</label>
+            <div class="form-group checkbox-options">
+              <label class="checkbox-card small">
                 <input
-                  id="booth-sub-input"
-                  type="text"
-                  [value]="boothSubName()"
-                  (input)="boothSubName.set($any($event.target).value)"
-                  placeholder="e.g. Hands-on Lab Demo"
+                  type="checkbox"
+                  [checked]="boothRequireMainEntry()"
+                  (change)="boothRequireMainEntry.set($any($event.target).checked)"
+                  class="custom-checkbox"
                 />
-              </div>
-              <div class="form-group checkbox-options">
-                <label class="checkbox-card small">
-                  <input
-                    type="checkbox"
-                    [checked]="boothRequireMainEntry()"
-                    (change)="boothRequireMainEntry.set($any($event.target).checked)"
-                    class="custom-checkbox"
-                  />
-                  <span class="checkbox-text">Require Main Gate Admission First</span>
-                </label>
-                <label class="checkbox-card small">
-                  <input
-                    type="checkbox"
-                    [checked]="boothAllowMultiScan()"
-                    (change)="boothAllowMultiScan.set($any($event.target).checked)"
-                    class="custom-checkbox"
-                  />
-                  <span class="checkbox-text">Allow Multiple Scans at Booth</span>
-                </label>
-              </div>
+                <span class="checkbox-text">Require Main Gate Admission First</span>
+              </label>
+              <label class="checkbox-card small">
+                <input
+                  type="checkbox"
+                  [checked]="boothAllowMultiScan()"
+                  (change)="boothAllowMultiScan.set($any($event.target).checked)"
+                  class="custom-checkbox"
+                />
+                <span class="checkbox-text">Allow Multiple Scans at Booth</span>
+              </label>
             </div>
             <div class="builder-actions-row right">
               <button type="button" class="btn-builder-add" (click)="addBooth()">
@@ -724,9 +712,6 @@
                         <span class="item-loc">{{ booth.location || 'Location not specified' }}</span>
                         @if (booth.requireMainEntry) {
                           <span class="item-rule entry-req">Requires Gate Entry</span>
-                        }
-                        @if (booth.subBooths && booth.subBooths.length > 0) {
-                          <span class="item-rule sub-count">{{ booth.subBooths.length }} sub-booth</span>
                         }
                       </div>
                     </div>

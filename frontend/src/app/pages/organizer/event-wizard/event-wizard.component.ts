@@ -15,7 +15,6 @@ import {
   WizardEntrance,
   WizardSpeaker,
   WizardStaffAssignment,
-  WizardSubBooth,
 } from '../../../core/organizer/organizer.models';
 import { CategoryTagSelectorComponent } from '../../../shared/category-tag-selector/category-tag-selector.component';
 
@@ -252,7 +251,6 @@ export class EventWizardComponent {
   readonly boothLocation = signal('');
   readonly boothRequireMainEntry = signal(false);
   readonly boothAllowMultiScan = signal(true);
-  readonly boothSubName = signal('');
   readonly boothError = signal('');
 
   // --- Step 4: Staff & Scanner Access ---
@@ -439,9 +437,6 @@ export class EventWizardComponent {
       return;
     }
 
-    const subName = this.boothSubName().trim();
-    const subBooths: WizardSubBooth[] = subName ? [{ name: subName }] : [];
-
     this.booths.update((list) => [
       ...list,
       {
@@ -449,13 +444,11 @@ export class EventWizardComponent {
         location: this.boothLocation().trim() || undefined,
         allowMultipleScans: this.boothAllowMultiScan(),
         requireMainEntry: this.boothRequireMainEntry(),
-        subBooths: subBooths.length > 0 ? subBooths : undefined,
       },
     ]);
 
     this.boothName.set('');
     this.boothLocation.set('');
-    this.boothSubName.set('');
     this.boothRequireMainEntry.set(false);
     this.boothAllowMultiScan.set(true);
     this.boothError.set('');

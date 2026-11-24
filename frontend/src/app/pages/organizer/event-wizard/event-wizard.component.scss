@@ -999,15 +999,19 @@
   margin: -2px 0 8px;
 }
 
+.autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.input-action-group.relative-autocomplete,
 .relative-autocomplete {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .input-with-icon {
   position: relative;
+  width: 100%;
   flex: 1;
   display: flex;
   align-items: center;

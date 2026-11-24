@@ -226,16 +226,29 @@
             ></textarea>
           </div>
 
-          <div class="form-group">
+          <div class="form-group co-organizer-autocomplete-group">
             <label for="wizard-co-org-input">Co-Organizers (Optional)</label>
-            <div class="input-action-group">
-              <input
-                #coOrgInput
-                id="wizard-co-org-input"
-                type="email"
-                placeholder="Enter co-organizer email (e.g. co.org@dlsud.edu.ph)"
-                (keydown.enter)="$event.preventDefault(); addCoOrganizerEmail(coOrgInput)"
-              />
+            <p class="field-hint">Search existing users by name or enter an email to invite external collaborators.</p>
+            <div class="input-action-group relative-autocomplete">
+              <div class="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-search-icon" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                  #coOrgInput
+                  id="wizard-co-org-input"
+                  type="text"
+                  [value]="coOrgInputText()"
+                  (input)="onCoOrgInput(coOrgInput.value)"
+                  (focus)="onCoOrgFocus()"
+                  (blur)="onCoOrgBlur()"
+                  placeholder="Search by name or email (e.g. userinsystem@gmail.com)"
+                  (keydown.enter)="$event.preventDefault(); addCoOrganizerEmail(coOrgInput)"
+                  (keydown.escape)="showCoOrgDropdown.set(false)"
+                  autocomplete="off"
+                />
+              </div>
               <button
                 type="button"
                 class="btn-action-add"
@@ -243,15 +256,89 @@
               >
                 Add
               </button>
+
+              <!-- Autocomplete Dropdown Menu -->
+              @if (showCoOrgDropdown()) {
+                <div class="co-org-dropdown" (mousedown)="$event.preventDefault()">
+                  @if (isSearchingCoOrg()) {
+                    <div class="dropdown-state-loading">
+                      <span class="spinner-inline" aria-hidden="true"></span>
+                      <span>Searching directory…</span>
+                    </div>
+                  } @else if (coOrgCandidates().length > 0) {
+                    <div class="dropdown-section-header">Matched Registered Users</div>
+                    <ul class="candidate-list" role="listbox">
+                      @for (candidate of coOrgCandidates(); track candidate.id) {
+                        <li
+                          class="candidate-item"
+                          role="option"
+                          (click)="selectCandidate(candidate)"
+                        >
+                          <div class="candidate-avatar">
+                            {{ candidate.fullName.charAt(0).toUpperCase() }}
+                          </div>
+                          <div class="candidate-info">
+                            <strong class="candidate-name">{{ candidate.fullName }}</strong>
+                            <span class="candidate-email">{{ candidate.email }}</span>
+                            @if (candidate.affiliation) {
+                              <span class="candidate-affiliation">{{ candidate.affiliation }}</span>
+                            }
+                          </div>
+                          <span class="candidate-badge">Registered</span>
+                        </li>
+                      }
+                    </ul>
+                  } @else if (coOrgInputText().trim().length >= 2) {
+                    <div class="dropdown-not-found">
+                      <div class="not-found-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="not-found-icon" aria-hidden="true">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                          <circle cx="8.5" cy="7" r="4"></circle>
+                          <line x1="20" y1="8" x2="20" y2="14"></line>
+                          <line x1="23" y1="11" x2="17" y2="11"></line>
+                        </svg>
+                        <strong>User not found in system</strong>
+                      </div>
+                      @if (isEmailFormat(coOrgInputText())) {
+                        <p class="not-found-desc">
+                          <strong>{{ coOrgInputText().trim().toLowerCase() }}</strong> will be provisioned as a guest co-organizer and sent a password setup invitation upon creation.
+                        </p>
+                        <button
+                          type="button"
+                          class="btn-dropdown-invite"
+                          (click)="addCoOrganizerEmail(coOrgInput)"
+                        >
+                          Invite as Guest Co-Organizer
+                        </button>
+                      } @else {
+                        <p class="not-found-desc">
+                          Enter their full email address (e.g. <code>{{ coOrgInputText().trim().toLowerCase() }}&#64;gmail.com</code>) to send a guest account password setup invitation.
+                        </p>
+                      }
+                    </div>
+                  }
+                </div>
+              }
             </div>
+
             @if (coOrganizerEmails().length > 0) {
-              <div class="chip-container">
+              <div class="co-organizer-chip-list">
                 @for (email of coOrganizerEmails(); track email; let i = $index) {
-                  <span class="meta-chip">
-                    <span>{{ email }}</span>
+                  <span class="co-organizer-pill">
+                    <span class="pill-info">
+                      @if (coOrganizerMetadata()[email]?.fullName) {
+                        <strong class="pill-name">{{ coOrganizerMetadata()[email]?.fullName }}</strong>
+                      }
+                      <span class="pill-email">{{ email }}</span>
+                    </span>
+                    @if (coOrganizerMetadata()[email]?.isRegistered) {
+                      <span class="status-tag tag-registered">Registered</span>
+                    } @else {
+                      <span class="status-tag tag-guest">Guest Invite</span>
+                    }
                     <button
                       type="button"
-                      class="btn-chip-del"
+                      class="btn-pill-remove"
                       (click)="removeCoOrganizerEmail(i)"
                       [attr.aria-label]="'Remove ' + email"
                     >
@@ -738,7 +825,19 @@
                 @if (coOrganizerEmails().length > 0) {
                   <div class="review-row">
                     <dt>Co-Organizers</dt>
-                    <dd>{{ coOrganizerEmails().join(', ') }}</dd>
+                    <dd class="review-co-orgs-list">
+                      @for (email of coOrganizerEmails(); track email) {
+                        <div class="review-co-org-badge">
+                          <span>{{ email }}</span>
+                          <span
+                            class="review-sub-badge"
+                            [class.guest]="!coOrganizerMetadata()[email]?.isRegistered"
+                          >
+                            {{ coOrganizerMetadata()[email]?.isRegistered ? 'Registered' : 'Guest (Password setup email)' }}
+                          </span>
+                        </div>
+                      }
+                    </dd>
                   </div>
                 }
               </dl>

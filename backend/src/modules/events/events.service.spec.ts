@@ -126,6 +126,7 @@ describe('EventsService', () => {
     invitationMailer = {
       assertConfigured: vi.fn().mockResolvedValue(undefined),
       sendInvitation: vi.fn().mockResolvedValue(undefined),
+      sendOrganizerInvitation: vi.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -1006,6 +1007,48 @@ describe('EventsService', () => {
       expect(prisma.eventOrganizer.deleteMany).toHaveBeenCalledWith({
         where: { eventId: 'evt-1', userId: 'usr-new-co' },
       });
+    });
+
+    it('provisions a guest organizer account and dispatches setup email when email is not found during addOrganizer', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ id: 'evt-1', title: 'Campus Hackathon', organizerId: 'usr-org' }),
+      );
+      prisma.user.findUnique.mockResolvedValueOnce(null);
+      prisma.user.create.mockResolvedValueOnce({
+        id: 'usr-guest-co',
+        email: 'guestco@example.com',
+        fullName: 'guestco',
+        affiliation: null,
+      });
+      prisma.eventOrganizer.upsert.mockResolvedValueOnce({
+        id: 'eo-guest',
+        user: {
+          id: 'usr-guest-co',
+          email: 'guestco@example.com',
+          fullName: 'guestco',
+          affiliation: null,
+        },
+        createdAt: new Date(),
+        assignedAt: new Date(),
+      });
+
+      const added = await service.addOrganizer(dynamicOrganizer, 'evt-1', 'guestco@example.com');
+      expect(added.email).toBe('guestco@example.com');
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            email: 'guestco@example.com',
+            role: 'ORGANIZER',
+            mustChangePassword: true,
+          }),
+        }),
+      );
+      expect(invitationMailer.sendOrganizerInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventTitle: 'Campus Hackathon',
+          email: 'guestco@example.com',
+        }),
+      );
     });
 
     it('creates an event with wizard entrances, booths, and staff assignments', async () => {

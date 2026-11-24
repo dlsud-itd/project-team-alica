@@ -1,10 +1,13 @@
 import { DatePipe } from '@angular/common';
-import { Component, EventEmitter, Output, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, EventEmitter, Output, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { Subject, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs/operators';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import {
   NewOrganizerEvent,
+  OrganizerCandidate,
   OrganizerEvent,
   StaffAccessLevel,
   WizardBooth,
@@ -53,6 +56,43 @@ export class EventWizardComponent {
   });
 
   readonly coOrganizerEmails = signal<string[]>([]);
+  readonly coOrganizerMetadata = signal<
+    Record<string, { fullName?: string; isRegistered: boolean }>
+  >({});
+  readonly coOrgInputText = signal('');
+  readonly coOrgCandidates = signal<OrganizerCandidate[]>([]);
+  readonly isSearchingCoOrg = signal(false);
+  readonly showCoOrgDropdown = signal(false);
+  private readonly coOrgSearch$ = new Subject<string>();
+
+  constructor() {
+    const destroyRef = inject(DestroyRef);
+    const sub = this.coOrgSearch$
+      .pipe(
+        debounceTime(250),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          const trimmed = query.trim();
+          if (trimmed.length < 2) {
+            this.isSearchingCoOrg.set(false);
+            return of([]);
+          }
+          this.isSearchingCoOrg.set(true);
+          return this.organizerEvents.searchOrganizerCandidates(trimmed).pipe(
+            catchError(() => of([])),
+            finalize(() => this.isSearchingCoOrg.set(false)),
+          );
+        }),
+      )
+      .subscribe((candidates) => {
+        this.coOrgCandidates.set(candidates);
+        this.isSearchingCoOrg.set(false);
+      });
+
+    destroyRef.onDestroy(() => {
+      sub.unsubscribe();
+    });
+  }
 
   // --- Step 2: Entrances & Gates ---
   readonly entrances = signal<WizardEntrance[]>([]);
@@ -90,10 +130,59 @@ export class EventWizardComponent {
   });
 
   // Step 1: Co-organizer methods
-  addCoOrganizerEmail(input: HTMLInputElement): void {
-    const email = input.value.trim().toLowerCase();
+  isEmailFormat(text: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((text || '').trim());
+  }
+
+  onCoOrgInput(value: string): void {
+    this.coOrgInputText.set(value);
+    this.errorMessage.set('');
+    const trimmed = value.trim();
+    if (trimmed.length >= 2) {
+      this.showCoOrgDropdown.set(true);
+      this.coOrgSearch$.next(trimmed);
+    } else {
+      this.showCoOrgDropdown.set(false);
+      this.coOrgCandidates.set([]);
+    }
+  }
+
+  onCoOrgFocus(): void {
+    if (this.coOrgInputText().trim().length >= 2) {
+      this.showCoOrgDropdown.set(true);
+    }
+  }
+
+  onCoOrgBlur(): void {
+    setTimeout(() => {
+      this.showCoOrgDropdown.set(false);
+    }, 200);
+  }
+
+  selectCandidate(candidate: OrganizerCandidate): void {
+    const email = candidate.email.trim().toLowerCase();
+    if (this.coOrganizerEmails().includes(email)) {
+      this.errorMessage.set(`'${email}' has already been added.`);
+      this.showCoOrgDropdown.set(false);
+      return;
+    }
+    this.coOrganizerEmails.update((list) => [...list, email]);
+    this.coOrganizerMetadata.update((meta) => ({
+      ...meta,
+      [email]: { fullName: candidate.fullName, isRegistered: true },
+    }));
+    this.coOrgInputText.set('');
+    this.coOrgCandidates.set([]);
+    this.showCoOrgDropdown.set(false);
+    this.errorMessage.set('');
+  }
+
+  addCoOrganizerEmail(input?: HTMLInputElement | string): void {
+    const raw = typeof input === 'string' ? input : input?.value ?? this.coOrgInputText();
+    const email = (raw || '').trim().toLowerCase();
     if (!email) return;
-    if (!email.includes('@') || !email.includes('.')) {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
       this.errorMessage.set('Please enter a valid email address.');
       return;
     }
@@ -101,13 +190,35 @@ export class EventWizardComponent {
       this.errorMessage.set('This organizer email has already been added.');
       return;
     }
+
+    const matched = this.coOrgCandidates().find((c) => c.email.toLowerCase() === email);
     this.coOrganizerEmails.update((list) => [...list, email]);
-    input.value = '';
+    this.coOrganizerMetadata.update((meta) => ({
+      ...meta,
+      [email]: matched
+        ? { fullName: matched.fullName, isRegistered: true }
+        : { fullName: email.split('@')[0], isRegistered: false },
+    }));
+
+    this.coOrgInputText.set('');
+    this.coOrgCandidates.set([]);
+    this.showCoOrgDropdown.set(false);
     this.errorMessage.set('');
+    if (input && typeof input !== 'string') {
+      input.value = '';
+    }
   }
 
   removeCoOrganizerEmail(index: number): void {
+    const emailToRemove = this.coOrganizerEmails()[index];
     this.coOrganizerEmails.update((list) => list.filter((_, i) => i !== index));
+    if (emailToRemove) {
+      this.coOrganizerMetadata.update((meta) => {
+        const copy = { ...meta };
+        delete copy[emailToRemove];
+        return copy;
+      });
+    }
   }
 
   // Step 2: Entrance methods

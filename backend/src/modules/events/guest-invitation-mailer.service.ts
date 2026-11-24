@@ -84,6 +84,52 @@ export class GuestInvitationMailer {
     });
   }
 
+  async sendOrganizerInvitation(message: {
+    eventTitle: string;
+    email: string;
+    fullName?: string;
+    temporaryPassword: string;
+    invitedBy?: string;
+  }): Promise<void> {
+    try {
+      const config = this.getConfiguration();
+      const transporter = this.createTransporter(config);
+      const name = message.fullName || message.email.split('@')[0];
+      const inviter = message.invitedBy ? ` by ${message.invitedBy}` : '';
+      const text = [
+        `Hello ${name},`,
+        '',
+        `You have been invited${inviter} as a co-organizer for "${message.eventTitle}".`,
+        `Email: ${message.email}`,
+        `Temporary password: ${message.temporaryPassword}`,
+        '',
+        'Sign in to Checkpoint using these credentials. You will be required to change your password on your first login.',
+      ].join('\n');
+
+      await transporter.sendMail({
+        from: config.from,
+        to: message.email,
+        subject: `Co-Organizer Invitation: ${message.eventTitle}`,
+        text,
+        html: [
+          `<p>Hello <strong>${this.escapeHtml(name)}</strong>,</p>`,
+          `<p>You have been invited${this.escapeHtml(inviter)} to collaborate as a co-organizer for <strong>${this.escapeHtml(message.eventTitle)}</strong>.</p>`,
+          '<ul>',
+          `<li>Email: ${this.escapeHtml(message.email)}</li>`,
+          `<li>Temporary password: <strong>${this.escapeHtml(message.temporaryPassword)}</strong></li>`,
+          '</ul>',
+          '<p>Sign in to Checkpoint using these credentials. You will be required to change your password on your first login.</p>',
+        ].join(''),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Organizer invitation email could not be delivered to ${message.email}: ${
+          error instanceof Error ? error.message : 'Unknown SMTP error'
+        }`,
+      );
+    }
+  }
+
   private escapeHtml(value: string): string {
     return value.replace(/[&<>"']/g, (character) => {
       const entities: Record<string, string> = {

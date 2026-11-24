@@ -108,6 +108,7 @@ model Event {
   description    String?
   venueName      String
   category       String?
+  tags           String[]            @default([])
   bannerImageUrl String?
   schedule       Json?
   startDate      DateTime

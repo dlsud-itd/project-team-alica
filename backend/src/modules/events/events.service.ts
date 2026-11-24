@@ -35,6 +35,11 @@ import {
 } from '../checkpoints/checkpoints.service.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
 import { generateTicketCode } from '../../common/ticket-code.js';
+import {
+  normalizeCategoryName,
+  STANDARD_EVENT_CATEGORIES,
+  type CategoryDefinition,
+} from '../../common/constants/event-taxonomy.constants.js';
 
 const MAX_GUEST_ROWS = 5000;
 const DEFAULT_GUEST_AFFILIATION = 'Guest / Imported Attendee';
@@ -100,8 +105,9 @@ export interface EventResponseDto {
   slug: string;
   title: string;
   description: string;
-  category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category: string;
   categoryLabel: string;
+  tags: string[];
   dateLabel: string;
   timeLabel: string;
   venue: string;
@@ -186,8 +192,9 @@ export interface OrganizerEventDto {
   reviewed_at: string | null;
   submitted_at: string;
   is_private?: boolean;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
   category_label?: string;
+  tags?: string[];
   checkpoints_count?: number;
   admitted_count?: number;
   organizers?: EventOrganizerDto[];
@@ -321,7 +328,8 @@ export class UpdateEventDto {
   capacity?: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
+  tags?: string[];
   banner_image_url?: string;
   schedule?: EventScheduleItemDto[];
   organizerEmails?: string[];
@@ -345,7 +353,8 @@ export class CreateEventDto {
   capacity!: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
+  tags?: string[];
   banner_image_url?: string;
   schedule?: EventScheduleItemDto[];
   organizerEmails?: string[];
@@ -953,26 +962,19 @@ export class EventsService {
 
       // Infer or use explicitly saved category
       const lowerSlug = (ev.slug + ' ' + ev.title).toLowerCase();
-      let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
-        'CONFERENCE';
-      let categoryLabel = 'Conference';
-
-      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
-        category = ev.category as any;
-        categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
-      } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
-        category = 'HACKATHON';
-        categoryLabel = 'Hackathon';
-      } else if (
-        lowerSlug.includes('workshop') ||
-        lowerSlug.includes('masterclass')
-      ) {
-        category = 'WORKSHOP';
-        categoryLabel = 'Workshop';
-      } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
-        category = 'EXPO';
-        categoryLabel = 'Expo';
+      let category = ev.category ? normalizeCategoryName(ev.category) : '';
+      if (!category) {
+        if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+          category = 'Hackathon';
+        } else if (lowerSlug.includes('workshop') || lowerSlug.includes('masterclass')) {
+          category = 'Workshop';
+        } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
+          category = 'Expo / Showcase';
+        } else {
+          category = 'Conference';
+        }
       }
+      const categoryLabel = category;
 
       const dateLabel = start.toLocaleDateString('en-US', {
         month: 'short',
@@ -1008,6 +1010,7 @@ export class EventsService {
         registeredUserIds: ev.tickets
           .map((t) => t.userId)
           .filter((uid): uid is string => uid !== null),
+        tags: ev.tags ?? [],
         bannerImageUrl: ev.bannerImageUrl ?? null,
       };
     });
@@ -1073,26 +1076,19 @@ export class EventsService {
     }
 
     const lowerSlug = (ev.slug + ' ' + ev.title).toLowerCase();
-    let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
-      'CONFERENCE';
-    let categoryLabel = 'Conference';
-
-    if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
-      category = ev.category as any;
-      categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
-    } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
-      category = 'HACKATHON';
-      categoryLabel = 'Hackathon';
-    } else if (
-      lowerSlug.includes('workshop') ||
-      lowerSlug.includes('masterclass')
-    ) {
-      category = 'WORKSHOP';
-      categoryLabel = 'Workshop';
-    } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
-      category = 'EXPO';
-      categoryLabel = 'Expo';
+    let category = ev.category ? normalizeCategoryName(ev.category) : '';
+    if (!category) {
+      if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+        category = 'Hackathon';
+      } else if (lowerSlug.includes('workshop') || lowerSlug.includes('masterclass')) {
+        category = 'Workshop';
+      } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
+        category = 'Expo / Showcase';
+      } else {
+        category = 'Conference';
+      }
     }
+    const categoryLabel = category;
 
     const dateLabel = start.toLocaleDateString('en-US', {
       month: 'short',
@@ -1151,6 +1147,7 @@ export class EventsService {
       registeredUserIds: ev.tickets
         .map((t) => t.userId)
         .filter((uid): uid is string => uid !== null),
+      tags: ev.tags ?? [],
       durationDays,
       durationLabel,
       checkpointMode,
@@ -1475,19 +1472,26 @@ export class EventsService {
 
   private resolveBannerImage(
     slug: string,
-    category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO',
+    category: string,
   ): string {
+    const catLower = (category || '').toLowerCase();
     if (slug === 'devcon-manila-2026') {
       return 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&auto=format&fit=crop&q=80';
     }
-    if (slug === 'global-tech-ai-expo-2026' || category === 'EXPO') {
+    if (slug === 'global-tech-ai-expo-2026' || catLower.includes('expo') || catLower.includes('showcase')) {
       return 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200&auto=format&fit=crop&q=80';
     }
-    if (slug === 'national-ai-hackathon-2026' || category === 'HACKATHON') {
+    if (slug === 'national-ai-hackathon-2026' || catLower.includes('hackathon')) {
       return 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1200&auto=format&fit=crop&q=80';
     }
-    if (category === 'WORKSHOP') {
+    if (catLower.includes('workshop')) {
       return 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&auto=format&fit=crop&q=80';
+    }
+    if (catLower.includes('tournament') || catLower.includes('sport') || catLower.includes('esport')) {
+      return 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=1200&auto=format&fit=crop&q=80';
+    }
+    if (catLower.includes('concert') || catLower.includes('cultural') || catLower.includes('music')) {
+      return 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1200&auto=format&fit=crop&q=80';
     }
     return 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=1200&auto=format&fit=crop&q=80';
   }
@@ -1542,30 +1546,26 @@ export class EventsService {
 
     return events.map((ev) => {
       const base = this.toOrganizerEvent(ev, ev._count.tickets);
-      let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' = 'CONFERENCE';
-      let category_label = 'Conference';
-
-      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
-        category = ev.category as any;
-        category_label = category.charAt(0) + category.slice(1).toLowerCase();
-      } else {
-        const lowerTitle = ev.title.toLowerCase();
+      const lowerTitle = ev.title.toLowerCase();
+      let category = ev.category ? normalizeCategoryName(ev.category) : '';
+      if (!category) {
         if (lowerTitle.includes('hackathon')) {
-          category = 'HACKATHON';
-          category_label = 'Hackathon';
+          category = 'Hackathon';
         } else if (lowerTitle.includes('workshop')) {
-          category = 'WORKSHOP';
-          category_label = 'Workshop';
+          category = 'Workshop';
         } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
-          category = 'EXPO';
-          category_label = 'Expo';
+          category = 'Expo / Showcase';
+        } else {
+          category = 'Conference';
         }
       }
+      const category_label = category;
 
       return {
         ...base,
         category,
         category_label,
+        tags: ev.tags ?? [],
         checkpoints_count: ev._count.checkpoints ?? 0,
         admitted_count: ev.tickets ? ev.tickets.length : 0,
       };
@@ -1608,7 +1608,8 @@ export class EventsService {
         isPrivate,
         approvalStatus,
         organizerId: user.id,
-        category: dto.category ?? null,
+        category: dto.category ? normalizeCategoryName(dto.category) : null,
+        tags: Array.isArray(dto.tags) ? dto.tags.map((t) => t.trim()).filter(Boolean) : [],
         bannerImageUrl: dto.banner_image_url ?? null,
         schedule: dto.schedule ? (dto.schedule as any) : undefined,
       },
@@ -1704,7 +1705,11 @@ export class EventsService {
     }
 
     if (dto.category !== undefined) {
-      data.category = dto.category;
+      data.category = dto.category ? normalizeCategoryName(dto.category) : null;
+    }
+
+    if (dto.tags !== undefined && Array.isArray(dto.tags)) {
+      data.tags = dto.tags.map((t) => t.trim()).filter(Boolean);
     }
 
     if (dto.banner_image_url !== undefined) {
@@ -2132,10 +2137,12 @@ export class EventsService {
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
       is_private: ev.isPrivate,
-      category: (ev.category as any) ?? undefined,
+      category: ev.category ? normalizeCategoryName(ev.category) : undefined,
+      category_label: ev.category ? normalizeCategoryName(ev.category) : undefined,
+      tags: ev.tags ?? [],
       banner_image_url:
         ev.bannerImageUrl ??
-        (ev.slug ? this.resolveBannerImage(ev.slug, (ev.category as any) || 'CONFERENCE') : null),
+        (ev.slug ? this.resolveBannerImage(ev.slug, ev.category || 'Conference') : null),
       schedule:
         (ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0)
           ? (ev.schedule as unknown as EventScheduleItemDto[])
@@ -2320,19 +2327,8 @@ export class EventsService {
         ? Math.round((checkedInAttendees / event.capacity) * 100)
         : 0;
 
-    let category = 'CONFERENCE';
-    let categoryLabel = 'Conference';
-    const lowerTitle = event.title.toLowerCase();
-    if (lowerTitle.includes('hackathon')) {
-      category = 'HACKATHON';
-      categoryLabel = 'Hackathon';
-    } else if (lowerTitle.includes('workshop')) {
-      category = 'WORKSHOP';
-      categoryLabel = 'Workshop';
-    } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
-      category = 'EXPO';
-      categoryLabel = 'Expo';
-    }
+    const category = event.category ? normalizeCategoryName(event.category) : normalizeCategoryName(event.title);
+    const categoryLabel = category;
 
     return {
       id: event.id,
@@ -2880,5 +2876,9 @@ export class EventsService {
       fullName: u.fullName,
       affiliation: u.affiliation ?? null,
     }));
+  }
+
+  getCategories(): CategoryDefinition[] {
+    return STANDARD_EVENT_CATEGORIES;
   }
 }

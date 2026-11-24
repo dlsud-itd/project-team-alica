@@ -516,10 +516,10 @@ describe('EventsService', () => {
     });
 
     const { data } = prisma.event.update.mock.calls[0][0];
-    expect(data.category).toBe('WORKSHOP');
+    expect(data.category).toBe('Workshop');
     expect(data.bannerImageUrl).toBe('https://example.com/banner.png');
     expect(data.schedule).toEqual(scheduleData);
-    expect(res.category).toBe('WORKSHOP');
+    expect(res.category).toBe('Workshop');
     expect(res.banner_image_url).toBe('https://example.com/banner.png');
     expect(res.schedule).toEqual(scheduleData);
   });

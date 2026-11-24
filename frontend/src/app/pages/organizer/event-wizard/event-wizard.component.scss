@@ -21,7 +21,7 @@
 .wizard-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
+  background-color: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -869,7 +869,7 @@
 .wizard-footer {
   padding: 16px 24px;
   border-top: 1px solid var(--line);
-  background: var(--surface);
+  background-color: var(--surface-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;

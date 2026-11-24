@@ -407,8 +407,16 @@
   </div>
 </div>
 
-<!-- Create / Edit Event Dialog -->
-@if (dialogOpen()) {
+<!-- Create Event Wizard -->
+@if (creating()) {
+  <app-event-wizard
+    (close)="creating.set(false)"
+    (saved)="onWizardSaved($event)"
+  ></app-event-wizard>
+}
+
+<!-- Edit Event Dialog -->
+@if (editingEvent(); as curEvent) {
   <div
     class="dialog-backdrop"
     (click)="closeEdit()"

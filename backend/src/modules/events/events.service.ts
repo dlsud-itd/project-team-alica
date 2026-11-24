@@ -10,6 +10,7 @@ import { randomInt } from 'node:crypto';
 import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import {
+  CheckpointType,
   Event,
   EventApprovalStatus,
   Prisma,
@@ -335,6 +336,8 @@ export class UpdateEventDto {
   organizerEmails?: string[];
 }
 
+export type StaffAccessLevel = 'ALL_SCANNERS' | 'SPECIFIC_BOOTH';
+
 export interface EventStaffDto {
   id: string;
   userId: string;
@@ -342,6 +345,29 @@ export interface EventStaffDto {
   fullName: string;
   affiliation: string | null;
   assignedAt: string;
+  accessLevel?: StaffAccessLevel;
+  checkpointId?: string | null;
+  checkpointName?: string | null;
+}
+
+export interface CreateEventEntranceDto {
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+}
+
+export interface CreateEventBoothDto {
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+  subBooths?: { name: string; location?: string }[];
+}
+
+export interface CreateEventStaffAssignmentDto {
+  email: string;
+  accessLevel: StaffAccessLevel;
+  checkpointName?: string;
 }
 
 export class CreateEventDto {
@@ -358,6 +384,9 @@ export class CreateEventDto {
   banner_image_url?: string;
   schedule?: EventScheduleItemDto[];
   organizerEmails?: string[];
+  entrances?: CreateEventEntranceDto[];
+  booths?: CreateEventBoothDto[];
+  staffAssignments?: CreateEventStaffAssignmentDto[];
 }
 
 export class ReviewEventDto {
@@ -1647,6 +1676,118 @@ export class EventsService {
       }
     }
 
+    // Process entrances, booths, and staff assignments from creation wizard
+    const checkpointMap = new Map<string, { id: string; name: string }>();
+
+    if (Array.isArray(dto.entrances) && dto.entrances.length > 0 && this.prisma.checkpoint) {
+      for (const entrance of dto.entrances) {
+        const entName = entrance.name?.trim();
+        if (!entName) continue;
+        const createdEntrance = await this.prisma.checkpoint.create({
+          data: {
+            eventId: event.id,
+            name: entName,
+            location: entrance.location?.trim() || null,
+            type: CheckpointType.MAIN_ENTRY,
+            allowMultipleScans: entrance.allowMultipleScans ?? false,
+            requireMainEntry: false,
+          },
+        });
+        checkpointMap.set(entName.toLowerCase(), createdEntrance);
+      }
+    }
+
+    if (Array.isArray(dto.booths) && dto.booths.length > 0 && this.prisma.checkpoint) {
+      for (const booth of dto.booths) {
+        const boothName = booth.name?.trim();
+        if (!boothName) continue;
+        const createdBooth = await this.prisma.checkpoint.create({
+          data: {
+            eventId: event.id,
+            name: boothName,
+            location: booth.location?.trim() || null,
+            type: CheckpointType.BOOTH,
+            allowMultipleScans: booth.allowMultipleScans ?? true,
+            requireMainEntry: booth.requireMainEntry ?? false,
+          },
+        });
+        checkpointMap.set(boothName.toLowerCase(), createdBooth);
+
+        if (Array.isArray(booth.subBooths) && booth.subBooths.length > 0) {
+          for (const sub of booth.subBooths) {
+            const subName = sub.name?.trim();
+            if (!subName) continue;
+            const createdSub = await this.prisma.checkpoint.create({
+              data: {
+                eventId: event.id,
+                parentId: createdBooth.id,
+                name: subName,
+                location: sub.location?.trim() || null,
+                type: CheckpointType.BOOTH,
+                allowMultipleScans: booth.allowMultipleScans ?? true,
+                requireMainEntry: booth.requireMainEntry ?? false,
+              },
+            });
+            checkpointMap.set(subName.toLowerCase(), createdSub);
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(dto.staffAssignments) && dto.staffAssignments.length > 0) {
+      for (const assignment of dto.staffAssignments) {
+        const cleanEmail = assignment.email?.trim().toLowerCase();
+        if (!cleanEmail) continue;
+        const staffUser = await this.prisma.user.findUnique({
+          where: { email: cleanEmail },
+          select: { id: true, email: true },
+        });
+        if (!staffUser) continue;
+
+        if (
+          assignment.accessLevel === 'SPECIFIC_BOOTH' &&
+          assignment.checkpointName &&
+          this.prisma.checkpointStaff
+        ) {
+          const targetCheckpoint = checkpointMap.get(assignment.checkpointName.trim().toLowerCase());
+          if (targetCheckpoint) {
+            await this.prisma.checkpointStaff.upsert({
+              where: {
+                checkpointId_userId: {
+                  checkpointId: targetCheckpoint.id,
+                  userId: staffUser.id,
+                },
+              },
+              update: { isActive: true },
+              create: {
+                checkpointId: targetCheckpoint.id,
+                userId: staffUser.id,
+                isActive: true,
+              },
+            });
+            continue;
+          }
+        }
+
+        if (this.prisma.eventStaff) {
+          await this.prisma.eventStaff.upsert({
+            where: {
+              eventId_userId: {
+                eventId: event.id,
+                userId: staffUser.id,
+              },
+            },
+            update: { isActive: true },
+            create: {
+              eventId: event.id,
+              userId: staffUser.id,
+              isActive: true,
+            },
+          });
+        }
+      }
+    }
+
     const fullEvent = await this.prisma.event.findUnique({
       where: { id: event.id },
       include: {
@@ -2680,27 +2821,64 @@ export class EventsService {
 
   async getStaff(user: UserSummaryDto, eventId: string): Promise<EventStaffDto[]> {
     await this.findAccessibleEvent(user, eventId);
-    const staffList = await this.prisma.eventStaff.findMany({
-      where: { eventId, isActive: true },
-      include: {
-        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
-      },
-      orderBy: { assignedAt: 'desc' },
-    });
-    return staffList.map((s) => ({
-      id: s.id,
-      userId: s.user.id,
-      email: s.user.email,
-      fullName: s.user.fullName,
-      affiliation: s.user.affiliation,
-      assignedAt: s.assignedAt.toISOString(),
-    }));
+    const [eventStaffList, checkpointStaffList] = await Promise.all([
+      this.prisma.eventStaff.findMany({
+        where: { eventId, isActive: true },
+        include: {
+          user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        },
+        orderBy: { assignedAt: 'desc' },
+      }),
+      this.prisma.checkpointStaff?.findMany
+        ? this.prisma.checkpointStaff.findMany({
+            where: { checkpoint: { eventId }, isActive: true },
+            include: {
+              user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+              checkpoint: { select: { id: true, name: true } },
+            },
+            orderBy: { assignedAt: 'desc' },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const results: EventStaffDto[] = [];
+    for (const s of eventStaffList) {
+      results.push({
+        id: s.id,
+        userId: s.user.id,
+        email: s.user.email,
+        fullName: s.user.fullName,
+        affiliation: s.user.affiliation,
+        assignedAt: s.assignedAt.toISOString(),
+        accessLevel: 'ALL_SCANNERS',
+        checkpointId: null,
+        checkpointName: null,
+      });
+    }
+
+    for (const cs of checkpointStaffList) {
+      results.push({
+        id: cs.id,
+        userId: cs.user.id,
+        email: cs.user.email,
+        fullName: cs.user.fullName,
+        affiliation: cs.user.affiliation,
+        assignedAt: cs.assignedAt.toISOString(),
+        accessLevel: 'SPECIFIC_BOOTH',
+        checkpointId: cs.checkpoint.id,
+        checkpointName: cs.checkpoint.name,
+      });
+    }
+
+    return results;
   }
 
   async addStaff(
     user: UserSummaryDto,
     eventId: string,
     email: string,
+    accessLevel?: StaffAccessLevel,
+    checkpointId?: string,
   ): Promise<EventStaffDto> {
     await this.findManageableEvent(user, eventId);
     const cleanEmail = email.trim().toLowerCase();
@@ -2711,6 +2889,36 @@ export class EventsService {
       throw new NotFoundException(
         `User with email '${cleanEmail}' not found. They must register an account first.`,
       );
+    }
+
+    if (accessLevel === 'SPECIFIC_BOOTH' && checkpointId && this.prisma.checkpointStaff) {
+      const checkpoint = await this.prisma.checkpoint.findFirst({
+        where: { id: checkpointId, eventId, isActive: true, deletedAt: null },
+      });
+      if (!checkpoint) {
+        throw new NotFoundException(`Checkpoint '${checkpointId}' not found in this event.`);
+      }
+
+      const assignment = await this.prisma.checkpointStaff.upsert({
+        where: { checkpointId_userId: { checkpointId, userId: targetUser.id } },
+        update: { isActive: true },
+        create: { checkpointId, userId: targetUser.id, isActive: true },
+        include: {
+          user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        },
+      });
+
+      return {
+        id: assignment.id,
+        userId: assignment.user.id,
+        email: assignment.user.email,
+        fullName: assignment.user.fullName,
+        affiliation: assignment.user.affiliation,
+        assignedAt: assignment.assignedAt.toISOString(),
+        accessLevel: 'SPECIFIC_BOOTH',
+        checkpointId: checkpoint.id,
+        checkpointName: checkpoint.name,
+      };
     }
 
     const assignment = await this.prisma.eventStaff.upsert({
@@ -2729,6 +2937,9 @@ export class EventsService {
       fullName: assignment.user.fullName,
       affiliation: assignment.user.affiliation,
       assignedAt: assignment.assignedAt.toISOString(),
+      accessLevel: 'ALL_SCANNERS',
+      checkpointId: null,
+      checkpointName: null,
     };
   }
 
@@ -2736,12 +2947,28 @@ export class EventsService {
     user: UserSummaryDto,
     eventId: string,
     targetUserId: string,
+    checkpointId?: string,
   ): Promise<void> {
     await this.findManageableEvent(user, eventId);
-    await this.prisma.eventStaff.updateMany({
-      where: { eventId, userId: targetUserId },
-      data: { isActive: false },
-    });
+    if (checkpointId && this.prisma.checkpointStaff) {
+      await this.prisma.checkpointStaff.updateMany({
+        where: { checkpointId, userId: targetUserId },
+        data: { isActive: false },
+      });
+    } else {
+      await Promise.all([
+        this.prisma.eventStaff.updateMany({
+          where: { eventId, userId: targetUserId },
+          data: { isActive: false },
+        }),
+        this.prisma.checkpointStaff?.updateMany
+          ? this.prisma.checkpointStaff.updateMany({
+              where: { checkpoint: { eventId }, userId: targetUserId },
+              data: { isActive: false },
+            })
+          : Promise.resolve(),
+      ]);
+    }
   }
 
   async getOrganizers(

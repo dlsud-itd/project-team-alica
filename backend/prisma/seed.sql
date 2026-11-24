@@ -101,7 +101,8 @@ ON CONFLICT ("eventId", "userId") DO NOTHING;
 INSERT INTO "public"."checkpoint_staff" ("id", "checkpointId", "userId", "assignedAt", "isActive")
 VALUES
   ('cs-staff-main-gate', 'chk-main-gate', 'usr-staff-station', NOW(), true),
-  ('cs-staff-devcon-gate1', 'chk-devcon-gate-1', 'usr-staff-station', NOW(), true)
+  ('cs-staff-devcon-gate1', 'chk-devcon-gate-1', 'usr-staff-station', NOW(), true),
+  ('cs-staff-booth-showcase', 'chk-booth-showcase', 'usr-staff-station', NOW(), true)
 ON CONFLICT ("checkpointId", "userId") DO NOTHING;
 
 -- 7. Insert Saved Autofill Profiles

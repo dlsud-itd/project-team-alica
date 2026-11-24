@@ -7,6 +7,7 @@ import { RouterLink } from '@angular/router';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { OrganizerEvent } from '../../../core/organizer/organizer.models';
 import { CategoryTagSelectorComponent } from '../../../shared/category-tag-selector/category-tag-selector.component';
+import { EventWizardComponent } from '../event-wizard/event-wizard.component';
 
 export type EventFormatFilter = 'ALL' | 'CONFERENCE' | 'EXPO' | 'MEETUP' | 'HACKATHON' | 'WORKSHOP';
 
@@ -24,7 +25,15 @@ function toDateTimeLocalInput(isoString: string): string {
 }
 
 @Component({
-  imports: [DatePipe, DecimalPipe, PercentPipe, ReactiveFormsModule, RouterLink, CategoryTagSelectorComponent],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    PercentPipe,
+    ReactiveFormsModule,
+    RouterLink,
+    CategoryTagSelectorComponent,
+    EventWizardComponent,
+  ],
   selector: 'app-organizer-dashboard',
   styleUrl: './dashboard.component.scss',
   templateUrl: './dashboard.component.html',
@@ -126,6 +135,12 @@ export class OrganizerDashboard {
   readonly editErrorMessage = signal('');
   readonly isSaving = signal(false);
   readonly coOrganizerEmails = signal<string[]>([]);
+
+  onWizardSaved(saved: OrganizerEvent): void {
+    this.creating.set(false);
+    this.notice.set(`"${saved.name}" was submitted and is awaiting admin approval.`);
+    this.reloadEvents();
+  }
 
   // Delete Event State
   readonly deletingEvent = signal<OrganizerEvent | null>(null);

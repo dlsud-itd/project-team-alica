@@ -41,8 +41,9 @@ export interface OrganizerEvent {
   review_notes: string | null;
   reviewed_at: string | null;
   submitted_at: string;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
   category_label?: string;
+  tags?: string[];
   checkpoints_count?: number;
   admitted_count?: number;
   is_private?: boolean;
@@ -172,6 +173,7 @@ type EditableEventFields =
   | 'allow_walk_ins'
   | 'is_private'
   | 'category'
+  | 'tags'
   | 'banner_image_url';
 
 export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>> & {

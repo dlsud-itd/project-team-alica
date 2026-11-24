@@ -52,13 +52,12 @@
           </div>
 
           <div class="form-group span-full">
-            <label for="settings-category">Event Category *</label>
-            <select id="settings-category" class="form-control" formControlName="category">
-              <option value="CONFERENCE">Conference</option>
-              <option value="HACKATHON">Hackathon</option>
-              <option value="WORKSHOP">Workshop</option>
-              <option value="EXPO">Expo &amp; Demos</option>
-            </select>
+            <app-category-tag-selector
+              [category]="generalForm.controls.category.value"
+              [tags]="generalForm.controls.tags.value"
+              (categoryChange)="generalForm.controls.category.setValue($event)"
+              (tagsChange)="generalForm.controls.tags.setValue($event)"
+            ></app-category-tag-selector>
           </div>
 
           <div class="form-group">

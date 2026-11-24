@@ -8,6 +8,7 @@ import { OrganizerEventsService } from '../../../core/organizer/organizer-events
 import { EventOrganizer, EventScheduleItem, OrganizerEvent } from '../../../core/organizer/organizer.models';
 import { StaffCheckpoint } from '../../../core/staff/scanner.models';
 import { SubBoothApi } from '../../../core/staff/sub-booth-api';
+import { CategoryTagSelectorComponent } from '../../../shared/category-tag-selector/category-tag-selector.component';
 
 /** Program item types. BOOTH and GATE are legacy (stations now live in the Stations tab). */
 export const PROGRAM_TYPE_LABELS: Record<string, string> = {
@@ -36,7 +37,7 @@ function toDateTimeLocalInput(isoString: string): string {
 }
 
 @Component({
-  imports: [DatePipe, ReactiveFormsModule],
+  imports: [DatePipe, ReactiveFormsModule, CategoryTagSelectorComponent],
   selector: 'app-event-settings',
   styleUrl: './event_settings.component.scss',
   templateUrl: './event_settings.component.html',
@@ -116,10 +117,11 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
 
   readonly generalForm = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    category: new FormControl<'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO'>('CONFERENCE', {
+    category: new FormControl('Conference', {
       nonNullable: true,
       validators: [Validators.required],
     }),
+    tags: new FormControl<string[]>([], { nonNullable: true }),
     description: new FormControl('', { nonNullable: true }),
     venue: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     starts_at: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -195,7 +197,8 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
     if (!ev) return;
     this.generalForm.patchValue({
       name: ev.name,
-      category: ev.category ?? 'CONFERENCE',
+      category: ev.category ?? 'Conference',
+      tags: ev.tags ?? [],
       description: ev.description,
       venue: ev.venue,
       starts_at: toDateTimeLocalInput(ev.starts_at),
@@ -379,6 +382,7 @@ export class EventSettingsComponent implements OnInit, OnDestroy {
         allow_walk_ins: raw.allow_walk_ins,
         is_private: raw.is_private,
         category: raw.category,
+        tags: raw.tags,
         banner_image_url: this.bannerImageUrl(),
         schedule: this.scheduleItems(),
       })

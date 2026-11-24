@@ -77,6 +77,7 @@ describe('EventsController', () => {
       }),
       removeOrganizer: vi.fn().mockResolvedValue(undefined),
       searchOrganizerCandidates: vi.fn().mockResolvedValue([]),
+      getCategories: vi.fn().mockReturnValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({

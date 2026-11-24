@@ -12,8 +12,9 @@ export interface EventCardData {
   slug: string;
   title: string;
   description: string;
-  category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category: string;
   categoryLabel: string;
+  tags?: string[];
   dateLabel: string;
   timeLabel: string;
   venue: string;
@@ -27,14 +28,7 @@ export interface EventCardData {
   registeredUserIds?: string[];
 }
 
-export type CategoryFilter =
-  | 'ALL'
-  | 'MY_EVENTS'
-  | 'TODAY'
-  | 'CONFERENCE'
-  | 'HACKATHON'
-  | 'WORKSHOP'
-  | 'EXPO';
+export type CategoryFilter = 'ALL' | 'MY_EVENTS' | 'TODAY' | string;
 
 export type EventRoleStatus =
   | 'ORGANIZER'
@@ -143,6 +137,102 @@ export class Events implements OnInit {
     return 'NONE';
   }
 
+  readonly availableCategories = computed(() => {
+    const defaultSet = ['Conference', 'Hackathon', 'Workshop', 'Expo / Showcase'];
+    const fromEvents = this.events()
+      .map((e) => e.categoryLabel || e.category)
+      .filter((c): c is string => Boolean(c && c.trim()));
+    return Array.from(new Set([...defaultSet, ...fromEvents]));
+  });
+
+  filterByTag(tag: string, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    this.searchQuery.set(tag);
+    this.currentPage.set(1);
+  }
+
+  // Pagination State
+  readonly pageSize = 6;
+  readonly currentPage = signal(1);
+
+  readonly totalPages = computed(() =>
+    Math.max(Math.ceil(this.filteredEvents().length / this.pageSize), 1),
+  );
+
+  readonly paginatedEvents = computed(() => {
+    const start = (this.currentPage() - 1) * this.pageSize;
+    return this.filteredEvents().slice(start, start + this.pageSize);
+  });
+
+  readonly startIndex = computed(() =>
+    this.filteredEvents().length === 0 ? 0 : (this.currentPage() - 1) * this.pageSize + 1,
+  );
+
+  readonly endIndex = computed(() =>
+    Math.min(this.currentPage() * this.pageSize, this.filteredEvents().length),
+  );
+
+  readonly pageNumbers = computed(() => {
+    const total = this.totalPages();
+    const current = this.currentPage();
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [];
+    if (current <= 4) {
+      for (let i = 1; i <= 5; i++) pages.push(i);
+      pages.push('...');
+      pages.push(total);
+    } else if (current >= total - 3) {
+      pages.push(1);
+      pages.push('...');
+      for (let i = total - 4; i <= total; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      pages.push('...');
+      pages.push(current - 1);
+      pages.push(current);
+      pages.push(current + 1);
+      pages.push('...');
+      pages.push(total);
+    }
+    return pages;
+  });
+
+  goToPage(page: number | string): void {
+    if (typeof page !== 'number') return;
+    if (page >= 1 && page <= this.totalPages() && page !== this.currentPage()) {
+      this.currentPage.set(page);
+      this.scrollToTop();
+    }
+  }
+
+  prevPage(): void {
+    if (this.currentPage() > 1) {
+      this.currentPage.update((p) => p - 1);
+      this.scrollToTop();
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage() < this.totalPages()) {
+      this.currentPage.update((p) => p + 1);
+      this.scrollToTop();
+    }
+  }
+
+  private scrollToTop(): void {
+    if (typeof window !== 'undefined') {
+      const el = document.querySelector('.filters-section');
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }
+
   // Reactive Category Filter & Search
   readonly filteredEvents = computed(() => {
     const query = this.searchQuery().toLowerCase().trim();
@@ -156,14 +246,18 @@ export class Events implements OnInit {
             ? this.getEventRole(event) !== 'NONE'
             : cat === 'TODAY'
               ? event.status === 'LIVE_TODAY'
-              : event.category === cat;
+              : (event.categoryLabel && event.categoryLabel.toLowerCase() === cat.toLowerCase()) ||
+                (event.category && event.category.toLowerCase() === cat.toLowerCase());
 
       const matchesQuery =
         !query ||
         event.title.toLowerCase().includes(query) ||
         event.description.toLowerCase().includes(query) ||
         event.venue.toLowerCase().includes(query) ||
-        event.organizerName.toLowerCase().includes(query);
+        event.organizerName.toLowerCase().includes(query) ||
+        (event.category && event.category.toLowerCase().includes(query)) ||
+        (event.categoryLabel && event.categoryLabel.toLowerCase().includes(query)) ||
+        (event.tags && event.tags.some((t) => t.toLowerCase().includes(query)));
 
       return matchesCategory && matchesQuery;
     });
@@ -189,15 +283,18 @@ export class Events implements OnInit {
   onSearch(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.searchQuery.set(value);
+    this.currentPage.set(1);
   }
 
   setCategory(category: CategoryFilter): void {
     this.selectedCategory.set(category);
+    this.currentPage.set(1);
   }
 
   resetFilters(): void {
     this.searchQuery.set('');
     this.selectedCategory.set('ALL');
+    this.currentPage.set(1);
   }
 
     openRsvp(event: EventCardData): void {

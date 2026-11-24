@@ -40,6 +40,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
 import type { RegistrantProgressDto } from '../checkpoints/ticket-progress.js';
+import type { CategoryDefinition } from '../../common/constants/event-taxonomy.constants.js';
 
 @Controller('events')
 export class EventsController {
@@ -48,6 +49,15 @@ export class EventsController {
   @Get()
   async getEvents(): Promise<{ success: boolean; data: EventResponseDto[] }> {
     const data = await this.eventsService.findAll();
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get('categories')
+  getCategories(): { success: boolean; data: CategoryDefinition[] } {
+    const data = this.eventsService.getCategories();
     return {
       success: true,
       data,

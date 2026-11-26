@@ -138,10 +138,10 @@ export class EventStationsComponent implements OnInit {
     return `Edit ${f.station.name}`;
   });
 
-  /** Type can be changed only on top-level stations. */
+  /** Type is set by the section on create; only editing a top-level station can move it. */
   readonly formTypeEditable = computed(() => {
     const f = this.form();
-    return !!f && f.mode !== 'sub' && !(f.mode === 'edit' && f.station.parentId);
+    return f?.mode === 'edit' && !f.station.parentId;
   });
 
   /** Sub-booths follow their parent's entry rule; entry gates never require entry. */

@@ -78,6 +78,7 @@ describe('EventStationsComponent', () => {
     await setup();
     component.openCreate('BOOTH');
     expect(component.formMultiScan()).toBe(true);
+    expect(component.formTypeEditable()).toBe(false);
 
     component.submitForm(new Event('submit'));
     expect(component.formError()).toBe('Please enter a name.');

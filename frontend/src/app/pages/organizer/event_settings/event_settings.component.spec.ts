@@ -5,7 +5,6 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { EventOrganizer, OrganizerEvent } from '../../../core/organizer/organizer.models';
-import { SubBoothApi } from '../../../core/staff/sub-booth-api';
 import { EventSettingsComponent } from './event_settings.component';
 
 const MOCK_EVENT: OrganizerEvent = {
@@ -80,11 +79,6 @@ describe('EventSettingsComponent', () => {
   let mockRouter: {
     navigate: ReturnType<typeof vi.fn>;
   };
-  let mockSubBoothApi: {
-    listByEvent: ReturnType<typeof vi.fn>;
-    createCheckpoint: ReturnType<typeof vi.fn>;
-    remove: ReturnType<typeof vi.fn>;
-  };
 
   beforeEach(async () => {
     mockOrganizerEvents = {
@@ -124,40 +118,6 @@ describe('EventSettingsComponent', () => {
       navigate: vi.fn(),
     };
 
-    mockSubBoothApi = {
-      listByEvent: vi.fn().mockReturnValue(
-        of([
-          {
-            id: 'chk-booth-1',
-            name: 'Tech Booth',
-            type: 'BOOTH',
-            location: 'Hall A',
-            allowMultipleScans: true,
-            requireMainEntry: false,
-          },
-          {
-            id: 'chk-gate-1',
-            name: 'Gate 1',
-            type: 'MAIN_ENTRY',
-            location: 'Lobby',
-            allowMultipleScans: false,
-            requireMainEntry: false,
-          },
-        ]),
-      ),
-      createCheckpoint: vi.fn().mockReturnValue(
-        of({
-          id: 'chk-booth-2',
-          name: 'AI Showcase',
-          type: 'BOOTH',
-          location: 'Hall B',
-          allowMultipleScans: true,
-          requireMainEntry: true,
-        }),
-      ),
-      remove: vi.fn().mockReturnValue(of({ success: true, message: 'Deleted' })),
-    };
-
     await TestBed.configureTestingModule({
       imports: [EventSettingsComponent],
       providers: [
@@ -175,7 +135,6 @@ describe('EventSettingsComponent', () => {
         { provide: OrganizerEventsService, useValue: mockOrganizerEvents },
         { provide: AuthService, useValue: mockAuth },
         { provide: Router, useValue: mockRouter },
-        { provide: SubBoothApi, useValue: mockSubBoothApi },
       ],
     }).compileComponents();
 
@@ -340,52 +299,6 @@ describe('EventSettingsComponent', () => {
     component.confirmDelete();
     expect(mockOrganizerEvents.deleteEvent).toHaveBeenCalledWith('evt-settings-1');
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/hub']);
-  });
-
-  describe('Activity Booths management', () => {
-    it('should filter booths from stations', () => {
-      expect(component.booths().length).toBe(1);
-      expect(component.booths()[0].name).toBe('Tech Booth');
-    });
-
-    it('should open and close the add booth form', () => {
-      component.openAddBooth();
-      expect(component.showAddBoothForm()).toBe(true);
-      expect(component.boothName()).toBe('');
-
-      component.closeAddBooth();
-      expect(component.showAddBoothForm()).toBe(false);
-    });
-
-    it('should create a normal booth and reload stations', () => {
-      component.openAddBooth();
-      component.boothName.set('AI Showcase');
-      component.boothLocation.set('Hall B');
-      component.boothRequireMainEntry.set(true);
-      component.boothAllowMultiScan.set(true);
-
-      component.saveBooth();
-
-      expect(mockSubBoothApi.createCheckpoint).toHaveBeenCalledWith({
-        eventId: 'evt-settings-1',
-        name: 'AI Showcase',
-        location: 'Hall B',
-        type: 'BOOTH',
-        allowMultipleScans: true,
-        requireMainEntry: true,
-      });
-      expect(component.showAddBoothForm()).toBe(false);
-      expect(component.boothSuccess()).toContain('AI Showcase');
-      expect(mockSubBoothApi.listByEvent).toHaveBeenCalledWith('evt-settings-1');
-    });
-
-    it('should remove a booth and reload stations', () => {
-      component.removeBooth('chk-booth-1');
-
-      expect(mockSubBoothApi.remove).toHaveBeenCalledWith('chk-booth-1');
-      expect(component.boothSuccess()).toContain('Booth removed');
-      expect(mockSubBoothApi.listByEvent).toHaveBeenCalledWith('evt-settings-1');
-    });
   });
 });
 

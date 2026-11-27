@@ -198,145 +198,87 @@
       </div>
     </section>
 
-    <!-- 3. Activity Booths (Replaces legacy program schedule) -->
-    <section class="settings-card" aria-labelledby="booths-heading">
+    <!-- 3. Program schedule (separate from stations; items may link to one) -->
+    <section class="settings-card" aria-labelledby="schedule-heading">
       <header class="card-header">
         <div>
-          <h2 id="booths-heading" class="card-title">Activity Booths</h2>
+          <h2 id="schedule-heading" class="card-title">Program Schedule</h2>
           <p class="card-subtitle">
-            Configure exhibition booths, workshop rooms, and sponsor checkpoints that award passport stamps.
+            The agenda shown on the public event page. Scan points (gates, sessions, booths) are managed in the
+            <a routerLink="../stations">Stations</a> tab; a program item can optionally link to one.
           </p>
         </div>
-        <button type="button" class="btn-primary btn-sm" (click)="openAddBooth()">
+        <button type="button" class="btn-primary btn-sm" (click)="openAddScheduleItem()">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          <span>Add Booth</span>
+          <span>Add Program Item</span>
         </button>
       </header>
 
       <div class="card-body">
-        @if (boothSuccess()) {
-          <div class="alert-success" role="status">
-            <span>{{ boothSuccess() }}</span>
-          </div>
-        }
-        @if (boothError()) {
-          <div class="alert-error" role="alert">
-            <span>{{ boothError() }}</span>
-          </div>
-        }
-
-        <!-- Add Booth Inline Form -->
-        @if (showAddBoothForm()) {
-          <div class="builder-inline-card">
-            <div class="builder-card-title">Add Booth or Activity Station</div>
-            <div class="builder-form-grid">
-              <div class="form-group">
-                <label for="settings-booth-name">Booth Name *</label>
-                <input
-                  id="settings-booth-name"
-                  type="text"
-                  class="form-control"
-                  [value]="boothName()"
-                  (input)="boothName.set($any($event.target).value)"
-                  placeholder="e.g. AWS Cloud Architecture Station"
-                />
-              </div>
-              <div class="form-group">
-                <label for="settings-booth-location">Location / Table</label>
-                <input
-                  id="settings-booth-location"
-                  type="text"
-                  class="form-control"
-                  [value]="boothLocation()"
-                  (input)="boothLocation.set($any($event.target).value)"
-                  placeholder="e.g. Hall B, Table #14"
-                />
-              </div>
-            </div>
-
-            <div class="checkbox-options-row">
-              <label class="checkbox-label">
-                <input
-                  type="checkbox"
-                  [checked]="boothRequireMainEntry()"
-                  (change)="boothRequireMainEntry.set($any($event.target).checked)"
-                  class="custom-checkbox"
-                />
-                <span>Require Main Gate Admission First</span>
-              </label>
-              <label class="checkbox-label">
-                <input
-                  type="checkbox"
-                  [checked]="boothAllowMultiScan()"
-                  (change)="boothAllowMultiScan.set($any($event.target).checked)"
-                  class="custom-checkbox"
-                />
-                <span>Allow Multiple Scans at Booth</span>
-              </label>
-            </div>
-
-            <div class="builder-actions-footer">
-              <button type="button" class="btn-cancel btn-sm" (click)="closeAddBooth()">Cancel</button>
-              <button
-                type="button"
-                class="btn-primary btn-sm"
-                (click)="saveBooth()"
-                [disabled]="isAddingBooth()"
-              >
-                {{ isAddingBooth() ? 'Saving...' : 'Add Booth' }}
-              </button>
-            </div>
-          </div>
-        }
-
-        @if (booths().length === 0) {
+        @if (scheduleItems().length === 0) {
           <div class="empty-schedule-state">
             <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            <p class="empty-title">No activity booths yet</p>
-            <p class="empty-subtitle">Add exhibition booths or activity stations for attendees to visit and earn passport stamps.</p>
-            <button type="button" class="btn-secondary btn-sm" (click)="openAddBooth()">
-              + Add First Booth
+            <p class="empty-title">No program items yet</p>
+            <p class="empty-subtitle">Add keynotes, talks, workshops or breaks to show attendees the event's agenda.</p>
+            <button type="button" class="btn-secondary btn-sm" (click)="openAddScheduleItem()">
+              + Add First Item
             </button>
           </div>
         } @else {
-          <div class="booth-card-list">
-            @for (booth of booths(); track booth.id) {
-              <div class="booth-item-card">
-                <div class="booth-item-info">
-                  <div class="booth-title-row">
-                    <span class="booth-type-pill">Booth</span>
-                    <strong class="booth-name">{{ booth.name }}</strong>
+          <div class="schedule-list">
+            @for (item of scheduleItems(); track item.id; let idx = $index) {
+              <div class="schedule-card-item">
+                <div class="schedule-item-time">
+                  <span class="time-tag">{{ item.time }}</span>
+                </div>
+                <div class="schedule-item-content">
+                  <div class="schedule-item-header">
+                    <h3 class="schedule-item-title">{{ item.title }}</h3>
+                    <span class="session-type-pill" [attr.data-type]="item.type">{{ programTypeLabels[item.type] || item.type }}</span>
                   </div>
-                  <div class="booth-meta-row">
-                    <span class="booth-location">
-                      <svg class="loc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                  @if (item.location) {
+                    <p class="schedule-item-location">
+                      <svg class="loc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                         <circle cx="12" cy="10" r="3"></circle>
                       </svg>
-                      {{ booth.location || 'Location not specified' }}
-                    </span>
-                    @if (booth.requireMainEntry) {
-                      <span class="booth-rule-tag rule-gate">Requires Gate Entry</span>
-                    }
-                    <span class="booth-rule-tag">
-                      {{ booth.allowMultipleScans ? 'Re-entry allowed' : 'Single scan' }}
-                    </span>
-                  </div>
+                      <span>{{ item.location }}</span>
+                    </p>
+                  }
+                  @if (item.description) {
+                    <p class="schedule-item-desc">{{ item.description }}</p>
+                  }
+                  @if (item.checkpointId) {
+                    <p class="schedule-item-location">
+                      Scanned at: {{ stationName(item.checkpointId) || 'a removed station' }}
+                    </p>
+                  }
                 </div>
-                <div class="booth-actions">
+                <div class="schedule-item-actions">
+                  <button
+                    type="button"
+                    class="btn-icon-action"
+                    (click)="openEditScheduleItem(idx)"
+                    [attr.aria-label]="'Edit ' + item.title"
+                    title="Edit session"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
                   <button
                     type="button"
                     class="btn-icon-action text-danger"
-                    (click)="removeBooth(booth.id)"
-                    [attr.aria-label]="'Remove ' + booth.name"
-                    title="Remove booth"
+                    (click)="removeScheduleItem(idx)"
+                    [attr.aria-label]="'Remove ' + item.title"
+                    title="Remove session"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
                       <polyline points="3 6 5 6 21 6"></polyline>

@@ -476,7 +476,14 @@
             <!-- Student ID -->
             <div class="form-group">
               <label for="studentId" class="form-label">
-                <span>Student ID Number <span class="required-asterisk" aria-hidden="true">*</span></span>
+                <span>
+                  Student ID Number
+                  @if (ev.requireStudentId) {
+                    <span class="required-asterisk" aria-hidden="true">*</span>
+                  } @else {
+                    <span class="badge-optional">Optional</span>
+                  }
+                </span>
               </label>
               <input
                 id="studentId"

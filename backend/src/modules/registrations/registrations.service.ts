@@ -21,7 +21,7 @@ export class CreateRegistrationDto {
   eventId!: string;
   fullName!: string;
   email!: string;
-  studentId!: string;
+  studentId?: string;
   userId?: string;
 }
 
@@ -97,6 +97,13 @@ export class RegistrationsService {
       throw new NotFoundException(`Event with ID '${dto.eventId}' not found`);
     }
 
+    const studentId = dto.studentId?.trim() || null;
+    if (event.requireStudentId && !studentId) {
+      throw new BadRequestException(
+        'A student ID is required to register for this event',
+      );
+    }
+
     const existing = await this.prisma.ticket.findUnique({
       where: { eventId_email: { eventId: dto.eventId, email: dto.email } },
     });
@@ -127,7 +134,7 @@ export class RegistrationsService {
       firstName,
       lastName,
       email: dto.email,
-      studentId: dto.studentId || null,
+      studentId,
       ticketType: 'STUDENT',
       ticketCode,
       // The QR encodes this exact value.

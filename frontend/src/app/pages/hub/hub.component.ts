@@ -105,6 +105,7 @@ export class HubComponent implements OnInit {
     }),
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
     is_private: new FormControl(false, { nonNullable: true }),
+    require_student_id: new FormControl(false, { nonNullable: true }),
   });
 
   ngOnInit(): void {
@@ -246,6 +247,7 @@ export class HubComponent implements OnInit {
       capacity: 100,
       allow_walk_ins: false,
       is_private: false,
+      require_student_id: false,
     });
     this.isCreateModalOpen.set(true);
   }
@@ -310,6 +312,7 @@ export class HubComponent implements OnInit {
         capacity: Number(val.capacity) || 100,
         allow_walk_ins: val.allow_walk_ins,
         is_private: val.is_private,
+        require_student_id: val.require_student_id,
         organizerEmails: this.coOrganizerEmails(),
       })
       .subscribe({

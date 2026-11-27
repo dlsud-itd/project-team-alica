@@ -422,7 +422,12 @@
             <!-- Student ID -->
             <div class="form-group">
               <label for="rsvp-id" class="form-label">
-                Student ID Number <span class="required-asterisk" aria-hidden="true">*</span>
+                Student ID Number
+                @if (event.requireStudentId) {
+                  <span class="required-asterisk" aria-hidden="true">*</span>
+                } @else {
+                  <span>(optional)</span>
+                }
               </label>
               <div class="input-wrapper" [class.has-error]="rsvpForm.controls.studentId.invalid && rsvpForm.controls.studentId.touched">
                 <input

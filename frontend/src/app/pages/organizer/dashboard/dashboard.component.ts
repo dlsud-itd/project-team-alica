@@ -158,6 +158,7 @@ export class OrganizerDashboard {
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
     category: new FormControl('Conference', { nonNullable: true, validators: [Validators.required] }),
     tags: new FormControl<string[]>([], { nonNullable: true }),
+    require_student_id: new FormControl(false, { nonNullable: true }),
   });
 
   setFormat(format: EventFormatFilter): void {
@@ -240,6 +241,7 @@ export class OrganizerDashboard {
       allow_walk_ins: false,
       category: 'Conference',
       tags: [],
+      require_student_id: false,
     });
     this.coOrganizerEmails.set([]);
     this.creating.set(true);
@@ -287,6 +289,7 @@ export class OrganizerDashboard {
       allow_walk_ins: event.allow_walk_ins,
       category: event.category || 'Conference',
       tags: event.tags ?? [],
+      require_student_id: event.require_student_id ?? false,
     });
 
     if (!event.organizers) {
@@ -355,6 +358,7 @@ export class OrganizerDashboard {
       allow_walk_ins: raw.allow_walk_ins,
       category: raw.category || 'Conference',
       tags: raw.tags || [],
+      require_student_id: raw.require_student_id,
       organizerEmails: this.coOrganizerEmails(),
     };
 

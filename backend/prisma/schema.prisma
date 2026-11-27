@@ -116,6 +116,7 @@ model Event {
   endDate        DateTime
   capacity     Int?
   allowWalkIns Boolean   @default(false)
+  requireStudentId Boolean @default(false)
   isPrivate    Boolean   @default(false)
   isActive     Boolean   @default(true)
   deletedAt    DateTime?

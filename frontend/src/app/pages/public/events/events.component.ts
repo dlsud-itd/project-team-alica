@@ -26,6 +26,7 @@ export interface EventCardData {
   organizerId?: string;
   staffIds?: string[];
   registeredUserIds?: string[];
+  requireStudentId?: boolean;
 }
 
 export type CategoryFilter = 'ALL' | 'MY_EVENTS' | 'TODAY' | string;
@@ -298,6 +299,9 @@ export class Events implements OnInit {
   }
 
     openRsvp(event: EventCardData): void {
+    const studentIdControl = this.rsvpForm.controls.studentId;
+    studentIdControl.setValidators(event.requireStudentId ? [Validators.required] : []);
+    studentIdControl.updateValueAndValidity();
     this.activeRsvpEvent.set(event);
     this.rsvpSuccess.set(null);
     this.rsvpError.set('');

@@ -35,6 +35,7 @@ export interface OrganizerEvent {
   status: EventStatus;
   description: string;
   allow_walk_ins: boolean;
+  require_student_id?: boolean;
   /** New events stay `Pending` (hidden from attendees) until an admin reviews them. */
   approval_status: ApprovalStatus;
   /** Admin feedback, set when an event is rejected. */
@@ -207,6 +208,7 @@ type EditableEventFields =
   | 'ends_at'
   | 'capacity'
   | 'allow_walk_ins'
+  | 'require_student_id'
   | 'is_private'
   | 'category'
   | 'tags'

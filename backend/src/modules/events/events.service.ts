@@ -121,6 +121,7 @@ export interface EventResponseDto {
   staffIds?: string[];
   registeredUserIds?: string[];
   bannerImageUrl?: string | null;
+  requireStudentId: boolean;
 }
 
 export interface EventScheduleItemDto {
@@ -200,6 +201,7 @@ export interface OrganizerEventDto {
   admitted_count?: number;
   organizers?: EventOrganizerDto[];
   banner_image_url?: string | null;
+  require_student_id?: boolean;
   schedule?: EventScheduleItemDto[];
   speakers?: CreateEventSpeakerDto[];
 }
@@ -322,6 +324,7 @@ export interface OrganizerCandidateDto {
 }
 
 export class UpdateEventDto {
+  require_student_id?: boolean;
   name?: string;
   description?: string;
   venue?: string;
@@ -381,6 +384,7 @@ export interface CreateEventStaffAssignmentDto {
 }
 
 export class CreateEventDto {
+  require_student_id?: boolean;
   name!: string;
   description?: string;
   venue!: string;
@@ -1052,6 +1056,7 @@ export class EventsService {
           .filter((uid): uid is string => uid !== null),
         tags: ev.tags ?? [],
         bannerImageUrl: ev.bannerImageUrl ?? null,
+        requireStudentId: ev.requireStudentId,
       };
     });
   }
@@ -1205,6 +1210,7 @@ export class EventsService {
       schedule,
       speakers,
       bannerImageUrl,
+      requireStudentId: ev.requireStudentId,
     };
   }
 
@@ -1641,6 +1647,7 @@ export class EventsService {
         endDate,
         capacity,
         allowWalkIns: dto.allow_walk_ins ?? false,
+        requireStudentId: dto.require_student_id === true,
         isPrivate,
         approvalStatus,
         organizerId: user.id,
@@ -1872,6 +1879,10 @@ export class EventsService {
 
     if (dto.allow_walk_ins !== undefined) {
       data.allowWalkIns = Boolean(dto.allow_walk_ins);
+    }
+
+    if (dto.require_student_id !== undefined) {
+      data.requireStudentId = Boolean(dto.require_student_id);
     }
 
     if (dto.is_private !== undefined) {
@@ -2332,6 +2343,7 @@ export class EventsService {
       status,
       description: ev.description ?? '',
       allow_walk_ins: ev.allowWalkIns,
+      require_student_id: ev.requireStudentId,
       approval_status: APPROVAL_STATUS_LABELS[ev.approvalStatus],
       review_notes: ev.reviewNotes,
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,

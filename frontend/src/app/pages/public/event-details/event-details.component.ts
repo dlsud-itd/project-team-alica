@@ -54,6 +54,7 @@ export interface EventDetail {
   schedule: EventScheduleItem[];
   speakers: EventSpeaker[];
   bannerImageUrl: string;
+  requireStudentId?: boolean;
 }
 
 @Component({
@@ -195,6 +196,11 @@ export class EventDetailsComponent implements OnInit {
   openRsvpModal(): void {
     const ev = this.event();
     if (!ev || this.preview()) return;
+
+    // Student ID is only mandatory when the organizer requires it for this event.
+    const studentIdControl = this.rsvpForm.controls.studentId;
+    studentIdControl.setValidators(ev.requireStudentId ? [Validators.required] : []);
+    studentIdControl.updateValueAndValidity();
 
     this.isRsvpOpen.set(true);
     this.rsvpSuccess.set(null);

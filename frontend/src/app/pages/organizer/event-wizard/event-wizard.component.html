@@ -215,6 +215,14 @@
             </div>
           </div>
 
+          <div class="form-group span-full">
+            <span class="field-label">Registration Requirements</span>
+            <label class="checkbox-card">
+              <input type="checkbox" formControlName="require_student_id" class="custom-checkbox" />
+              <span class="checkbox-text">Require a student ID to register for this event</span>
+            </label>
+          </div>
+
           <div class="form-group">
             <label for="wizard-description">Description</label>
             <textarea
@@ -1051,6 +1059,10 @@
                 <div class="review-row">
                   <dt>Walk-ins</dt>
                   <dd>{{ detailsForm.controls.allow_walk_ins.value ? 'Allowed' : 'Disabled' }}</dd>
+                </div>
+                <div class="review-row">
+                  <dt>Student ID</dt>
+                  <dd>{{ detailsForm.controls.require_student_id.value ? 'Required' : 'Not required' }}</dd>
                 </div>
                 @if (coOrganizerEmails().length > 0) {
                   <div class="review-row">

@@ -531,6 +531,55 @@ describe('EventsService', () => {
     expect(res.schedule).toEqual(scheduleData);
   });
 
+  it('updates speakers and preserves explicitly cleared empty schedule/speakers arrays', async () => {
+    const speakersData = [
+      {
+        id: 'spk-custom-1',
+        name: 'Dr. Maria Santos',
+        role: 'AI Lead',
+        company: 'TechLab',
+        topic: 'Agentic Systems',
+      },
+    ];
+    prisma.event.findFirst.mockResolvedValue(
+      dbEvent({ slug: 'devcon-manila-2026', schedule: [], speakers: [] }),
+    );
+    prisma.event.update.mockImplementation(({ data }) =>
+      Promise.resolve(
+        dbEvent({
+          slug: 'devcon-manila-2026',
+          schedule: data.schedule,
+          speakers: data.speakers,
+        }),
+      ),
+    );
+
+    const updated = await service.update(ORGANIZER, 'evt-1', {
+      schedule: [],
+      speakers: speakersData,
+    });
+    expect(updated.schedule).toEqual([]);
+    expect(updated.speakers).toEqual(speakersData);
+
+    prisma.event.findFirst.mockResolvedValue({
+      ...dbEvent({
+        id: 'evt-devcon-manila-2026',
+        slug: 'devcon-manila-2026',
+        approvalStatus: EventApprovalStatus.APPROVED,
+        schedule: [],
+        speakers: [],
+      }),
+      organizer: { id: 'usr-org', fullName: 'Campus Organizer', affiliation: 'Council' },
+      staff: [],
+      tickets: [],
+      checkpoints: [],
+    });
+
+    const details = await service.findOne('devcon-manila-2026');
+    expect(details.schedule).toEqual([]);
+    expect(details.speakers).toEqual([]);
+  });
+
   it('only lists approved events publicly', async () => {
     prisma.event.findMany.mockResolvedValue([]);
     await service.findAll();

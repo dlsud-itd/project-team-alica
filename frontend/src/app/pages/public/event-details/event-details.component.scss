@@ -286,6 +286,26 @@
   }
 }
 
+.detail-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 1.25rem;
+}
+
+.detail-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #d1fae5;
+  background: #f0fdf4;
+  color: #0f6e56;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: default;
+}
+
 .meta-pill-group {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

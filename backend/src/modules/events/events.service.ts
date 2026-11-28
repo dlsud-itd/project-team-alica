@@ -335,7 +335,7 @@ export class UpdateEventDto {
   is_private?: boolean;
   category?: string;
   tags?: string[];
-  banner_image_url?: string;
+  banner_image_url?: string | null;
   schedule?: EventScheduleItemDto[];
   speakers?: CreateEventSpeakerDto[];
   organizerEmails?: string[];
@@ -395,7 +395,7 @@ export class CreateEventDto {
   is_private?: boolean;
   category?: string;
   tags?: string[];
-  banner_image_url?: string;
+  banner_image_url?: string | null;
   schedule?: EventScheduleItemDto[];
   speakers?: CreateEventSpeakerDto[];
   organizerEmails?: string[];
@@ -1171,7 +1171,7 @@ export class EventsService {
       ev.checkpoints.length > 1 ? 'Multi-stop Checks' : 'Single Gate Entry';
 
     const schedule =
-      ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0
+      ev.schedule !== null && ev.schedule !== undefined && Array.isArray(ev.schedule)
         ? (ev.schedule as unknown as EventScheduleItemDto[])
         : this.buildScheduleTimeline(ev);
     const speakers = this.buildFeaturedSpeakers(ev);
@@ -1386,13 +1386,13 @@ export class EventsService {
   private buildFeaturedSpeakers(ev: {
     slug: string;
     speakers?: any;
-    organizer?: { fullName: string; affiliation: string | null };
+    organizer?: { fullName: string; affiliation?: string | null };
   }): EventSpeakerDto[] {
-    if (ev.speakers && Array.isArray(ev.speakers) && ev.speakers.length > 0) {
+    if (ev.speakers !== null && ev.speakers !== undefined && Array.isArray(ev.speakers)) {
       return (ev.speakers as any[]).map((s, idx) => ({
         id: s.id || `spk-${idx + 1}`,
         name: s.name,
-        role: s.role || 'Keynote Speaker',
+        role: s.role || '',
         company: s.company || '',
         avatarUrl: s.avatarUrl,
         topic: s.topic,
@@ -2362,12 +2362,25 @@ export class EventsService {
         ev.bannerImageUrl ??
         (ev.slug ? this.resolveBannerImage(ev.slug, ev.category || 'Conference') : null),
       schedule:
-        (ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0)
+        ev.schedule !== null &&
+        ev.schedule !== undefined &&
+        Array.isArray(ev.schedule)
           ? (ev.schedule as unknown as EventScheduleItemDto[])
           : ev.slug
             ? this.buildScheduleTimeline({ slug: ev.slug, checkpoints: (ev as any).checkpoints || [] })
             : undefined,
-      speakers: (ev as any).speakers && Array.isArray((ev as any).speakers) ? (ev as any).speakers : undefined,
+      speakers:
+        (ev as any).speakers !== null &&
+        (ev as any).speakers !== undefined &&
+        Array.isArray((ev as any).speakers)
+          ? (ev as any).speakers
+          : ev.slug
+            ? this.buildFeaturedSpeakers({
+                slug: ev.slug,
+                speakers: null,
+                organizer: ev.organizer,
+              })
+            : undefined,
       ...(organizersList.length > 0 ? { organizers: organizersList } : {}),
     };
   }

@@ -14,6 +14,7 @@ const mockEvent: EventDetail = {
   description: 'The largest developer conference connecting tech innovators.',
   category: 'CONFERENCE',
   categoryLabel: 'Conference',
+  tags: ['Keynote', 'Cloud'],
   dateLabel: 'Sep 24, 2026',
   timeLabel: '09:00 AM - 06:00 PM',
   venue: 'SMX Convention Center, Mall of Asia',
@@ -317,5 +318,25 @@ describe('EventDetailsComponent', () => {
 
     component.openRsvpModal();
     expect(component.isRsvpOpen()).toBe(false);
+  });
+
+  it('renders event tags in the About section and omits separator when speaker company is blank', () => {
+    fixture.detectChanges();
+
+    httpTesting
+      .expectOne(`${environment.apiUrl}/events/devcon-manila-2026`)
+      .flush({
+        success: true,
+        data: {
+          ...mockEvent,
+          speakers: [{ id: 'spk-solo', name: 'Solo Speaker', role: 'Organizer', company: '' }],
+        },
+      });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const tags = Array.from(el.querySelectorAll('.detail-tag-chip')).map((t) => t.textContent?.trim());
+    expect(tags).toEqual(['#Keynote', '#Cloud']);
+    expect(el.querySelector('.speaker-role')?.textContent?.trim()).toBe('Organizer');
   });
 });

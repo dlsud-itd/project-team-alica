@@ -1,16 +1,956 @@
-<div class="preview-bar" role="note">
-  <div class="preview-bar-text">
-    <strong>Attendee view</strong>
-    <span>This is the event page as attendees see it. Registration is disabled in this preview.</span>
-  </div>
-  <div class="preview-bar-actions">
-    @if (canEdit()) {
-      <a class="preview-link" routerLink="../settings">Edit details &amp; program</a>
+<div class="overview-bar" role="note">
+  <div class="overview-bar-text">
+    @if (!canEdit() || previewMode()) {
+      <strong>Attendee preview</strong>
+      <span>This is the event page as attendees see it. Registration is disabled in this preview.</span>
+    } @else {
+      <strong>Editable overview</strong>
+      <span>Edit your event page details, cover banner, schedule, and speakers directly below.</span>
     }
-    <a class="preview-link" [routerLink]="['/events', eventId()]" target="_blank" rel="noopener">Open public page</a>
+  </div>
+  <div class="overview-bar-actions">
+    @if (canEdit()) {
+      <button
+        type="button"
+        class="btn-bar-action"
+        (click)="togglePreview()"
+        [attr.aria-pressed]="previewMode()"
+      >
+        @if (previewMode()) {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          <span>Back to editor</span>
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <span>Preview as attendee</span>
+        }
+      </button>
+    }
+    <a class="btn-bar-link" [routerLink]="['/events', eventId()]" target="_blank" rel="noopener">
+      <span>Open public page</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+        <polyline points="15 3 21 3 21 9"></polyline>
+        <line x1="10" y1="14" x2="21" y2="3"></line>
+      </svg>
+    </a>
   </div>
 </div>
 
-@if (eventId()) {
-  <app-event-details [previewEventId]="eventId()" />
+@if (!canEdit() || previewMode()) {
+  @if (eventId()) {
+    <app-event-details [previewEventId]="eventId()" />
+  }
+} @else if (event(); as ev) {
+  <div class="editable-overview">
+    @if (ev.approval_status === 'Pending' && !ev.is_private) {
+      <div class="status-callout status-pending" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <div class="callout-copy">
+          <strong>Waiting for admin approval</strong>
+          <span>This event stays hidden from the public Events listing until an administrator approves it.</span>
+        </div>
+      </div>
+    } @else if (ev.approval_status === 'Rejected') {
+      <div class="status-callout status-rejected" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <div class="callout-copy">
+          <strong>Rejected by admin</strong>
+          <span>
+            {{ ev.review_notes || 'No feedback notes were provided.' }}
+            Saving any update below will resubmit this event for review.
+          </span>
+        </div>
+      </div>
+    }
+
+    <!-- Hero Banner Section -->
+    <section class="hero-banner-section" aria-label="Event cover and title">
+      <div class="hero-image-wrapper">
+        <img
+          [src]="heroBannerUrl()"
+          [alt]="ev.name + ' cover banner'"
+          class="hero-cover-img"
+        />
+        <div class="hero-gradient-overlay" aria-hidden="true"></div>
+
+        <!-- Top-right cover controls -->
+        <div class="hero-cover-controls">
+          <input
+            #bannerFileInput
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            class="sr-only"
+            (change)="onBannerSelected($event)"
+            aria-label="Upload event cover image"
+          />
+          <button
+            type="button"
+            class="btn-hero-control"
+            (click)="bannerFileInput.click()"
+            [disabled]="savingBanner()"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>{{ savingBanner() ? 'Uploading…' : hasCustomBanner() ? 'Replace Cover' : 'Upload Cover' }}</span>
+          </button>
+
+          @if (hasCustomBanner()) {
+            <button
+              type="button"
+              class="btn-hero-control btn-hero-reset"
+              (click)="removeBanner()"
+              [disabled]="savingBanner()"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>Reset Cover</span>
+            </button>
+          }
+        </div>
+
+        <div class="hero-content-overlay">
+          <div class="hero-tags-row">
+            <span class="hero-category-tag">{{ categoryLabel() }}</span>
+            <span class="hero-status-tag" [class.is-live]="isLiveToday()">{{ statusLabel() }}</span>
+            @if (ev.is_private) {
+              <span class="hero-private-tag">Private</span>
+            }
+          </div>
+
+          @if (editingTitle()) {
+            <form [formGroup]="titleForm" (ngSubmit)="saveTitle()" class="hero-title-edit-form">
+              <label for="overview-title-input" class="sr-only">Event Title</label>
+              <input
+                id="overview-title-input"
+                type="text"
+                formControlName="name"
+                class="hero-title-input"
+                placeholder="Event title"
+                autofocus
+              />
+              <div class="hero-title-edit-actions">
+                <button
+                  type="submit"
+                  class="btn-inline-primary"
+                  [disabled]="savingTitle()"
+                >
+                  {{ savingTitle() ? 'Saving…' : 'Save' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-inline-ghost"
+                  (click)="cancelEditTitle()"
+                  [disabled]="savingTitle()"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          } @else {
+            <div class="hero-title-row">
+              <h1 class="hero-event-title">{{ ev.name }}</h1>
+              <button
+                type="button"
+                class="btn-hero-edit"
+                (click)="startEditTitle()"
+                aria-label="Edit event title"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span>Edit title</span>
+              </button>
+            </div>
+          }
+
+          <p class="hero-organizer-line">Organized by <strong>{{ organizerDisplayName() }}</strong></p>
+
+          <div class="hero-chips-bar" aria-label="Event highlights">
+            <span class="hero-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chip-icon" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span>{{ durationLabel() }}</span>
+            </span>
+
+            <span class="hero-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chip-icon checkmark" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>{{ checkpointMode() }}</span>
+            </span>
+
+            <span class="hero-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chip-icon" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span>{{ spotsTotal() }} Seats</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      @if (bannerError()) {
+        <div class="section-alert alert-error" role="alert">
+          <span>{{ bannerError() }}</span>
+          <button type="button" class="btn-alert-dismiss" (click)="bannerError.set('')" aria-label="Dismiss error">×</button>
+        </div>
+      }
+      @if (titleError()) {
+        <div class="section-alert alert-error" role="alert">
+          <span>{{ titleError() }}</span>
+          <button type="button" class="btn-alert-dismiss" (click)="titleError.set('')" aria-label="Dismiss error">×</button>
+        </div>
+      }
+      @if (heroNotice()) {
+        <div class="section-alert alert-success" role="status">
+          <span>{{ heroNotice() }}</span>
+          <button type="button" class="btn-alert-dismiss" (click)="heroNotice.set('')" aria-label="Dismiss notice">×</button>
+        </div>
+      }
+    </section>
+
+    <!-- 2-Column Responsive Layout -->
+    <div class="event-layout-grid">
+      <div class="main-column">
+        <!-- About Event Section -->
+        <section class="details-section about-section" aria-labelledby="about-heading">
+          <div class="section-header-row">
+            <h2 id="about-heading" class="section-title">About Event</h2>
+            @if (!editingAbout()) {
+              <button
+                type="button"
+                class="btn-section-edit"
+                (click)="startEditAbout()"
+                aria-label="Edit description, category, and tags"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span>Edit</span>
+              </button>
+            }
+          </div>
+
+          @if (aboutError()) {
+            <div class="section-alert alert-error" role="alert">
+              <span>{{ aboutError() }}</span>
+            </div>
+          }
+          @if (aboutNotice()) {
+            <div class="section-alert alert-success" role="status">
+              <span>{{ aboutNotice() }}</span>
+              <button type="button" class="btn-alert-dismiss" (click)="aboutNotice.set('')" aria-label="Dismiss notice">×</button>
+            </div>
+          }
+
+          @if (editingAbout()) {
+            <form [formGroup]="aboutForm" (ngSubmit)="saveAbout()" class="inline-edit-form">
+              <div class="form-group">
+                <label for="overview-description">Description</label>
+                <textarea
+                  id="overview-description"
+                  rows="4"
+                  class="form-control textarea-control"
+                  formControlName="description"
+                  placeholder="Share an overview of themes, agenda highlights, and what attendees should expect..."
+                ></textarea>
+              </div>
+
+              <div class="form-group">
+                <app-category-tag-selector
+                  [category]="aboutForm.controls.category.value"
+                  [tags]="aboutForm.controls.tags.value"
+                  (categoryChange)="aboutForm.controls.category.setValue($event)"
+                  (tagsChange)="aboutForm.controls.tags.setValue($event)"
+                ></app-category-tag-selector>
+              </div>
+
+              <div class="inline-form-actions">
+                <button type="button" class="btn-secondary" (click)="cancelEditAbout()" [disabled]="savingAbout()">
+                  Cancel
+                </button>
+                <button type="submit" class="btn-primary" [disabled]="savingAbout()">
+                  {{ savingAbout() ? 'Saving…' : 'Save About' }}
+                </button>
+              </div>
+            </form>
+          } @else {
+            @if (ev.description) {
+              <p class="section-description">{{ ev.description }}</p>
+            } @else {
+              <p class="section-description is-empty">
+                No description yet. Click Edit to tell attendees what this event is about.
+              </p>
+            }
+
+            @if (ev.tags && ev.tags.length > 0) {
+              <div class="detail-tags-list" aria-label="Event tags">
+                @for (tag of ev.tags; track tag) {
+                  <span class="detail-tag-chip">#{{ tag }}</span>
+                }
+              </div>
+            }
+
+            <div class="meta-pill-group">
+              <div class="meta-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-pill-icon" aria-hidden="true">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>{{ ev.venue }}</span>
+              </div>
+
+              <div class="meta-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-pill-icon" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>{{ dateLabel() }} · {{ timeLabel() }}</span>
+              </div>
+
+              <div class="meta-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-pill-icon" aria-hidden="true">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>By {{ organizerDisplayName() }}</span>
+              </div>
+            </div>
+          }
+        </section>
+
+        <!-- Schedule Timeline Section -->
+        <section class="details-section schedule-section" aria-labelledby="schedule-heading">
+          <div class="section-header-row">
+            <div class="schedule-title-group">
+              <h2 id="schedule-heading" class="section-title">Schedule Timeline</h2>
+              @if (scheduleDateLabel()) {
+                <span class="schedule-date-badge">{{ scheduleDateLabel() }}</span>
+              }
+            </div>
+            <button
+              type="button"
+              class="btn-section-add"
+              (click)="openAddScheduleModal()"
+              [disabled]="savingSchedule()"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add Program Item</span>
+            </button>
+          </div>
+
+          @if (scheduleError() && !scheduleModalOpen()) {
+            <div class="section-alert alert-error" role="alert">
+              <span>{{ scheduleError() }}</span>
+            </div>
+          }
+          @if (scheduleNotice()) {
+            <div class="section-alert alert-success" role="status">
+              <span>{{ scheduleNotice() }}</span>
+              <button type="button" class="btn-alert-dismiss" (click)="scheduleNotice.set('')" aria-label="Dismiss notice">×</button>
+            </div>
+          }
+
+          @if (scheduleItems().length === 0) {
+            <div class="empty-section-state">
+              <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <p class="empty-title">No program items yet</p>
+              <p class="empty-subtitle">Add keynotes, sessions, workshops, or breaks to display the event's agenda.</p>
+              <button type="button" class="btn-secondary btn-sm" (click)="openAddScheduleModal()">
+                Add First Item
+              </button>
+            </div>
+          } @else {
+            <div class="timeline-container">
+              @for (item of scheduleItems(); track item.id; let idx = $index; let last = $last) {
+                <div class="timeline-item" [class.is-last]="last">
+                  <div class="timeline-time-col">
+                    <span class="time-badge">{{ item.time }}</span>
+                  </div>
+
+                  <div class="timeline-card">
+                    <div class="timeline-card-top">
+                      <div class="timeline-card-heading">
+                        <h3 class="timeline-card-title">{{ item.title }}</h3>
+                        <span class="session-type-tag">{{ programTypeLabels[item.type] || item.type }}</span>
+                      </div>
+                      <div class="item-actions">
+                        <button
+                          type="button"
+                          class="btn-item-icon"
+                          (click)="openEditScheduleModal(idx)"
+                          [disabled]="savingSchedule()"
+                          [attr.aria-label]="'Edit ' + item.title"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="btn-item-icon btn-item-danger"
+                          (click)="removeScheduleItem(idx)"
+                          [disabled]="savingSchedule()"
+                          [attr.aria-label]="'Remove ' + item.title"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    @if (item.description) {
+                      <p class="timeline-card-desc">{{ item.description }}</p>
+                    }
+                    <div class="timeline-card-meta">
+                      @if (item.location) {
+                        <span class="timeline-card-loc">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="loc-pin" aria-hidden="true">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                          </svg>
+                          <span>{{ item.location }}</span>
+                        </span>
+                      }
+                      @if (item.checkpointId) {
+                        <span class="timeline-card-station">
+                          Scanned at: {{ stationName(item.checkpointId) || 'a removed station' }}
+                        </span>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- Featured Speakers Section -->
+        <section class="details-section speakers-section" aria-labelledby="speakers-heading">
+          <div class="section-header-row">
+            <h2 id="speakers-heading" class="section-title">Featured Speakers</h2>
+            <button
+              type="button"
+              class="btn-section-add"
+              (click)="openAddSpeakerModal()"
+              [disabled]="savingSpeaker()"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add Speaker</span>
+            </button>
+          </div>
+
+          @if (speakerError() && !speakerModalOpen()) {
+            <div class="section-alert alert-error" role="alert">
+              <span>{{ speakerError() }}</span>
+            </div>
+          }
+          @if (speakerNotice()) {
+            <div class="section-alert alert-success" role="status">
+              <span>{{ speakerNotice() }}</span>
+              <button type="button" class="btn-alert-dismiss" (click)="speakerNotice.set('')" aria-label="Dismiss notice">×</button>
+            </div>
+          }
+
+          @if (speakers().length === 0) {
+            <div class="empty-section-state">
+              <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <p class="empty-title">No featured speakers yet</p>
+              <p class="empty-subtitle">Add keynote speakers, panelists, or presenters to showcase on the event page.</p>
+              <button type="button" class="btn-secondary btn-sm" (click)="openAddSpeakerModal()">
+                Add First Speaker
+              </button>
+            </div>
+          } @else {
+            <div class="speakers-grid">
+              @for (speaker of speakers(); track speaker.id || speaker.name; let idx = $index) {
+                <article class="speaker-card">
+                  <div class="speaker-avatar-wrap">
+                    @if (speaker.avatarUrl) {
+                      <img
+                        [src]="speaker.avatarUrl"
+                        [alt]="speaker.name"
+                        class="speaker-avatar-img"
+                        loading="lazy"
+                      />
+                    } @else {
+                      <div class="speaker-avatar-fallback">
+                        {{ speaker.name.charAt(0).toUpperCase() }}
+                      </div>
+                    }
+                  </div>
+
+                  <div class="speaker-info">
+                    <h3 class="speaker-name">{{ speaker.name }}</h3>
+                    @if (speaker.role || speaker.company) {
+                      <p class="speaker-role">
+                        {{ speaker.role }}{{ speaker.role && speaker.company ? ' · ' : '' }}{{ speaker.company }}
+                      </p>
+                    }
+                    @if (speaker.topic) {
+                      <p class="speaker-topic">Keynote: "{{ speaker.topic }}"</p>
+                    }
+                  </div>
+
+                  <div class="item-actions">
+                    <button
+                      type="button"
+                      class="btn-item-icon"
+                      (click)="openEditSpeakerModal(idx)"
+                      [disabled]="savingSpeaker()"
+                      [attr.aria-label]="'Edit ' + speaker.name"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-item-icon btn-item-danger"
+                      (click)="removeSpeakerItem(idx)"
+                      [disabled]="savingSpeaker()"
+                      [attr.aria-label]="'Remove ' + speaker.name"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </section>
+      </div>
+
+      <!-- Sidebar Column (Right): Key Details & Registration Settings -->
+      <aside class="sidebar-column" aria-label="Event Key Details">
+        <div class="sticky-sidebar-card">
+          <div class="sidebar-card-header">
+            <div class="sidebar-header-top">
+              <div>
+                <span class="sidebar-card-eyebrow">Event Registration</span>
+                <h2 class="sidebar-card-title">{{ ev.name }}</h2>
+              </div>
+              @if (!editingDetails()) {
+                <button
+                  type="button"
+                  class="btn-section-edit"
+                  (click)="startEditDetails()"
+                  aria-label="Edit venue, schedule dates, capacity, and registration requirements"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  <span>Edit</span>
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (detailsError()) {
+            <div class="section-alert alert-error" role="alert">
+              <span>{{ detailsError() }}</span>
+            </div>
+          }
+          @if (detailsNotice()) {
+            <div class="section-alert alert-success" role="status">
+              <span>{{ detailsNotice() }}</span>
+              <button type="button" class="btn-alert-dismiss" (click)="detailsNotice.set('')" aria-label="Dismiss notice">×</button>
+            </div>
+          }
+
+          @if (editingDetails()) {
+            <form [formGroup]="detailsForm" (ngSubmit)="saveDetails()" class="inline-edit-form sidebar-edit-form">
+              <div class="form-group">
+                <label for="overview-venue">Venue / Location *</label>
+                <input
+                  id="overview-venue"
+                  type="text"
+                  class="form-control"
+                  formControlName="venue"
+                  placeholder="e.g. Ugnayang La Salle Gymnasium"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="overview-starts-at">Starts At *</label>
+                <input
+                  id="overview-starts-at"
+                  type="datetime-local"
+                  class="form-control"
+                  formControlName="starts_at"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="overview-ends-at">Ends At *</label>
+                <input
+                  id="overview-ends-at"
+                  type="datetime-local"
+                  class="form-control"
+                  formControlName="ends_at"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="overview-capacity">Max Capacity *</label>
+                <input
+                  id="overview-capacity"
+                  type="number"
+                  min="1"
+                  class="form-control"
+                  formControlName="capacity"
+                  placeholder="e.g. 500"
+                  required
+                />
+              </div>
+
+              <label class="checkbox-label">
+                <input type="checkbox" formControlName="require_student_id" class="custom-checkbox" />
+                <span>Require student ID to register</span>
+              </label>
+
+              <div class="inline-form-actions">
+                <button type="button" class="btn-secondary" (click)="cancelEditDetails()" [disabled]="savingDetails()">
+                  Cancel
+                </button>
+                <button type="submit" class="btn-primary" [disabled]="savingDetails()">
+                  {{ savingDetails() ? 'Saving…' : 'Save Details' }}
+                </button>
+              </div>
+            </form>
+          } @else {
+            <div class="sidebar-meta-list">
+              <div class="sidebar-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sidebar-icon" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <div class="sidebar-meta-text">
+                  <strong>{{ dateLabel() }}</strong>
+                  <span>{{ timeLabel() }}</span>
+                </div>
+              </div>
+
+              <div class="sidebar-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sidebar-icon" aria-hidden="true">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <div class="sidebar-meta-text">
+                  <strong>{{ ev.venue }}</strong>
+                  <span>{{ ev.allow_walk_ins ? 'Walk-in registrations allowed' : 'Pre-registration required' }}</span>
+                </div>
+              </div>
+
+              <div class="sidebar-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sidebar-icon" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                  <circle cx="9" cy="10" r="2"></circle>
+                  <path d="M15 8h2"></path>
+                  <path d="M15 12h2"></path>
+                  <path d="M7 16h10"></path>
+                </svg>
+                <div class="sidebar-meta-text">
+                  <strong>{{ ev.require_student_id ? 'Student ID required' : 'Student ID optional' }}</strong>
+                  <span>RSVP registration policy</span>
+                </div>
+              </div>
+
+              <div class="sidebar-capacity-block">
+                <div class="capacity-header-row">
+                  <span>{{ spotsRemaining() }} spots remaining</span>
+                  <span>{{ spotsTaken() }} / {{ spotsTotal() }}</span>
+                </div>
+                <div class="capacity-bar-track">
+                  <div class="capacity-bar-fill" [style.width.%]="capacityPercent()"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sidebar-cta-wrap">
+              <button type="button" class="btn-primary-cta" disabled title="Attendees register here">
+                <span>RSVP for Event / Claim Pass</span>
+              </button>
+            </div>
+
+            <p class="sidebar-guarantee-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="note-check-icon" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>Instant digital ticket pass with offline QR support.</span>
+            </p>
+          }
+        </div>
+      </aside>
+    </div>
+  </div>
+} @else {
+  <div class="overview-loading" role="status">
+    <div class="spinner" aria-hidden="true"></div>
+    <p>Loading event overview…</p>
+  </div>
 }
+
+<!-- Native Modal Dialog: Add / Edit Program Schedule Item -->
+<dialog
+  #scheduleDialog
+  class="overview-dialog"
+  closedby="any"
+  aria-labelledby="dialog-schedule-title"
+  (close)="onScheduleDialogClosed()"
+  (pointerdown)="onDialogPointerDown($event, scheduleDialog)"
+  (pointerup)="onDialogPointerUp($event, scheduleDialog)"
+>
+  <div class="dialog-surface">
+    <header class="dialog-header">
+      <div>
+        <h1 id="dialog-schedule-title" class="dialog-title">
+          {{ editingScheduleIndex() !== null ? 'Edit Program Item' : 'Add Program Item' }}
+        </h1>
+        <p class="dialog-subtitle">Set timing, title, and session format for this agenda entry.</p>
+      </div>
+      <button type="button" class="dialog-close" (click)="closeScheduleModal()" aria-label="Close dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </header>
+
+    <form [formGroup]="scheduleItemForm" (ngSubmit)="saveScheduleItem()" class="dialog-form">
+      <div class="dialog-body">
+        @if (scheduleError()) {
+          <div class="section-alert alert-error" role="alert">
+            <span>{{ scheduleError() }}</span>
+          </div>
+        }
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="sched-time">Time / Duration *</label>
+            <input
+              id="sched-time"
+              type="text"
+              class="form-control"
+              formControlName="time"
+              placeholder="e.g. 09:00 AM"
+              required
+              autofocus
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="sched-type">Type *</label>
+            <select id="sched-type" class="form-control" formControlName="type" required>
+              @for (t of programTypeOptions(); track t) {
+                <option [value]="t">{{ programTypeLabels[t] || t }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="form-group span-full">
+            <label for="sched-title">Title *</label>
+            <input
+              id="sched-title"
+              type="text"
+              class="form-control"
+              formControlName="title"
+              placeholder="e.g. Opening Keynote: The Future of Cloud"
+              required
+            />
+          </div>
+
+          <div class="form-group span-full">
+            <label for="sched-location">Location / Room</label>
+            <input
+              id="sched-location"
+              type="text"
+              class="form-control"
+              formControlName="location"
+              placeholder="e.g. Function Hall A / Room 204"
+            />
+          </div>
+
+          <div class="form-group span-full">
+            <label for="sched-station">Scan point (optional)</label>
+            <select id="sched-station" class="form-control" formControlName="checkpointId">
+              <option value="">None</option>
+              @for (opt of stationOptions(); track opt.id) {
+                <option [value]="opt.id">{{ opt.label }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="form-group span-full">
+            <label for="sched-desc">Description</label>
+            <textarea
+              id="sched-desc"
+              rows="3"
+              class="form-control textarea-control"
+              formControlName="description"
+              placeholder="Topic highlights, key discussion points..."
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="btn-secondary" (click)="closeScheduleModal()" [disabled]="savingSchedule()">
+          Cancel
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="savingSchedule()">
+          {{ savingSchedule() ? 'Saving…' : editingScheduleIndex() !== null ? 'Save Changes' : 'Add Item' }}
+        </button>
+      </footer>
+    </form>
+  </div>
+</dialog>
+
+<!-- Native Modal Dialog: Add / Edit Featured Speaker -->
+<dialog
+  #speakerDialog
+  class="overview-dialog"
+  closedby="any"
+  aria-labelledby="dialog-speaker-title"
+  (close)="onSpeakerDialogClosed()"
+  (pointerdown)="onDialogPointerDown($event, speakerDialog)"
+  (pointerup)="onDialogPointerUp($event, speakerDialog)"
+>
+  <div class="dialog-surface">
+    <header class="dialog-header">
+      <div>
+        <h1 id="dialog-speaker-title" class="dialog-title">
+          {{ editingSpeakerIndex() !== null ? 'Edit Speaker' : 'Add Speaker' }}
+        </h1>
+        <p class="dialog-subtitle">Highlight keynote presenters, guest speakers, or panelists on the event page.</p>
+      </div>
+      <button type="button" class="dialog-close" (click)="closeSpeakerModal()" aria-label="Close dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </header>
+
+    <form [formGroup]="speakerForm" (ngSubmit)="saveSpeakerItem()" class="dialog-form">
+      <div class="dialog-body">
+        @if (speakerError()) {
+          <div class="section-alert alert-error" role="alert">
+            <span>{{ speakerError() }}</span>
+          </div>
+        }
+
+        <div class="form-grid">
+          <div class="form-group span-full">
+            <label for="speaker-name">Speaker Name *</label>
+            <input
+              id="speaker-name"
+              type="text"
+              class="form-control"
+              formControlName="name"
+              placeholder="e.g. Dr. Maria Santos"
+              required
+              autofocus
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="speaker-role">Role / Title</label>
+            <input
+              id="speaker-role"
+              type="text"
+              class="form-control"
+              formControlName="role"
+              placeholder="e.g. AI Research Lead"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="speaker-company">Organization / Affiliation</label>
+            <input
+              id="speaker-company"
+              type="text"
+              class="form-control"
+              formControlName="company"
+              placeholder="e.g. Department of Computer Science"
+            />
+          </div>
+
+          <div class="form-group span-full">
+            <label for="speaker-topic">Keynote Topic / Session</label>
+            <input
+              id="speaker-topic"
+              type="text"
+              class="form-control"
+              formControlName="topic"
+              placeholder="e.g. Navigating Frontiers of Machine Learning"
+            />
+          </div>
+        </div>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="btn-secondary" (click)="closeSpeakerModal()" [disabled]="savingSpeaker()">
+          Cancel
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="savingSpeaker()">
+          {{ savingSpeaker() ? 'Saving…' : editingSpeakerIndex() !== null ? 'Save Changes' : 'Add Speaker' }}
+        </button>
+      </footer>
+    </form>
+  </div>
+</dialog>

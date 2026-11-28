@@ -34,8 +34,9 @@ export interface EventDetail {
   slug: string;
   title: string;
   description: string;
-  category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' | string;
   categoryLabel: string;
+  tags?: string[];
   dateLabel: string;
   timeLabel: string;
   venue: string;

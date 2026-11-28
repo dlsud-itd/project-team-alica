@@ -216,6 +216,7 @@ type EditableEventFields =
 
 export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>> & {
   schedule?: EventScheduleItem[];
+  speakers?: WizardSpeaker[];
   organizerEmails?: string[];
 };
 

@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { AuthService } from '../../../core/auth/auth.service';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
-import { EventOrganizer, OrganizerEvent } from '../../../core/organizer/organizer.models';
+import { EventOrganizer, OrganizerCandidate, OrganizerEvent } from '../../../core/organizer/organizer.models';
 import { EventSettingsComponent } from './event_settings.component';
 
 const MOCK_EVENT: OrganizerEvent = {
@@ -19,23 +19,13 @@ const MOCK_EVENT: OrganizerEvent = {
   status: 'Upcoming',
   description: 'Flagship innovation event',
   allow_walk_ins: true,
+  require_student_id: true,
   approval_status: 'Approved',
   review_notes: null,
   reviewed_at: null,
   submitted_at: '2026-10-01T00:00:00.000Z',
   is_private: false,
-  category: 'CONFERENCE',
-  banner_image_url: 'https://images.unsplash.com/photo-mock',
-  schedule: [
-    {
-      id: 'sch-1',
-      time: '09:00 AM',
-      title: 'Opening Keynote',
-      type: 'KEYNOTE',
-      location: 'Grand Ballroom',
-      description: 'Opening and welcomes',
-    },
-  ],
+  category: 'Conference',
 };
 
 const MOCK_ORGANIZERS: EventOrganizer[] = [
@@ -69,6 +59,7 @@ describe('EventSettingsComponent', () => {
     loadOrganizers: ReturnType<typeof vi.fn>;
     addOrganizer: ReturnType<typeof vi.fn>;
     removeOrganizer: ReturnType<typeof vi.fn>;
+    searchOrganizerCandidates: ReturnType<typeof vi.fn>;
     updateEvent: ReturnType<typeof vi.fn>;
     deleteEvent: ReturnType<typeof vi.fn>;
   };
@@ -81,6 +72,13 @@ describe('EventSettingsComponent', () => {
   };
 
   beforeEach(async () => {
+    const candidate: OrganizerCandidate = {
+      id: 'usr-cand-1',
+      email: 'candidate@alica.ph',
+      fullName: 'Candidate User',
+      affiliation: 'CSCS',
+    };
+
     mockOrganizerEvents = {
       events: () => [MOCK_EVENT],
       eventsLoaded: () => true,
@@ -98,8 +96,9 @@ describe('EventSettingsComponent', () => {
         }),
       ),
       removeOrganizer: vi.fn().mockReturnValue(of(undefined)),
+      searchOrganizerCandidates: vi.fn().mockReturnValue(of([candidate])),
       updateEvent: vi.fn().mockReturnValue(
-        of({ ...MOCK_EVENT, name: 'Renamed Summit 2026' }),
+        of({ ...MOCK_EVENT, is_private: true, allow_walk_ins: false, require_student_id: false }),
       ),
       deleteEvent: vi.fn().mockReturnValue(of(undefined)),
     };
@@ -121,6 +120,7 @@ describe('EventSettingsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [EventSettingsComponent],
       providers: [
+        provideRouter([]),
         {
           provide: ActivatedRoute,
           useValue: {
@@ -143,12 +143,17 @@ describe('EventSettingsComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create and populate event parameters form', () => {
+  it('should create and populate event policies form', () => {
     expect(component).toBeTruthy();
     expect(component.eventId()).toBe('evt-settings-1');
-    expect(component.generalForm.get('name')?.value).toBe('Innovation Summit 2026');
-    expect(component.generalForm.get('venue')?.value).toBe('Innovation Hall');
-    expect(component.generalForm.get('capacity')?.value).toBe(200);
+    expect(component.policiesForm.get('is_private')?.value).toBe(false);
+    expect(component.policiesForm.get('allow_walk_ins')?.value).toBe(true);
+    expect(component.policiesForm.get('require_student_id')?.value).toBe(true);
+  });
+
+  it('should link to ../overview for event details editing', () => {
+    const link = (fixture.nativeElement as HTMLElement).querySelector('.banner-link');
+    expect(link?.textContent?.trim()).toBe('Overview');
   });
 
   it('should load organizers and distinguish primary from co-organizers', () => {
@@ -159,137 +164,48 @@ describe('EventSettingsComponent', () => {
     expect(component.coOrganizers()[0].email).toBe('coorganizer@alica.ph');
   });
 
-  it('should save general settings successfully', () => {
-    component.generalForm.patchValue({
-      name: 'Renamed Summit 2026',
+  it('should save visibility, walk-in, and student ID policies', () => {
+    component.policiesForm.patchValue({
+      is_private: true,
+      allow_walk_ins: false,
+      require_student_id: false,
     });
 
-    component.saveGeneralSettings();
+    component.savePolicies();
 
-    expect(mockOrganizerEvents.updateEvent).toHaveBeenCalledWith(
-      'evt-settings-1',
-      expect.objectContaining({
-        name: 'Renamed Summit 2026',
-        venue: 'Innovation Hall',
-      }),
-    );
-    expect(component.generalSuccess()).toContain('Renamed Summit 2026');
+    expect(mockOrganizerEvents.updateEvent).toHaveBeenCalledWith('evt-settings-1', {
+      is_private: true,
+      allow_walk_ins: false,
+      require_student_id: false,
+    });
+    expect(component.policiesSuccess()).toContain('Innovation Summit 2026');
   });
 
-  it('should reject invalid dates or capacity lower than registrations', () => {
-    component.generalForm.patchValue({
-      starts_at: '2026-11-20T18:00',
-      ends_at: '2026-11-20T08:00',
-    });
-    component.saveGeneralSettings();
-    expect(component.generalError()).toContain('End date & time must be after');
-
-    component.generalForm.patchValue({
-      starts_at: '2026-11-20T08:00',
-      ends_at: '2026-11-20T17:00',
-      capacity: 2, // lower than registrations_count (5)
-    });
-    component.saveGeneralSettings();
-    expect(component.generalError()).toContain('Capacity cannot be lower');
-  });
-
-  it('should add a co-organizer member', () => {
+  it('should add a co-organizer member directly or from directory candidate', () => {
     const input = document.createElement('input');
     input.value = 'newco@alica.ph';
 
     component.addOrganizerMember(input);
-
     expect(mockOrganizerEvents.addOrganizer).toHaveBeenCalledWith('evt-settings-1', 'newco@alica.ph');
     expect(input.value).toBe('');
     expect(component.organizerSuccess()).toContain('newco@alica.ph');
+
+    component.selectCandidate(
+      {
+        id: 'usr-cand-1',
+        email: 'candidate@alica.ph',
+        fullName: 'Candidate User',
+        affiliation: 'CSCS',
+      },
+      input,
+    );
+    expect(mockOrganizerEvents.addOrganizer).toHaveBeenCalledWith('evt-settings-1', 'candidate@alica.ph');
   });
 
   it('should remove a co-organizer member', () => {
     component.removeOrganizerMember('usr-co-1');
-
     expect(mockOrganizerEvents.removeOrganizer).toHaveBeenCalledWith('evt-settings-1', 'usr-co-1');
     expect(component.organizerSuccess()).toContain('Co-organizer removed');
-  });
-
-  it('should populate category, banner image, and schedule', () => {
-    expect(component.generalForm.get('category')?.value).toBe('CONFERENCE');
-    expect(component.bannerImageUrl()).toBe('https://images.unsplash.com/photo-mock');
-    expect(component.scheduleItems().length).toBe(1);
-    expect(component.scheduleItems()[0].title).toBe('Opening Keynote');
-  });
-
-  it('should allow adding, editing, and removing schedule items', () => {
-    // Open add session modal
-    component.openAddScheduleItem();
-    expect(component.scheduleFormOpen()).toBe(true);
-    expect(component.editingScheduleIndex()).toBeNull();
-
-    // Fill and save new session
-    component.scheduleItemForm.patchValue({
-      time: '11:00 AM',
-      title: 'DevOps Workshop',
-      type: 'WORKSHOP',
-      location: 'Lab 3',
-      description: 'Hands-on CI/CD',
-    });
-    component.saveScheduleItem();
-    expect(component.scheduleFormOpen()).toBe(false);
-    expect(component.scheduleItems().length).toBe(2);
-    expect(component.scheduleItems()[1].title).toBe('DevOps Workshop');
-
-    // Open edit session
-    component.openEditScheduleItem(1);
-    expect(component.scheduleFormOpen()).toBe(true);
-    expect(component.editingScheduleIndex()).toBe(1);
-    expect(component.scheduleItemForm.get('title')?.value).toBe('DevOps Workshop');
-
-    // Update title and save
-    component.scheduleItemForm.patchValue({ title: 'Advanced DevOps Workshop' });
-    component.saveScheduleItem();
-    expect(component.scheduleItems()[1].title).toBe('Advanced DevOps Workshop');
-
-    // Remove session
-    component.removeScheduleItem(0);
-    expect(component.scheduleItems().length).toBe(1);
-    expect(component.scheduleItems()[0].title).toBe('Advanced DevOps Workshop');
-  });
-
-  it('should validate and handle cover image selection and removal', () => {
-    // Invalid type
-    const invalidFile = new File(['dummy content'], 'document.pdf', { type: 'application/pdf' });
-    const invalidEvent = { target: { files: [invalidFile], value: '' } } as unknown as Event;
-    component.onImageSelected(invalidEvent);
-    expect(component.imageError()).toContain('valid image file');
-
-    // Size limit (> 2MB)
-    const bigBlob = new Blob([new Uint8Array(3 * 1024 * 1024)], { type: 'image/png' });
-    const oversizedFile = new File([bigBlob], 'huge.png', { type: 'image/png' });
-    const oversizedEvent = { target: { files: [oversizedFile], value: '' } } as unknown as Event;
-    component.onImageSelected(oversizedEvent);
-    expect(component.imageError()).toContain('less than 2MB');
-
-    // Removal
-    component.removeImage();
-    expect(component.bannerImageUrl()).toBeNull();
-    expect(component.imageError()).toBe('');
-  });
-
-  it('should include category, banner image, and schedule in saveGeneralSettings', () => {
-    component.generalForm.patchValue({
-      category: 'WORKSHOP',
-    });
-    component.removeImage();
-
-    component.saveGeneralSettings();
-
-    expect(mockOrganizerEvents.updateEvent).toHaveBeenCalledWith(
-      'evt-settings-1',
-      expect.objectContaining({
-        category: 'WORKSHOP',
-        banner_image_url: null,
-        schedule: expect.any(Array),
-      }),
-    );
   });
 
   it('should confirm delete and navigate to /hub', () => {
@@ -301,4 +217,3 @@ describe('EventSettingsComponent', () => {
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/hub']);
   });
 });
-

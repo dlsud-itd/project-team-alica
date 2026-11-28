@@ -153,6 +153,14 @@
             <h2 class="section-title">About Event</h2>
             <p class="section-description">{{ ev.description }}</p>
 
+            @if (ev.tags && ev.tags.length > 0) {
+              <div class="detail-tags-list" aria-label="Event tags">
+                @for (tag of ev.tags; track tag) {
+                  <span class="detail-tag-chip">#{{ tag }}</span>
+                }
+              </div>
+            }
+
             <div class="meta-pill-group">
               <div class="meta-pill">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="meta-pill-icon" aria-hidden="true">
@@ -241,7 +249,11 @@
 
                     <div class="speaker-info">
                       <h3 class="speaker-name">{{ speaker.name }}</h3>
-                      <p class="speaker-role">{{ speaker.role }} · {{ speaker.company }}</p>
+                      @if (speaker.role || speaker.company) {
+                        <p class="speaker-role">
+                          {{ speaker.role }}{{ speaker.role && speaker.company ? ' · ' : '' }}{{ speaker.company }}
+                        </p>
+                      }
                       @if (speaker.topic) {
                         <p class="speaker-topic">Keynote: "{{ speaker.topic }}"</p>
                       }

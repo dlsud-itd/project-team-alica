@@ -51,7 +51,7 @@ describe('EventStationsComponent', () => {
           useValue: {
             events: signal([{ id: 'evt-1', organizer_id: 'usr-org' }]),
             loadStaff: () => of([]),
-            addStaff: vi.fn(),
+            addStaff: vi.fn().mockReturnValue(of({})),
             removeStaff: vi.fn(),
           },
         },
@@ -157,5 +157,20 @@ describe('EventStationsComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('.btn-add-booth')).toBeNull();
     expect(el.querySelector('.btn-remove-booth')).toBeNull();
+  });
+
+  it('adds staff to every station or to the chosen one', async () => {
+    await setup();
+    const events = TestBed.inject(OrganizerEventsService) as any;
+    const input = document.createElement('input');
+    input.value = ' a@alica.ph ';
+    component.addStaffMember(input);
+    expect(events.addStaff).toHaveBeenLastCalledWith('evt-1', 'a@alica.ph', 'ALL_SCANNERS');
+    expect(input.value).toBe('');
+
+    component.staffCheckpointId.set('sub-1');
+    input.value = 'b@alica.ph';
+    component.addStaffMember(input);
+    expect(events.addStaff).toHaveBeenLastCalledWith('evt-1', 'b@alica.ph', 'SPECIFIC_BOOTH', 'sub-1');
   });
 });

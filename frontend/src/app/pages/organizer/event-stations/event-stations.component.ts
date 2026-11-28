@@ -95,6 +95,8 @@ export class EventStationsComponent implements OnInit {
   readonly staffLoading = signal(false);
   readonly staffError = signal('');
   readonly addingStaff = signal(false);
+  /** '' means all stations; otherwise the checkpoint the new staff member is limited to. */
+  readonly staffCheckpointId = signal('');
 
   /** Same rule as the event shell's Stations/Settings tabs; the API enforces it too. */
   readonly canManage = computed(() => {
@@ -330,15 +332,20 @@ export class EventStationsComponent implements OnInit {
     });
   }
 
-  addStaffMember(email: string): void {
-    const cleanEmail = email?.trim();
+  addStaffMember(input: HTMLInputElement): void {
+    const cleanEmail = input.value.trim();
     const id = this.eventId();
     if (!cleanEmail || !id) return;
+    const checkpointId = this.staffCheckpointId();
     this.addingStaff.set(true);
     this.staffError.set('');
-    this.organizerEvents.addStaff(id, cleanEmail).subscribe({
+    const request = checkpointId
+      ? this.organizerEvents.addStaff(id, cleanEmail, 'SPECIFIC_BOOTH', checkpointId)
+      : this.organizerEvents.addStaff(id, cleanEmail, 'ALL_SCANNERS');
+    request.subscribe({
       next: () => {
         this.addingStaff.set(false);
+        input.value = '';
         this.loadStaff();
       },
       error: (err: { error?: { message?: string } }) => {
@@ -348,12 +355,15 @@ export class EventStationsComponent implements OnInit {
     });
   }
 
-  removeStaffMember(userId: string): void {
+  /** Removes just this assignment: one station, or the event-wide access. */
+  removeStaffMember(member: EventStaff): void {
     const id = this.eventId();
-    if (!userId || !id) return;
-    this.organizerEvents.removeStaff(id, userId).subscribe({
+    if (!member.userId || !id) return;
+    this.staffError.set('');
+    this.organizerEvents.removeStaff(id, member.userId, member.checkpointId ?? undefined).subscribe({
       next: () => this.loadStaff(),
-      error: () => undefined,
+      error: (err: { error?: { message?: string } }) =>
+        this.staffError.set(err?.error?.message || 'Failed to remove staff member.'),
     });
   }
 }

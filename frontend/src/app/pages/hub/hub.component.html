@@ -267,26 +267,28 @@
         </div>
       } @else {
         <div class="cards-grid">
-          @for (chk of assignedCheckpoints(); track chk.id) {
+          @for (ev of staffingEvents(); track ev.eventId) {
             <article class="hub-card staff-card">
               <div class="card-header">
-                <span class="badge-category">{{ chk.type }}</span>
-                <span class="badge-status" data-status="ACTIVE">Assigned Station</span>
+                <span class="badge-status" data-status="ACTIVE">
+                  {{ ev.stations.length }} {{ ev.stations.length === 1 ? 'station' : 'stations' }}
+                </span>
               </div>
 
-              <h2 class="card-title">{{ chk.name }}</h2>
-              <p class="event-parent-title">{{ chk.eventName }}</p>
+              <h2 class="card-title">{{ ev.eventName }}</h2>
 
-              <div class="meta-row">
-                <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
-                <span>{{ chk.location || 'Main Area' }}</span>
-              </div>
+              @for (chk of ev.stations; track chk.id) {
+                <div class="meta-row">
+                  <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  <span>{{ chk.parentId ? '↳ ' : '' }}{{ chk.name }} · {{ chk.location || 'Main Area' }}</span>
+                </div>
+              }
 
               <div class="card-actions full-width-action">
-                <button type="button" class="btn-primary" (click)="launchScanner(chk)">
+                <button type="button" class="btn-primary" (click)="launchScanner(ev.eventId)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
                     <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>

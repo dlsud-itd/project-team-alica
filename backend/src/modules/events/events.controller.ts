@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Header,
+  Headers,
   Param,
   Patch,
   Post,
@@ -39,13 +40,16 @@ import {
 } from './events.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { UserSummaryDto } from '../auth/auth.service.js';
+import { AuthService, type UserSummaryDto } from '../auth/auth.service.js';
 import type { RegistrantProgressDto } from '../checkpoints/ticket-progress.js';
 import type { CategoryDefinition } from '../../common/constants/event-taxonomy.constants.js';
 
 @Controller('events')
 export class EventsController {
-  constructor(private readonly eventsService: EventsService) {}
+  constructor(
+    private readonly eventsService: EventsService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get()
   async getEvents(): Promise<{ success: boolean; data: EventResponseDto[] }> {
@@ -106,8 +110,13 @@ export class EventsController {
   @Get(':idOrSlug')
   async getEventDetails(
     @Param('idOrSlug') idOrSlug: string,
+    @Headers('authorization') authorization?: string,
   ): Promise<{ success: boolean; data: EventDetailResponseDto }> {
-    const data = await this.eventsService.findOne(idOrSlug);
+    // Public route: a signed-in organizer may preview their own unapproved event; a bad token just means anonymous.
+    const viewer = authorization
+      ? await this.authService.getMe(authorization).catch(() => undefined)
+      : undefined;
+    const data = await this.eventsService.findOne(idOrSlug, viewer);
     return {
       success: true,
       data,

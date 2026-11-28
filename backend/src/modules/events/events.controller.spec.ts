@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventsController } from './events.controller.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { EventsService } from './events.service.js';
+import { AuthService } from '../auth/auth.service.js';
 
 describe('EventsController', () => {
   let controller: EventsController;
@@ -87,6 +88,7 @@ describe('EventsController', () => {
           provide: EventsService,
           useValue: mockEventsService,
         },
+        { provide: AuthService, useValue: { getMe: vi.fn() } },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -250,6 +252,6 @@ describe('EventsController', () => {
     expect(res.data.durationLabel).toBe('3 Days');
     expect(res.data.schedule).toHaveLength(1);
     expect(res.data.speakers).toHaveLength(1);
-    expect(mockEventsService.findOne).toHaveBeenCalledWith('devcon-manila-2026');
+    expect(mockEventsService.findOne).toHaveBeenCalledWith('devcon-manila-2026', undefined);
   });
 });

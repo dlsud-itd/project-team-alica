@@ -216,7 +216,7 @@
       <header class="telemetry-header staff-header">
         <div>
           <h2 class="telemetry-title">Station staff</h2>
-          <p class="telemetry-subtitle">Event staff can scan at every station of this event.</p>
+          <p class="telemetry-subtitle">Give staff scanner access to every station, or limit them to one station.</p>
         </div>
       </header>
 
@@ -230,14 +230,38 @@
                 class="form-input"
                 placeholder="Enter user email (e.g. staff@dlsud.edu.ph)"
                 aria-label="Staff email"
-                (keydown.enter)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+                (keydown.enter)="addStaffMember(staffEmailInput)"
               />
             </div>
+            <select
+              class="form-input staff-access-select"
+              aria-label="Scanner access"
+              [value]="staffCheckpointId()"
+              (change)="staffCheckpointId.set($any($event.target).value)"
+            >
+              <option value="" [selected]="staffCheckpointId() === ''">All stations</option>
+              @for (section of sections(); track section.type) {
+                @if (section.stations.length > 0) {
+                  <optgroup [label]="section.title">
+                    @for (item of section.stations; track item.station.id) {
+                      <option [value]="item.station.id" [selected]="staffCheckpointId() === item.station.id">
+                        {{ item.station.name }}
+                      </option>
+                      @for (child of item.children; track child.id) {
+                        <option [value]="child.id" [selected]="staffCheckpointId() === child.id">
+                          ↳ {{ child.name }}
+                        </option>
+                      }
+                    }
+                  </optgroup>
+                }
+              }
+            </select>
             <button
               type="button"
               class="btn-add-staff"
               [disabled]="addingStaff()"
-              (click)="addStaffMember(staffEmailInput.value); staffEmailInput.value = ''"
+              (click)="addStaffMember(staffEmailInput)"
             >
               {{ addingStaff() ? 'Adding...' : '+ Add staff' }}
             </button>
@@ -262,6 +286,7 @@
                   <th scope="col">NAME</th>
                   <th scope="col">EMAIL</th>
                   <th scope="col">AFFILIATION</th>
+                  <th scope="col">ACCESS</th>
                   <th scope="col">ASSIGNED</th>
                   @if (canManage()) {
                     <th scope="col">ACTIONS</th>
@@ -274,10 +299,15 @@
                     <td><strong class="attendee-name">{{ member.fullName }}</strong></td>
                     <td><span class="member-email">{{ member.email }}</span></td>
                     <td><span class="member-org">{{ member.affiliation || 'Staff Member' }}</span></td>
+                    <td>
+                      <span class="rule-tag" [class.rule-tag--entry]="!member.checkpointId">
+                        {{ member.checkpointName || 'All stations' }}
+                      </span>
+                    </td>
                     <td><span class="time-text">{{ member.assignedAt | date: 'MMM d, y' }}</span></td>
                     @if (canManage()) {
                       <td>
-                        <button type="button" class="btn-remove-staff" (click)="removeStaffMember(member.userId)">
+                        <button type="button" class="btn-remove-staff" (click)="removeStaffMember(member)">
                           Remove
                         </button>
                       </td>

@@ -90,7 +90,17 @@ export class HubComponent implements OnInit {
   // Counts
   readonly attendingCount = computed(() => this.rsvps().length);
   readonly organizingCount = computed(() => this.organizedEvents().length);
-  readonly staffingCount = computed(() => this.assignedCheckpoints().length);
+  /** Assigned stations grouped into one entry per event, in the order the API returned them. */
+  readonly staffingEvents = computed(() => {
+    const groups = new Map<string, { eventId: string; eventName: string; stations: StaffCheckpoint[] }>();
+    for (const chk of this.assignedCheckpoints()) {
+      const group = groups.get(chk.eventId) ?? { eventId: chk.eventId, eventName: chk.eventName, stations: [] };
+      group.stations.push(chk);
+      groups.set(chk.eventId, group);
+    }
+    return [...groups.values()];
+  });
+  readonly staffingCount = computed(() => this.staffingEvents().length);
 
   // Create Event Form
   readonly eventForm = new FormGroup({
@@ -328,9 +338,7 @@ export class HubComponent implements OnInit {
       });
   }
 
-  launchScanner(checkpoint: StaffCheckpoint): void {
-    this.router.navigate(['/staff/scanner'], {
-      queryParams: { checkpointId: checkpoint.id },
-    });
+  launchScanner(eventId: string): void {
+    this.router.navigate(['/staff/scanner'], { queryParams: { eventId } });
   }
 }

@@ -101,6 +101,8 @@ export class Scanner implements OnInit, OnDestroy {
   readonly loadingCheckpoints = signal(true);
   readonly loadError = signal('');
   readonly routeBoothId = signal<string | null>(null);
+  /** Set when launched for one event: only that event's assigned stations are offered. */
+  readonly routeEventId = signal<string | null>(null);
   readonly selectedId = signal<string | null>(null);
   readonly station = computed(
     () => this.checkpoints().find((c) => c.id === this.selectedId()) ?? null,
@@ -199,6 +201,7 @@ export class Scanner implements OnInit, OnDestroy {
       .subscribe(([params, query]) => {
         const boothId = params.get('boothId') ?? query.get('boothId');
         this.routeBoothId.set(boothId);
+        this.routeEventId.set(query.get('eventId'));
         if (boothId && this.checkpoints().some((c) => c.id === boothId)) {
           this.applyStationSelection(boothId, false);
         }
@@ -213,7 +216,9 @@ export class Scanner implements OnInit, OnDestroy {
       .getMyCheckpoints()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (checkpoints) => {
+        next: (assigned) => {
+          const eventId = this.routeEventId();
+          const checkpoints = eventId ? assigned.filter((c) => c.eventId === eventId) : assigned;
           this.checkpoints.set(checkpoints);
           const requestedId = this.routeBoothId();
           const saved = safeGetStorageItem(STATION_STORAGE_KEY);
@@ -283,7 +288,10 @@ export class Scanner implements OnInit, OnDestroy {
     this.diagnostics.info('routing', 'Switched active station', { boothId: id });
 
     if (syncUrl && this.router && this.router.url.startsWith('/staff/scanner')) {
-      void this.router.navigate(['/staff/scanner', id], { replaceUrl: true });
+      void this.router.navigate(['/staff/scanner', id], {
+        replaceUrl: true,
+        queryParamsHandling: 'preserve',
+      });
     }
   }
 

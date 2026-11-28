@@ -126,6 +126,14 @@ describe('Scanner', () => {
     ]);
   });
 
+  it('offers only the launched event stations when eventId is given', async () => {
+    const other: StaffCheckpoint = { ...BOOTH, id: 'chk-other', name: 'Other Booth', eventId: 'evt-other' };
+    queryParamMap$.next(convertToParamMap({ eventId: 'evt-other' }));
+    await create([GATE, BOOTH, other]);
+    expect(component.checkpoints().map((c) => c.id)).toEqual(['chk-other']);
+    expect(component.station()?.id).toBe('chk-other');
+  });
+
   it('shows an empty state when no station is assigned', async () => {
     await create([]);
     expect(text()).toContain('No station assigned');

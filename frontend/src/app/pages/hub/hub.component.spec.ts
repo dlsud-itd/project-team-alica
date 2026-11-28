@@ -119,6 +119,25 @@ describe('HubComponent', () => {
     expect(tabTexts.some((text) => text?.includes('Staffing'))).toBe(true);
   });
 
+  it('groups assigned stations by event and launches the scanner for that event', () => {
+    const base = { location: null, type: 'BOOTH' as const, allowMultipleScans: false, requireMainEntry: false };
+    component.assignedCheckpoints.set([
+      { ...base, id: 'a', name: 'Gate', eventId: 'evt-1', eventName: 'Tech Summit' },
+      { ...base, id: 'b', name: 'Booth', eventId: 'evt-2', eventName: 'Art Fair' },
+      { ...base, id: 'c', name: 'Desk', eventId: 'evt-1', eventName: 'Tech Summit' },
+    ]);
+    expect(component.staffingEvents().map((e) => [e.eventName, e.stations.map((s) => s.id)])).toEqual([
+      ['Tech Summit', ['a', 'c']],
+      ['Art Fair', ['b']],
+    ]);
+    expect(component.staffingCount()).toBe(2);
+
+    const router = TestBed.inject(Router);
+    const nav = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.launchScanner('evt-1');
+    expect(nav).toHaveBeenCalledWith(['/staff/scanner'], { queryParams: { eventId: 'evt-1' } });
+  });
+
   describe('organized event review notes', () => {
     const baseEvent: OrganizerEvent = {
       id: 'evt-1',

@@ -39,6 +39,7 @@ export class SubmitEvent implements OnInit {
     }),
     description: new FormControl('', { nonNullable: true }),
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
+    require_student_id: new FormControl(false, { nonNullable: true }),
   });
 
   ngOnInit(): void {
@@ -93,6 +94,7 @@ export class SubmitEvent implements OnInit {
         ends_at: endDate.toISOString(),
         capacity: Number(raw.capacity),
         allow_walk_ins: raw.allow_walk_ins,
+        require_student_id: raw.require_student_id,
       })
       .subscribe({
         next: (created) => {

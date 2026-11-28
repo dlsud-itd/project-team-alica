@@ -115,6 +115,20 @@ export const routes: Routes = [
               ),
           },
           {
+            path: 'stream',
+            loadComponent: () =>
+              import('./pages/organizer/event-stream/event-stream.component').then(
+                (m) => m.EventStreamComponent,
+              ),
+          },
+          {
+            path: 'stations',
+            loadComponent: () =>
+              import('./pages/organizer/event-stations/event-stations.component').then(
+                (m) => m.EventStationsComponent,
+              ),
+          },
+          {
             path: 'scanner',
             loadComponent: () =>
               import('./pages/organizer/event-scanner/event-scanner.component').then(
@@ -185,6 +199,20 @@ export const routes: Routes = [
                 loadComponent: () =>
                   import('./pages/organizer/event-overview/event-overview.component').then(
                     (m) => m.EventOverviewComponent,
+                  ),
+              },
+              {
+                path: 'stream',
+                loadComponent: () =>
+                  import('./pages/organizer/event-stream/event-stream.component').then(
+                    (m) => m.EventStreamComponent,
+                  ),
+              },
+              {
+                path: 'stations',
+                loadComponent: () =>
+                  import('./pages/organizer/event-stations/event-stations.component').then(
+                    (m) => m.EventStationsComponent,
                   ),
               },
               {

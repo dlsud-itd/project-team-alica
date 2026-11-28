@@ -90,6 +90,9 @@ describe('EventDetailsComponent', () => {
             paramMap: of({
               get: (key: string) => (key === 'idOrSlug' ? 'devcon-manila-2026' : null),
             }),
+            queryParamMap: of({
+              get: (key: string) => null,
+            }),
           },
         },
         { provide: AuthService, useValue: authServiceSpy },
@@ -180,7 +183,7 @@ describe('EventDetailsComponent', () => {
     expect(component.isRsvpOpen()).toBe(true);
   });
 
-  it('shows Already Registered button when authenticated user is registered', () => {
+  it('shows View Ticket Pass button when authenticated user is registered', () => {
     authServiceSpy.user = () => ({ id: 'user-123', email: 'attendee@test.com', fullName: 'Alex Martin', role: 'USER' });
 
     fixture.detectChanges();
@@ -195,6 +198,124 @@ describe('EventDetailsComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const ctaBtn = compiled.querySelector('.btn-already-registered');
     expect(ctaBtn).toBeTruthy();
-    expect(ctaBtn?.textContent).toContain('Already Registered (Go to Pass)');
+    expect(ctaBtn?.textContent).toContain('View Ticket Pass');
+  });
+
+  it('renders per-user progress report when authenticated and progress is loaded', () => {
+    authServiceSpy.user = () => ({ id: 'user-123', email: 'attendee@test.com', fullName: 'Alex Martin', role: 'USER' });
+    authServiceSpy.isAuthenticated = () => true;
+
+    fixture.detectChanges();
+
+    httpTesting.expectOne(`${environment.apiUrl}/events/devcon-manila-2026`).flush({ success: true, data: mockEvent });
+
+    const progressReq = httpTesting.expectOne(`${environment.apiUrl}/registrations/event/evt-devcon-manila-2026/progress`);
+    progressReq.flush({
+      success: true,
+      data: {
+        ticketCode: 'CHK-2026-9812A',
+        eventId: 'evt-devcon-manila-2026',
+        eventName: 'DevCon Manila 2026',
+        visitedCount: 2,
+        totalCount: 4,
+        percent: 50,
+        completed: false,
+        stamps: [
+          {
+            checkpointId: 'chk-1',
+            name: 'Booth 1',
+            location: 'Hall A',
+            type: 'BOOTH',
+            parentId: null,
+            visited: true,
+            firstVisitedAt: '2026-09-24T10:00:00Z',
+          },
+          {
+            checkpointId: 'chk-2',
+            name: 'Booth 2',
+            location: 'Hall B',
+            type: 'BOOTH',
+            parentId: null,
+            visited: false,
+            firstVisitedAt: null,
+          },
+        ],
+      },
+    });
+
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    // "YOUR ATTENDANCE PROGRESS" is removed in favor of only the Digital Stamp Card
+    expect(el.querySelector('#user_progress_section')).toBeNull();
+
+    const passportSection = el.querySelector('#event_passport_section');
+    expect(passportSection).toBeTruthy();
+    expect(passportSection?.textContent).toContain('DIGITAL STAMP CARD');
+    expect(passportSection?.textContent).toContain('50%');
+    expect(passportSection?.textContent).toContain('2 of 4 booths visited');
+    expect(passportSection?.querySelector('.stamp-grid')).toBeNull();
+  });
+
+  it('renders Event Passport section when showPassport input is true', () => {
+    authServiceSpy.user = () => ({ id: 'user-123', email: 'attendee@test.com', fullName: 'Alex Martin', role: 'USER' });
+    authServiceSpy.isAuthenticated = () => true;
+    fixture.componentRef.setInput('showPassport', true);
+
+    fixture.detectChanges();
+
+    httpTesting.expectOne(`${environment.apiUrl}/events/devcon-manila-2026`).flush({ success: true, data: mockEvent });
+    httpTesting.expectOne(`${environment.apiUrl}/registrations/event/evt-devcon-manila-2026/progress`).flush({
+      success: true,
+      data: {
+        ticketCode: 'CHK-2026-9812A',
+        eventId: 'evt-devcon-manila-2026',
+        eventName: 'DevCon Manila 2026',
+        visitedCount: 1,
+        totalCount: 2,
+        percent: 50,
+        completed: false,
+        stamps: [
+          {
+            checkpointId: 'chk-1',
+            name: 'Booth 1',
+            location: 'Hall A',
+            type: 'BOOTH',
+            parentId: null,
+            visited: true,
+            firstVisitedAt: '2026-09-24T10:00:00Z',
+          },
+        ],
+      },
+    });
+
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const passportSection = el.querySelector('#event_passport_section');
+    expect(passportSection).toBeTruthy();
+    expect(passportSection?.textContent).toContain('Event Passport');
+    expect(passportSection?.textContent).toContain('Ticket #CHK-2026-9812A');
+    expect(passportSection?.querySelector('.stamp-grid')).toBeTruthy();
+    expect(passportSection?.textContent).toContain('Booth 1');
+  });
+
+  it('preview mode loads the given event and disables navigation and registration', () => {
+    fixture.componentRef.setInput('previewEventId', 'evt-devcon-manila-2026');
+    fixture.detectChanges();
+
+    httpTesting
+      .expectOne(`${environment.apiUrl}/events/evt-devcon-manila-2026`)
+      .flush({ success: true, data: mockEvent });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.classList).toContain('is-preview');
+    expect(el.querySelector('.event-breadcrumb-bar')).toBeNull();
+    expect(el.querySelector('.mobile-fixed-bottom-bar')).toBeNull();
+    expect(el.querySelector<HTMLButtonElement>('.sidebar-cta-wrap button')?.disabled).toBe(true);
+
+    component.openRsvpModal();
+    expect(component.isRsvpOpen()).toBe(false);
   });
 });

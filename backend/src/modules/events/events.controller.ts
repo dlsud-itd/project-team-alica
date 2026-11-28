@@ -25,9 +25,11 @@ import {
   EventCheckpointDto,
   EventOrganizerDto,
   EventStaffDto,
+  type StaffAccessLevel,
   OrganizerCandidateDto,
   ScanResultDto,
   OrganizerEventDto,
+  RecentScanItemDto,
   ReviewEventDto,
   UpdateEventDto,
   type GuestImportFile,
@@ -39,6 +41,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { UserSummaryDto } from '../auth/auth.service.js';
 import type { RegistrantProgressDto } from '../checkpoints/ticket-progress.js';
+import type { CategoryDefinition } from '../../common/constants/event-taxonomy.constants.js';
 
 @Controller('events')
 export class EventsController {
@@ -47,6 +50,15 @@ export class EventsController {
   @Get()
   async getEvents(): Promise<{ success: boolean; data: EventResponseDto[] }> {
     const data = await this.eventsService.findAll();
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get('categories')
+  getCategories(): { success: boolean; data: CategoryDefinition[] } {
+    const data = this.eventsService.getCategories();
     return {
       success: true,
       data,
@@ -300,6 +312,23 @@ export class EventsController {
     };
   }
 
+  @Get(':eventId/scans')
+  @UseGuards(JwtAuthGuard)
+  async listScans(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventId') eventId: string,
+    @Query('stationId') stationId?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ success: boolean; data: RecentScanItemDto[] }> {
+    const data = await this.eventsService.listScans(user, eventId, {
+      checkpointId: stationId || undefined,
+      status: status || undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+    return { success: true, data };
+  }
+
   @Get(':eventId/scans/export')
   @UseGuards(JwtAuthGuard)
   async exportScans(
@@ -329,8 +358,16 @@ export class EventsController {
     @CurrentUser() user: UserSummaryDto,
     @Param('eventId') eventId: string,
     @Body('email') email: string,
+    @Body('accessLevel') accessLevel?: StaffAccessLevel,
+    @Body('checkpointId') checkpointId?: string,
   ): Promise<{ success: boolean; data: EventStaffDto }> {
-    const data = await this.eventsService.addStaff(user, eventId, email);
+    const data = await this.eventsService.addStaff(
+      user,
+      eventId,
+      email,
+      accessLevel,
+      checkpointId,
+    );
     return { success: true, data };
   }
 
@@ -340,8 +377,9 @@ export class EventsController {
     @CurrentUser() user: UserSummaryDto,
     @Param('eventId') eventId: string,
     @Param('userId') targetUserId: string,
+    @Query('checkpointId') checkpointId?: string,
   ): Promise<{ success: boolean; message: string }> {
-    await this.eventsService.removeStaff(user, eventId, targetUserId);
+    await this.eventsService.removeStaff(user, eventId, targetUserId, checkpointId);
     return { success: true, message: 'Staff member removed successfully' };
   }
 

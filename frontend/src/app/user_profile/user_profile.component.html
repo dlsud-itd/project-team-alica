@@ -167,21 +167,6 @@
 
       <!-- Column 2: Account and Identification Information -->
       <main class="account-details-panel" id="account_details_panel">
-        @if (ticketProgress && ticketProgress.totalCount > 0) {
-          <div class="panel-card" id="event_passport_card">
-            <div class="panel-header">
-              <h2 class="panel-title">Event Passport</h2>
-              <span class="panel-sub">
-                Booths stamped at {{ ticketProgress.eventName }}
-              </span>
-            </div>
-            <app-stamp-card
-              [progress]="ticketProgress"
-              [stamps]="ticketProgress.stamps"
-            />
-          </div>
-        }
-
         <div class="panel-card" id="identity_details_card">
           <div class="panel-header">
             <h2 class="panel-title">Personal Account Details</h2>

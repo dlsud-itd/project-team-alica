@@ -28,7 +28,8 @@
   <!-- Main Content View (Responsive Website + Mobile Layout) -->
   @if (!isLoading() && event(); as ev) {
     <div class="event-details-container">
-      <!-- Breadcrumb / Header Row -->
+      <!-- Breadcrumb / Header Row (hidden in organizer preview) -->
+      @if (!preview()) {
       <nav class="event-breadcrumb-bar" aria-label="Breadcrumb">
         <button type="button" class="btn-breadcrumb-back" (click)="goBack()" aria-label="Back to all events">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="back-arrow-icon" aria-hidden="true">
@@ -42,6 +43,7 @@
 
         <span class="nav-event-title visually-hidden">{{ ev.title }}</span>
       </nav>
+      }
 
       <!-- Wide Hero Banner Section -->
       <section class="hero-banner-section" aria-label="Event Cover">
@@ -103,6 +105,49 @@
       <div class="event-layout-grid">
         <!-- Main Column (Left): About, Schedule, Speakers -->
         <main class="main-column">
+          <!-- Digital Stamp Card / Event Passport Section -->
+          @if (isPassportVisible() || userProgress()) {
+            <section class="details-section passport-section" id="event_passport_section">
+              <div class="section-badge-header">
+                <span class="section-eyebrow">DIGITAL STAMP CARD</span>
+                @if (userProgress()?.ticketCode) {
+                  <span class="passport-ticket-badge">Ticket #{{ userProgress()!.ticketCode }}</span>
+                }
+              </div>
+              <h2 class="section-title">Event Passport</h2>
+              <p class="passport-desc">
+                Collect stamps by visiting checkpoint booths across the venue during the event.
+              </p>
+
+              @if (userProgress(); as progress) {
+                <app-stamp-card
+                  [progress]="progress"
+                  [stamps]="progress.stamps"
+                  [compact]="!isPassportVisible()"
+                />
+              } @else if (progressLoading()) {
+                <div class="passport-loading-state">
+                  <div class="spinner-small" aria-hidden="true"></div>
+                  <span>Loading your digital stamp card...</span>
+                </div>
+              } @else if (!auth.isAuthenticated()) {
+                <div class="passport-empty-state">
+                  <p>Please log in to view your personalized event passport and booth stamps.</p>
+                  <a routerLink="/login" class="btn-login-prompt">Sign In</a>
+                </div>
+              } @else if (!isRegistered()) {
+                <div class="passport-empty-state">
+                  <p>You have not registered for this event yet. Claim your pass below to start collecting stamps!</p>
+                  <button type="button" class="btn-claim-prompt" (click)="openRsvpModal()">Claim Ticket Pass</button>
+                </div>
+              } @else {
+                <div class="passport-empty-state">
+                  <p>No booth stamps available for this event yet.</p>
+                </div>
+              }
+            </section>
+          }
+
           <!-- About Event Section -->
           <section class="details-section about-section">
             <h2 class="section-title">About Event</h2>
@@ -136,6 +181,7 @@
           </section>
 
           <!-- Schedule Timeline Section -->
+          @if (ev.schedule.length > 0) {
           <section class="details-section schedule-section">
             <div class="schedule-header-row">
               <h2 class="section-title">Schedule Timeline</h2>
@@ -168,40 +214,43 @@
               }
             </div>
           </section>
+          }
 
           <!-- Featured Speakers Section -->
-          <section class="details-section speakers-section">
-            <h2 class="section-title">Featured Speakers</h2>
+          @if (ev.speakers && ev.speakers.length > 0) {
+            <section class="details-section speakers-section">
+              <h2 class="section-title">Featured Speakers</h2>
 
-            <div class="speakers-grid">
-              @for (speaker of ev.speakers; track speaker.id) {
-                <article class="speaker-card">
-                  <div class="speaker-avatar-wrap">
-                    @if (speaker.avatarUrl) {
-                      <img
-                        [src]="speaker.avatarUrl"
-                        [alt]="speaker.name"
-                        class="speaker-avatar-img"
-                        loading="lazy"
-                      />
-                    } @else {
-                      <div class="speaker-avatar-fallback">
-                        {{ speaker.name.charAt(0) }}
-                      </div>
-                    }
-                  </div>
+              <div class="speakers-grid">
+                @for (speaker of ev.speakers; track speaker.id) {
+                  <article class="speaker-card">
+                    <div class="speaker-avatar-wrap">
+                      @if (speaker.avatarUrl) {
+                        <img
+                          [src]="speaker.avatarUrl"
+                          [alt]="speaker.name"
+                          class="speaker-avatar-img"
+                          loading="lazy"
+                        />
+                      } @else {
+                        <div class="speaker-avatar-fallback">
+                          {{ speaker.name.charAt(0) }}
+                        </div>
+                      }
+                    </div>
 
-                  <div class="speaker-info">
-                    <h3 class="speaker-name">{{ speaker.name }}</h3>
-                    <p class="speaker-role">{{ speaker.role }} · {{ speaker.company }}</p>
-                    @if (speaker.topic) {
-                      <p class="speaker-topic">Keynote: "{{ speaker.topic }}"</p>
-                    }
-                  </div>
-                </article>
-              }
-            </div>
-          </section>
+                    <div class="speaker-info">
+                      <h3 class="speaker-name">{{ speaker.name }}</h3>
+                      <p class="speaker-role">{{ speaker.role }} · {{ speaker.company }}</p>
+                      @if (speaker.topic) {
+                        <p class="speaker-topic">Keynote: "{{ speaker.topic }}"</p>
+                      }
+                    </div>
+                  </article>
+                }
+              </div>
+            </section>
+          }
         </main>
 
         <!-- Sidebar Column (Right on Desktop): Sticky RSVP & Info Card -->
@@ -253,13 +302,26 @@
 
             <!-- Primary Action Button in Sidebar -->
             <div class="sidebar-cta-wrap">
-              @if (isRegistered()) {
-                <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>Already Registered (Go to Pass)</span>
-                </a>
+              @if (preview()) {
+                <button type="button" class="btn-primary-cta btn-claim-pass" disabled title="Attendees register here">
+                  <span>RSVP for Event / Claim Pass</span>
+                </button>
+              } @else if (isRegistered()) {
+                @if (isPassportVisible()) {
+                  <div class="registered-status-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>Registered Attendee</span>
+                  </div>
+                } @else {
+                  <a [routerLink]="[]" [queryParams]="{ passport: 'true' }" class="btn-primary-cta btn-already-registered">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>View Ticket Pass</span>
+                  </a>
+                }
               } @else {
                 <button
                   type="button"
@@ -281,15 +343,25 @@
         </aside>
       </div>
 
-      <!-- Mobile Fixed Bottom Action Bar (visible on mobile screens only) -->
+      <!-- Mobile Fixed Bottom Action Bar (visible on mobile screens only; not in preview) -->
+      @if (!preview()) {
       <footer class="mobile-fixed-bottom-bar" aria-label="Mobile Action Bar">
         @if (isRegistered()) {
-          <a routerLink="/profile" class="btn-primary-cta btn-already-registered">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span>Already Registered (Go to Pass)</span>
-          </a>
+          @if (isPassportVisible()) {
+            <div class="registered-status-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Registered Attendee</span>
+            </div>
+          } @else {
+            <a [routerLink]="[]" [queryParams]="{ passport: 'true' }" class="btn-primary-cta btn-already-registered">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="cta-check-icon" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>View Ticket Pass</span>
+            </a>
+          }
         } @else {
           <button
             type="button"
@@ -300,6 +372,7 @@
           </button>
         }
       </footer>
+      }
     </div>
   }
 
@@ -403,7 +476,14 @@
             <!-- Student ID -->
             <div class="form-group">
               <label for="studentId" class="form-label">
-                <span>Student ID Number <span class="required-asterisk" aria-hidden="true">*</span></span>
+                <span>
+                  Student ID Number
+                  @if (ev.requireStudentId) {
+                    <span class="required-asterisk" aria-hidden="true">*</span>
+                  } @else {
+                    <span class="badge-optional">Optional</span>
+                  }
+                </span>
               </label>
               <input
                 id="studentId"

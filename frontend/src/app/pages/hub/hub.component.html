@@ -144,7 +144,7 @@
                   </svg>
                   <span>View Pass</span>
                 </button>
-                <a [routerLink]="['/profile', rsvp.ticketCode]" class="btn-secondary-link">Full Details</a>
+                <a [routerLink]="['/events', rsvp.eventSlug || rsvp.eventId]" [queryParams]="{ passport: 'true' }" class="btn-secondary-link">Full Details</a>
               </div>
             </article>
           }
@@ -335,21 +335,6 @@
         </div>
 
         <p class="modal-instruction">Present this pass at venue gates and session stations for instant check-in.</p>
-
-        @if (progressByTicket()[rsvp.ticketCode]; as progress) {
-          @if (progress.totalCount > 0) {
-            <div class="modal-progress">
-              @if (newStampId()) {
-                <p class="stamp-toast" role="status">New stamp collected!</p>
-              }
-              <app-stamp-card
-                [progress]="progress"
-                [stamps]="progress.stamps"
-                [highlightId]="newStampId()"
-              />
-            </div>
-          }
-        }
       </div>
 
       <div class="modal-footer">
@@ -359,144 +344,10 @@
   </div>
 }
 
-<!-- CREATE EVENT MODAL -->
+<!-- CREATE EVENT WIZARD -->
 @if (isCreateModalOpen()) {
-  <div class="modal-backdrop" (click)="closeCreateModal()">
-    <div class="modal-card modal-lg" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h3 class="modal-title">Create New Event</h3>
-        <button type="button" class="btn-close" (click)="closeCreateModal()" aria-label="Close dialog">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-
-      <form [formGroup]="eventForm" (ngSubmit)="onSubmitCreateEvent()">
-        <div class="modal-body">
-          @if (createEventError()) {
-            <div class="alert-error" role="alert">
-              {{ createEventError() }}
-            </div>
-          }
-
-          <!-- Event Visibility Picker -->
-          <div class="form-group">
-            <label class="form-label">Event Visibility</label>
-            <div class="visibility-options">
-              <label class="radio-card" [class.selected]="!eventForm.controls.is_private.value">
-                <input type="radio" [value]="false" formControlName="is_private" />
-                <div class="radio-card-content">
-                  <span class="radio-title">Public Event</span>
-                  <span class="radio-desc">Listed on the global Events page. Requires quick Admin review before appearing publicly.</span>
-                </div>
-              </label>
-
-              <label class="radio-card" [class.selected]="eventForm.controls.is_private.value">
-                <input type="radio" [value]="true" formControlName="is_private" />
-                <div class="radio-card-content">
-                  <span class="radio-title">Private Event</span>
-                  <span class="radio-desc">Immediately active. Unlisted from the global feed; attendees join via direct link or imported roster.</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="event-name" class="form-label">Event Title</label>
-            <input id="event-name" type="text" formControlName="name" class="form-input" placeholder="e.g. AI Builder Hackathon 2026" />
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="event-venue" class="form-label">Venue Location</label>
-              <input id="event-venue" type="text" formControlName="venue" class="form-input" placeholder="e.g. Ugnayang La Salle Gymnasium" />
-            </div>
-
-            <div class="form-group">
-              <label for="event-capacity" class="form-label">Attendee Capacity</label>
-              <input id="event-capacity" type="number" formControlName="capacity" class="form-input" min="1" />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="event-starts" class="form-label">Start Time</label>
-              <input id="event-starts" type="datetime-local" formControlName="starts_at" class="form-input" [min]="minStart" />
-            </div>
-
-            <div class="form-group">
-              <label for="event-ends" class="form-label">End Time</label>
-              <input id="event-ends" type="datetime-local" formControlName="ends_at" class="form-input" [min]="minStart" />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="event-desc" class="form-label">Event Description (Optional)</label>
-            <textarea id="event-desc" formControlName="description" class="form-textarea" rows="3" placeholder="Brief outline of the agenda, topics, and attendee instructions..."></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="hub-co-org-input" class="form-label">Co-Organizers (Optional)</label>
-            <div class="co-organizer-input-group">
-              <input
-                #hubCoOrgInput
-                id="hub-co-org-input"
-                type="email"
-                class="form-input"
-                placeholder="Enter co-organizer email (e.g. partner@alica.ph)"
-                (keydown.enter)="$event.preventDefault(); addCoOrganizerEmail(hubCoOrgInput)"
-              />
-              <button
-                type="button"
-                class="btn-add-co-organizer"
-                (click)="addCoOrganizerEmail(hubCoOrgInput)"
-              >
-                Add
-              </button>
-            </div>
-            @if (coOrganizerEmails().length > 0) {
-              <div class="co-organizer-chip-list">
-                @for (email of coOrganizerEmails(); track email; let i = $index) {
-                  <span class="co-organizer-chip">
-                    <span class="chip-label">{{ email }}</span>
-                    <button
-                      type="button"
-                      class="btn-chip-remove"
-                      (click)="removeCoOrganizerEmail(i)"
-                      [attr.aria-label]="'Remove ' + email"
-                    >
-                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
-                  </span>
-                }
-              </div>
-            }
-          </div>
-
-          <div class="checkbox-group">
-            <label class="checkbox-label">
-              <input type="checkbox" formControlName="allow_walk_ins" />
-              <span>Allow on-site walk-in registrations at entry turnstiles</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" (click)="closeCreateModal()">Cancel</button>
-          <button type="submit" class="btn-primary" [disabled]="isSubmittingEvent() || eventForm.invalid">
-            @if (isSubmittingEvent()) {
-              <span>Creating...</span>
-            } @else {
-              <span>Publish Event</span>
-            }
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <app-event-wizard
+    (close)="closeCreateModal()"
+    (saved)="onWizardSaved($event)"
+  ></app-event-wizard>
 }

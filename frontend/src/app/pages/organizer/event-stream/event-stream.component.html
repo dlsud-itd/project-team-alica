@@ -1,0 +1,101 @@
+<div class="overview-dashboard">
+  @if (eventId()) {
+    <app-event-stats [eventId]="eventId()" />
+  }
+
+  <article class="telemetry-card activity-card">
+    <header class="telemetry-header activity-header">
+      <div>
+        <h2 class="telemetry-title">CHECK-IN ACTIVITY STREAM</h2>
+        <p class="telemetry-subtitle">Every scan at every station, newest first. Refreshes every 15 seconds.</p>
+      </div>
+      <button type="button" class="btn-export-csv" (click)="exportCsv()" [disabled]="exporting()">
+        <svg class="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>{{ exporting() ? 'Exporting…' : 'Export all scans (CSV)' }}</span>
+      </button>
+    </header>
+
+    <div class="stream-filters">
+      <label class="stream-filter">
+        <span>Station</span>
+        <select class="sub-input" [value]="stationFilter()" (change)="setStation($any($event.target).value)">
+          <option value="">All stations</option>
+          @for (opt of stationOptions(); track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="stream-filter">
+        <span>Result</span>
+        <select class="sub-input" [value]="statusFilter()" (change)="setStatus($any($event.target).value)">
+          @for (opt of statusOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <span class="stream-count">{{ scans().length }} {{ scans().length === 1 ? 'scan' : 'scans' }} shown</span>
+    </div>
+
+    @if (error()) {
+      <p class="sub-error" role="alert">{{ error() }}</p>
+    }
+
+    <div class="stream-table-wrapper">
+      <table class="stream-table">
+        <thead>
+          <tr>
+            <th scope="col">ATTENDEE</th>
+            <th scope="col">PASS CODE</th>
+            <th scope="col">STATION</th>
+            <th scope="col">TIME</th>
+            <th scope="col">STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading() && scans().length === 0) {
+            <tr><td colspan="5" class="empty-stream-cell"><span>Loading scans…</span></td></tr>
+          } @else if (scans().length === 0) {
+            <tr>
+              <td colspan="5" class="empty-stream-cell">
+                <span>No scans match these filters yet.</span>
+              </td>
+            </tr>
+          } @else {
+            @for (scan of scans(); track scan.id) {
+              <tr class="stream-row">
+                <td class="td-attendee">
+                  <strong class="attendee-name">{{ scan.attendeeName }}</strong>
+                  <span class="attendee-org">{{ scan.affiliation }}</span>
+                </td>
+                <td class="td-code"><code class="pass-code">{{ scan.ticketCode }}</code></td>
+                <td class="td-station"><span class="station-text">{{ scan.stationName }}</span></td>
+                <td class="td-time"><span class="time-text">{{ scan.scannedAt | date: 'MMM d, hh:mm:ss a' }}</span></td>
+                <td class="td-status">
+                  <span
+                    class="stream-status-badge"
+                    [class.status-duplicate]="scan.status === 'DUPLICATE'"
+                    [class.status-success]="scan.status === 'SUCCESS'"
+                    [class.status-invalid]="scan.status === 'INVALID_TICKET'"
+                    [class.status-warning]="scan.status === 'WARNING_NO_MAIN_ENTRY'"
+                  >
+                    {{ scan.statusLabel }}
+                  </span>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (canLoadMore()) {
+      <div class="stream-more">
+        <button type="button" class="btn-sub-cancel" (click)="loadMore()">Load older scans</button>
+      </div>
+    }
+  </article>
+</div>

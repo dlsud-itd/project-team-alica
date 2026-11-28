@@ -96,6 +96,10 @@ describe('EventsService', () => {
       },
       checkpoint: {
         findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockImplementation(({ data }) =>
+          Promise.resolve({ id: `chk-${data.name.toLowerCase().replace(/\s+/g, '-')}`, ...data }),
+        ),
       },
       attendanceLog: {
         count: vi.fn().mockResolvedValue(0),
@@ -104,6 +108,8 @@ describe('EventsService', () => {
       checkpointStaff: {
         findFirst: vi.fn().mockResolvedValue(null),
         findMany: vi.fn().mockResolvedValue([]),
+        upsert: vi.fn(),
+        updateMany: vi.fn(),
       },
       eventStaff: {
         findMany: vi.fn().mockResolvedValue([]),
@@ -120,6 +126,7 @@ describe('EventsService', () => {
     invitationMailer = {
       assertConfigured: vi.fn().mockResolvedValue(undefined),
       sendInvitation: vi.fn().mockResolvedValue(undefined),
+      sendOrganizerInvitation: vi.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -516,10 +523,10 @@ describe('EventsService', () => {
     });
 
     const { data } = prisma.event.update.mock.calls[0][0];
-    expect(data.category).toBe('WORKSHOP');
+    expect(data.category).toBe('Workshop');
     expect(data.bannerImageUrl).toBe('https://example.com/banner.png');
     expect(data.schedule).toEqual(scheduleData);
-    expect(res.category).toBe('WORKSHOP');
+    expect(res.category).toBe('Workshop');
     expect(res.banner_image_url).toBe('https://example.com/banner.png');
     expect(res.schedule).toEqual(scheduleData);
   });
@@ -670,6 +677,50 @@ describe('EventsService', () => {
       const checkpoints = await service.getEventCheckpoints(dynamicOrganizer, 'evt-1');
       expect(checkpoints).toHaveLength(2);
       expect(checkpoints[1].parentId).toBe('chk-booth-1');
+    });
+
+    it('lists scans with station/status filters and a capped limit', async () => {
+      prisma.event.findFirst.mockResolvedValue(dbEvent({ staff: [] }));
+      prisma.attendanceLog.findMany.mockResolvedValue([
+        {
+          id: 'log-1',
+          ticketCode: 'CHK-1',
+          checkpointId: 'chk-booth-1',
+          scannedAt: new Date('2026-09-24T08:00:00Z'),
+          scanResult: 'DUPLICATE',
+          checkpoint: { name: 'AWS Booth' },
+          ticket: { firstName: 'Alex', lastName: 'Martin', affiliation: null },
+        },
+      ]);
+
+      const scans = await service.listScans(dynamicOrganizer, 'evt-1', {
+        checkpointId: 'chk-booth-1',
+        status: 'DUPLICATE',
+        limit: 9999,
+      });
+
+      expect(prisma.attendanceLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            checkpoint: { eventId: 'evt-1' },
+            checkpointId: 'chk-booth-1',
+            scanResult: 'DUPLICATE',
+          },
+          take: 500,
+        }),
+      );
+      expect(scans[0]).toMatchObject({
+        stationId: 'chk-booth-1',
+        stationName: 'AWS Booth',
+        attendeeName: 'Alex Martin',
+        statusLabel: 'Duplicate',
+      });
+
+      await service.listScans(dynamicOrganizer, 'evt-1', { status: 'BOGUS' });
+      expect(prisma.attendanceLog.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({ where: { checkpoint: { eventId: 'evt-1' } }, take: 100 }),
+      );
+      await expect(service.listScans(unrelatedUser, 'evt-1')).rejects.toThrow(ForbiddenException);
     });
 
     it('allows assigned USER-role staff and rejects unrelated USERs', async () => {
@@ -955,6 +1006,207 @@ describe('EventsService', () => {
       await service.removeOrganizer(dynamicOrganizer, 'evt-1', 'usr-new-co');
       expect(prisma.eventOrganizer.deleteMany).toHaveBeenCalledWith({
         where: { eventId: 'evt-1', userId: 'usr-new-co' },
+      });
+    });
+
+    it('provisions a guest organizer account and dispatches setup email when email is not found during addOrganizer', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ id: 'evt-1', title: 'Campus Hackathon', organizerId: 'usr-org' }),
+      );
+      prisma.user.findUnique.mockResolvedValueOnce(null);
+      prisma.user.create.mockResolvedValueOnce({
+        id: 'usr-guest-co',
+        email: 'guestco@example.com',
+        fullName: 'guestco',
+        affiliation: null,
+      });
+      prisma.eventOrganizer.upsert.mockResolvedValueOnce({
+        id: 'eo-guest',
+        user: {
+          id: 'usr-guest-co',
+          email: 'guestco@example.com',
+          fullName: 'guestco',
+          affiliation: null,
+        },
+        createdAt: new Date(),
+        assignedAt: new Date(),
+      });
+
+      const added = await service.addOrganizer(dynamicOrganizer, 'evt-1', 'guestco@example.com');
+      expect(added.email).toBe('guestco@example.com');
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            email: 'guestco@example.com',
+            role: 'ORGANIZER',
+            mustChangePassword: true,
+          }),
+        }),
+      );
+      expect(invitationMailer.sendOrganizerInvitation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventTitle: 'Campus Hackathon',
+          email: 'guestco@example.com',
+        }),
+      );
+    });
+
+    it('creates an event with wizard entrances, booths, and staff assignments', async () => {
+      const tomorrow = new Date(Date.now() + 86400000).toISOString();
+      const nextDay = new Date(Date.now() + 172800000).toISOString();
+
+      prisma.event.create.mockResolvedValue(
+        dbEvent({ id: 'evt-wizard', title: 'Expo Wizard Event' }),
+      );
+      prisma.event.findUnique.mockImplementation(({ where }) => {
+        if (where?.slug) return Promise.resolve(null);
+        return Promise.resolve(dbEvent({ id: 'evt-wizard', title: 'Expo Wizard Event' }));
+      });
+      prisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'usr-all-staff',
+          email: 'allstaff@checkpoint.ph',
+        })
+        .mockResolvedValueOnce({
+          id: 'usr-booth-staff',
+          email: 'boothstaff@checkpoint.ph',
+        });
+
+      const result = await service.create(ORGANIZER, {
+        name: 'Expo Wizard Event',
+        venue: 'Grand Arena',
+        starts_at: tomorrow,
+        ends_at: nextDay,
+        capacity: 500,
+        category: 'Technology',
+        tags: ['Innovation', 'Robotics'],
+        entrances: [
+          { name: 'Main Gate East', location: 'East Wing', allowMultipleScans: false },
+        ],
+        booths: [
+          {
+            name: 'AI Robotics Booth',
+            location: 'Booth 101',
+            allowMultipleScans: true,
+            requireMainEntry: true,
+          },
+        ],
+        staffAssignments: [
+          { email: 'allstaff@checkpoint.ph', accessLevel: 'ALL_SCANNERS' },
+          {
+            email: 'boothstaff@checkpoint.ph',
+            accessLevel: 'SPECIFIC_BOOTH',
+            checkpointName: 'AI Robotics Booth',
+          },
+        ],
+      });
+
+      expect(result.name).toBe('Expo Wizard Event');
+      expect(prisma.checkpoint.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'Main Gate East',
+            type: 'MAIN_ENTRY',
+          }),
+        }),
+      );
+      expect(prisma.checkpoint.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'AI Robotics Booth',
+            type: 'BOOTH',
+          }),
+        }),
+      );
+      expect(prisma.eventStaff.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { eventId_userId: { eventId: 'evt-wizard', userId: 'usr-all-staff' } },
+        }),
+      );
+      expect(prisma.checkpointStaff.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            checkpointId_userId: {
+              checkpointId: 'chk-ai-robotics-booth',
+              userId: 'usr-booth-staff',
+            },
+          },
+        }),
+      );
+    });
+
+    it('manages staff access levels for specific booth vs all scanners', async () => {
+      prisma.event.findFirst.mockResolvedValue(
+        dbEvent({ id: 'evt-1', organizerId: 'usr-org' }),
+      );
+      prisma.eventStaff.findMany.mockResolvedValue([
+        {
+          id: 'es-1',
+          assignedAt: new Date(),
+          user: {
+            id: 'usr-all',
+            email: 'all@checkpoint.ph',
+            fullName: 'General Staff',
+            affiliation: 'Ops',
+          },
+        },
+      ]);
+      prisma.checkpointStaff.findMany.mockResolvedValue([
+        {
+          id: 'cs-1',
+          assignedAt: new Date(),
+          checkpoint: { id: 'chk-b1', name: 'Booth Alpha' },
+          user: {
+            id: 'usr-specific',
+            email: 'specific@checkpoint.ph',
+            fullName: 'Booth Operator',
+            affiliation: 'Sponsor',
+          },
+        },
+      ]);
+
+      const staffList = await service.getStaff(ORGANIZER, 'evt-1');
+      expect(staffList).toHaveLength(2);
+      expect(staffList[0].accessLevel).toBe('ALL_SCANNERS');
+      expect(staffList[1].accessLevel).toBe('SPECIFIC_BOOTH');
+      expect(staffList[1].checkpointName).toBe('Booth Alpha');
+
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'usr-specific-2',
+        email: 'booth2@checkpoint.ph',
+        fullName: 'Booth 2 Operator',
+        affiliation: 'Exhibitor',
+      });
+      prisma.checkpoint.findFirst.mockResolvedValue({
+        id: 'chk-b1',
+        name: 'Booth Alpha',
+        eventId: 'evt-1',
+      });
+      prisma.checkpointStaff.upsert.mockResolvedValue({
+        id: 'cs-new',
+        assignedAt: new Date(),
+        user: {
+          id: 'usr-specific-2',
+          email: 'booth2@checkpoint.ph',
+          fullName: 'Booth 2 Operator',
+          affiliation: 'Exhibitor',
+        },
+      });
+
+      const added = await service.addStaff(
+        ORGANIZER,
+        'evt-1',
+        'booth2@checkpoint.ph',
+        'SPECIFIC_BOOTH',
+        'chk-b1',
+      );
+      expect(added.accessLevel).toBe('SPECIFIC_BOOTH');
+      expect(added.checkpointName).toBe('Booth Alpha');
+
+      await service.removeStaff(ORGANIZER, 'evt-1', 'usr-specific-2', 'chk-b1');
+      expect(prisma.checkpointStaff.updateMany).toHaveBeenCalledWith({
+        where: { checkpointId: 'chk-b1', userId: 'usr-specific-2' },
+        data: { isActive: false },
       });
     });
   });

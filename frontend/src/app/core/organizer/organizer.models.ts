@@ -14,8 +14,10 @@ export interface EventScheduleItem {
   time: string;
   title: string;
   description: string;
-  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BOOTH' | 'GATE' | string;
+  /** BOOTH and GATE are legacy values from before the program was split from stations. */
+  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BREAK' | 'OTHER' | 'BOOTH' | 'GATE' | string;
   location?: string;
+  /** Optional station where attendance for this program item is scanned. */
   checkpointId?: string;
 }
 
@@ -33,18 +35,21 @@ export interface OrganizerEvent {
   status: EventStatus;
   description: string;
   allow_walk_ins: boolean;
+  require_student_id?: boolean;
   /** New events stay `Pending` (hidden from attendees) until an admin reviews them. */
   approval_status: ApprovalStatus;
   /** Admin feedback, set when an event is rejected. */
   review_notes: string | null;
   reviewed_at: string | null;
   submitted_at: string;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
   category_label?: string;
+  tags?: string[];
   checkpoints_count?: number;
   admitted_count?: number;
   is_private?: boolean;
   banner_image_url?: string | null;
+  speakers?: WizardSpeaker[];
   schedule?: EventScheduleItem[];
   organizers?: EventOrganizer[];
 }
@@ -77,6 +82,8 @@ export interface RecentScanItem {
   attendeeName: string;
   affiliation: string;
   ticketCode: string;
+  /** Checkpoint id (present on API responses since the Stream tab). */
+  stationId?: string;
   stationName: string;
   scannedAt: string;
   status: string;
@@ -131,6 +138,8 @@ export interface OrganizerCandidate {
   affiliation: string | null;
 }
 
+export type StaffAccessLevel = 'ALL_SCANNERS' | 'SPECIFIC_BOOTH';
+
 export interface EventStaff {
   id: string;
   userId: string;
@@ -138,6 +147,39 @@ export interface EventStaff {
   fullName: string;
   affiliation: string | null;
   assignedAt: string;
+  accessLevel?: StaffAccessLevel;
+  checkpointId?: string | null;
+  checkpointName?: string | null;
+}
+
+export interface WizardEntrance {
+  id?: string;
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+}
+
+export interface WizardBooth {
+  id?: string;
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+}
+
+export interface WizardSpeaker {
+  id?: string;
+  name: string;
+  role?: string;
+  company?: string;
+  topic?: string;
+  avatarUrl?: string;
+}
+
+export interface WizardStaffAssignment {
+  email: string;
+  accessLevel: StaffAccessLevel;
+  checkpointName?: string;
 }
 
 export interface RecordScanResponse {
@@ -166,8 +208,10 @@ type EditableEventFields =
   | 'ends_at'
   | 'capacity'
   | 'allow_walk_ins'
+  | 'require_student_id'
   | 'is_private'
   | 'category'
+  | 'tags'
   | 'banner_image_url';
 
 export type OrganizerEventChanges = Partial<Pick<OrganizerEvent, EditableEventFields>> & {
@@ -180,6 +224,10 @@ export type NewOrganizerEvent = Pick<OrganizerEvent, 'name' | 'venue' | 'starts_
     capacity: number;
     schedule?: EventScheduleItem[];
     organizerEmails?: string[];
+    entrances?: WizardEntrance[];
+    booths?: WizardBooth[];
+    staffAssignments?: WizardStaffAssignment[];
+    speakers?: WizardSpeaker[];
   };
 
 export interface EventRegistrant {

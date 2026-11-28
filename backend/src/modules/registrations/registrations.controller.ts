@@ -71,6 +71,19 @@ export class RegistrationsController {
     };
   }
 
+  @Get('event/:eventIdOrSlug/progress')
+  @UseGuards(JwtAuthGuard)
+  async getMyProgressForEvent(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('eventIdOrSlug') eventIdOrSlug: string,
+  ): Promise<{ success: boolean; data: TicketProgressDto | null }> {
+    const data = await this.service.getMyProgressForEvent(user, eventIdOrSlug);
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get(':ticketCode/progress')
   @UseGuards(JwtAuthGuard)
   async getProgress(

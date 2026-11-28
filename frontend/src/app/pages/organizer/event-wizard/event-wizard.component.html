@@ -1,0 +1,1250 @@
+<div
+  class="wizard-backdrop"
+  (click)="onBackdropClick($event)"
+  (keydown.escape)="close.emit()"
+  tabindex="-1"
+>
+  <section
+    class="wizard-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="wizard-title"
+  >
+    <!-- Wizard Header with Stepper -->
+    <header class="wizard-header">
+      <div class="header-top">
+        <div>
+          <h2 id="wizard-title">Create Event Wizard</h2>
+          <p class="wizard-subtitle">Follow the steps below to configure your event, entry gates, booths, and scanner staff.</p>
+        </div>
+        <button
+          type="button"
+          class="dialog-close"
+          aria-label="Close dialog"
+          (click)="close.emit()"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Stepper Progress Bar -->
+      <nav class="stepper-nav" aria-label="Creation wizard steps">
+        <ol class="stepper-list">
+          <li class="step-item" [class.active]="currentStep() === 1" [class.completed]="currentStep() > 1">
+            <button type="button" class="step-btn" (click)="goToStep(1)">
+              <span class="step-number">
+                @if (currentStep() > 1) {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                } @else {
+                  1
+                }
+              </span>
+              <span class="step-label">Details</span>
+            </button>
+          </li>
+          <li class="step-item" [class.active]="currentStep() === 2" [class.completed]="currentStep() > 2">
+            <button type="button" class="step-btn" (click)="goToStep(2)">
+              <span class="step-number">
+                @if (currentStep() > 2) {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                } @else {
+                  2
+                }
+              </span>
+              <span class="step-label">Entrances</span>
+            </button>
+          </li>
+          <li class="step-item" [class.active]="currentStep() === 3" [class.completed]="currentStep() > 3">
+            <button type="button" class="step-btn" (click)="goToStep(3)">
+              <span class="step-number">
+                @if (currentStep() > 3) {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                } @else {
+                  3
+                }
+              </span>
+              <span class="step-label">Booths</span>
+            </button>
+          </li>
+          <li class="step-item" [class.active]="currentStep() === 4" [class.completed]="currentStep() > 4">
+            <button type="button" class="step-btn" (click)="goToStep(4)">
+              <span class="step-number">
+                @if (currentStep() > 4) {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                } @else {
+                  4
+                }
+              </span>
+              <span class="step-label">Staffing</span>
+            </button>
+          </li>
+          <li class="step-item" [class.active]="currentStep() === 5">
+            <button type="button" class="step-btn" (click)="goToStep(5)">
+              <span class="step-number">5</span>
+              <span class="step-label">Review</span>
+            </button>
+          </li>
+        </ol>
+      </nav>
+    </header>
+
+    <!-- Error Alert Banner -->
+    @if (errorMessage()) {
+      <div class="wizard-alert" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>{{ errorMessage() }}</span>
+      </div>
+    }
+
+    <!-- Wizard Body -->
+    <div class="wizard-body">
+      <!-- STEP 1: Basic Details -->
+      @if (currentStep() === 1) {
+        <form [formGroup]="detailsForm" class="step-content">
+          <div class="section-lead">
+            <h3>Event Information</h3>
+            <p>Specify the general parameters, timing, and venue for this event.</p>
+          </div>
+
+          <!-- Event Visibility Picker -->
+          <div class="form-group span-full">
+            <span class="field-label">Event Visibility</span>
+            <div class="visibility-options">
+              <label class="radio-card" [class.selected]="!isPrivateEvent()">
+                <input type="radio" [value]="false" formControlName="is_private" />
+                <div class="radio-card-content">
+                  <span class="radio-title">Public Event</span>
+                  <span class="radio-desc">Listed on the global Events page. Requires quick Admin review before appearing publicly.</span>
+                </div>
+              </label>
+
+              <label class="radio-card" [class.selected]="isPrivateEvent()">
+                <input type="radio" [value]="true" formControlName="is_private" />
+                <div class="radio-card-content">
+                  <span class="radio-title">Private Event</span>
+                  <span class="radio-desc">Immediately active. Unlisted from the global feed; attendees join via direct link or imported roster.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="wizard-event-name">Event Name *</label>
+            <input
+              id="wizard-event-name"
+              type="text"
+              formControlName="name"
+              placeholder="e.g. DLSU-D Technology Summit 2026"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="wizard-event-venue">Venue / Location *</label>
+            <input
+              id="wizard-event-venue"
+              type="text"
+              formControlName="venue"
+              placeholder="e.g. Ugnayan Coliseum / Grand Atrium"
+            />
+          </div>
+
+          <div class="form-group span-full">
+            <app-category-tag-selector
+              [category]="detailsForm.controls.category.value"
+              [tags]="detailsForm.controls.tags.value"
+              (categoryChange)="detailsForm.controls.category.setValue($event)"
+              (tagsChange)="detailsForm.controls.tags.setValue($event)"
+            ></app-category-tag-selector>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="wizard-starts-at">Starts At *</label>
+              <input
+                id="wizard-starts-at"
+                type="datetime-local"
+                formControlName="starts_at"
+                [min]="minStart"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="wizard-ends-at">Ends At *</label>
+              <input
+                id="wizard-ends-at"
+                type="datetime-local"
+                formControlName="ends_at"
+                [min]="detailsForm.get('starts_at')?.value || minStart"
+              />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="wizard-capacity">Total Capacity *</label>
+              <input
+                id="wizard-capacity"
+                type="number"
+                min="1"
+                formControlName="capacity"
+                placeholder="e.g. 500"
+              />
+            </div>
+
+            <div class="form-group">
+              <span class="field-label">Walk-in Policy</span>
+              <label class="checkbox-card">
+                <input type="checkbox" formControlName="allow_walk_ins" class="custom-checkbox" />
+                <span class="checkbox-text">Allow Walk-in Registrations</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group span-full">
+            <span class="field-label">Registration Requirements</span>
+            <label class="checkbox-card">
+              <input type="checkbox" formControlName="require_student_id" class="custom-checkbox" />
+              <span class="checkbox-text">Require a student ID to register for this event</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="wizard-description">Description</label>
+            <textarea
+              id="wizard-description"
+              rows="3"
+              formControlName="description"
+              placeholder="Brief overview of themes, agenda, or student tracks..."
+            ></textarea>
+          </div>
+
+          <!-- Event Cover Image -->
+          <div class="form-group span-full">
+            <span class="field-label">Event Cover Image (Optional)</span>
+            <p class="field-hint">Upload a prominent cover banner for attendee discovery and pass headers (PNG, JPG, or WebP, up to 2MB).</p>
+
+            @if (imageError()) {
+              <div class="builder-error">{{ imageError() }}</div>
+            }
+
+            <div class="image-upload-wrapper">
+              @if (bannerImageUrl()) {
+                <div class="image-preview-container">
+                  <img [src]="bannerImageUrl()" alt="Event Cover Banner Preview" class="cover-image-preview" />
+                  <div class="image-actions-overlay">
+                    <label class="btn-change-image" for="wizard-banner-file-input">
+                      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      <span>Replace Image</span>
+                    </label>
+                    <button type="button" class="btn-remove-image" (click)="removeBannerImage()" aria-label="Remove cover image">
+                      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <label for="wizard-banner-file-input" class="image-dropzone" tabindex="0">
+                  <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                  <span class="dropzone-title">Upload event banner image</span>
+                  <span class="dropzone-hint">PNG, JPG, or WebP up to 2MB (Recommended ratio 16:9)</span>
+                </label>
+              }
+
+              <input
+                id="wizard-banner-file-input"
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                (change)="onBannerSelected($event)"
+                style="display: none;"
+              />
+            </div>
+          </div>
+
+          <div class="form-group co-organizer-autocomplete-group">
+            <label for="wizard-co-org-input">Co-Organizers (Optional)</label>
+            <p class="field-hint">Search existing users by name or enter an email to invite external collaborators.</p>
+            <div class="input-action-group relative-autocomplete">
+              <div class="input-with-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-search-icon" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                  #coOrgInput
+                  id="wizard-co-org-input"
+                  type="text"
+                  [value]="coOrgInputText()"
+                  (input)="onCoOrgInput(coOrgInput.value)"
+                  (focus)="onCoOrgFocus()"
+                  (blur)="onCoOrgBlur()"
+                  placeholder="Search by name or email (e.g. userinsystem@gmail.com)"
+                  (keydown.enter)="$event.preventDefault(); addCoOrganizerEmail(coOrgInput)"
+                  (keydown.escape)="showCoOrgDropdown.set(false)"
+                  autocomplete="off"
+                />
+              </div>
+              <button
+                type="button"
+                class="btn-action-add"
+                (click)="addCoOrganizerEmail(coOrgInput)"
+              >
+                Add
+              </button>
+
+              <!-- Autocomplete Dropdown Menu -->
+              @if (showCoOrgDropdown()) {
+                <div class="co-org-dropdown" (mousedown)="$event.preventDefault()">
+                  @if (isSearchingCoOrg()) {
+                    <div class="dropdown-state-loading">
+                      <span class="spinner-inline" aria-hidden="true"></span>
+                      <span>Searching directory…</span>
+                    </div>
+                  } @else if (coOrgCandidates().length > 0) {
+                    <div class="dropdown-section-header">Matched Registered Users</div>
+                    <ul class="candidate-list" role="listbox">
+                      @for (candidate of coOrgCandidates(); track candidate.id) {
+                        <li
+                          class="candidate-item"
+                          role="option"
+                          (click)="selectCandidate(candidate)"
+                        >
+                          <div class="candidate-avatar">
+                            {{ candidate.fullName.charAt(0).toUpperCase() }}
+                          </div>
+                          <div class="candidate-info">
+                            <strong class="candidate-name">{{ candidate.fullName }}</strong>
+                            <span class="candidate-email">{{ candidate.email }}</span>
+                            @if (candidate.affiliation) {
+                              <span class="candidate-affiliation">{{ candidate.affiliation }}</span>
+                            }
+                          </div>
+                          <span class="candidate-badge">Registered</span>
+                        </li>
+                      }
+                    </ul>
+                  } @else if (coOrgInputText().trim().length >= 2) {
+                    <div class="dropdown-not-found">
+                      <div class="not-found-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="not-found-icon" aria-hidden="true">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                          <circle cx="8.5" cy="7" r="4"></circle>
+                          <line x1="20" y1="8" x2="20" y2="14"></line>
+                          <line x1="23" y1="11" x2="17" y2="11"></line>
+                        </svg>
+                        <strong>User not found in system</strong>
+                      </div>
+                      @if (isEmailFormat(coOrgInputText())) {
+                        <p class="not-found-desc">
+                          <strong>{{ coOrgInputText().trim().toLowerCase() }}</strong> will be provisioned as a guest co-organizer and sent a password setup invitation upon creation.
+                        </p>
+                        <button
+                          type="button"
+                          class="btn-dropdown-invite"
+                          (click)="addCoOrganizerEmail(coOrgInput)"
+                        >
+                          Invite as Guest Co-Organizer
+                        </button>
+                      } @else {
+                        <p class="not-found-desc">
+                          Enter their full email address (e.g. <code>{{ coOrgInputText().trim().toLowerCase() }}&#64;gmail.com</code>) to send a guest account password setup invitation.
+                        </p>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            @if (coOrganizerEmails().length > 0) {
+              <div class="co-organizer-chip-list">
+                @for (email of coOrganizerEmails(); track email; let i = $index) {
+                  <span class="co-organizer-pill">
+                    <span class="pill-info">
+                      @if (coOrganizerMetadata()[email]?.fullName) {
+                        <strong class="pill-name">{{ coOrganizerMetadata()[email]?.fullName }}</strong>
+                      }
+                      <span class="pill-email">{{ email }}</span>
+                    </span>
+                    @if (coOrganizerMetadata()[email]?.isRegistered) {
+                      <span class="status-tag tag-registered">Registered</span>
+                    } @else {
+                      <span class="status-tag tag-guest">Guest Invite</span>
+                    }
+                    <button
+                      type="button"
+                      class="btn-pill-remove"
+                      (click)="removeCoOrganizerEmail(i)"
+                      [attr.aria-label]="'Remove ' + email"
+                    >
+                      ×
+                    </button>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Featured Speakers Section -->
+          <div class="form-group span-full speaker-builder-section">
+            <span class="field-label">Featured Speakers (Optional)</span>
+            <p class="field-hint">Add keynote speakers, guest presenters, or panelists to highlight on the public event page.</p>
+
+            <div class="speaker-builder-card">
+              @if (speakerError()) {
+                <div class="builder-error">{{ speakerError() }}</div>
+              }
+              <div class="builder-grid">
+                <div class="form-group">
+                  <label for="wizard-speaker-name">Speaker Name *</label>
+                  <input
+                    id="wizard-speaker-name"
+                    type="text"
+                    [value]="speakerName()"
+                    (input)="speakerName.set($any($event.target).value)"
+                    placeholder="e.g. Dr. Maria Santos"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="wizard-speaker-role">Role / Title</label>
+                  <input
+                    id="wizard-speaker-role"
+                    type="text"
+                    [value]="speakerRole()"
+                    (input)="speakerRole.set($any($event.target).value)"
+                    placeholder="e.g. Keynote Lead / AI Researcher"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+              </div>
+              <div class="builder-grid">
+                <div class="form-group">
+                  <label for="wizard-speaker-company">Organization / Affiliation</label>
+                  <input
+                    id="wizard-speaker-company"
+                    type="text"
+                    [value]="speakerCompany()"
+                    (input)="speakerCompany.set($any($event.target).value)"
+                    placeholder="e.g. Department of Computer Science"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="wizard-speaker-topic">Keynote Topic / Session</label>
+                  <input
+                    id="wizard-speaker-topic"
+                    type="text"
+                    [value]="speakerTopic()"
+                    (input)="speakerTopic.set($any($event.target).value)"
+                    placeholder="e.g. Navigating Frontiers of Machine Learning"
+                    (keydown.enter)="$event.preventDefault(); addSpeaker()"
+                  />
+                </div>
+              </div>
+              <div class="builder-action-row">
+                <button type="button" class="btn-builder-add" (click)="addSpeaker()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Add Speaker</span>
+                </button>
+              </div>
+            </div>
+
+            @if (speakers().length > 0) {
+              <div class="speakers-list">
+                @for (speaker of speakers(); track speaker.id; let i = $index) {
+                  <div class="speaker-card-pill">
+                    <div class="speaker-avatar-circle">
+                      {{ speaker.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="speaker-pill-details">
+                      <strong class="speaker-pill-name">{{ speaker.name }}</strong>
+                      <div class="speaker-pill-meta">
+                        @if (speaker.role) {
+                          <span class="speaker-meta-item">{{ speaker.role }}</span>
+                        }
+                        @if (speaker.company) {
+                          <span class="speaker-meta-item">• {{ speaker.company }}</span>
+                        }
+                      </div>
+                      @if (speaker.topic) {
+                        <div class="speaker-pill-topic">
+                          <em>Keynote: "{{ speaker.topic }}"</em>
+                        </div>
+                      }
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-speaker-remove"
+                      (click)="removeSpeaker(i)"
+                      [attr.aria-label]="'Remove ' + speaker.name"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </form>
+      }
+
+      <!-- STEP 2: Entrances & Gates -->
+      @if (currentStep() === 2) {
+        <div class="step-content">
+          <div class="section-lead">
+            <div class="lead-header">
+              <div>
+                <h3>Entrances &amp; Admission Gates</h3>
+                <p>Entry checkpoints where attendees scan their tickets or face ID upon arrival.</p>
+              </div>
+              <button
+                type="button"
+                class="btn-quick-default"
+                (click)="addDefaultEntrance()"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14"></path>
+                </svg>
+                <span>Add Default Main Entrance</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Add Entrance Inline Form -->
+          <div class="builder-card">
+            <div class="builder-card-title">Add Entrance Gate</div>
+            @if (entranceError()) {
+              <div class="builder-error">{{ entranceError() }}</div>
+            }
+            <div class="builder-grid">
+              <div class="form-group">
+                <label for="entrance-name-input">Gate / Entrance Name *</label>
+                <input
+                  id="entrance-name-input"
+                  type="text"
+                  [value]="entranceName()"
+                  (input)="entranceName.set($any($event.target).value)"
+                  placeholder="e.g. Main Entrance - Gate 1"
+                />
+              </div>
+              <div class="form-group">
+                <label for="entrance-loc-input">Location / Gate Area</label>
+                <input
+                  id="entrance-loc-input"
+                  type="text"
+                  [value]="entranceLocation()"
+                  (input)="entranceLocation.set($any($event.target).value)"
+                  placeholder="e.g. Ground Floor Main Turnstiles"
+                />
+              </div>
+            </div>
+            <div class="builder-actions-row">
+              <label class="checkbox-card small">
+                <input
+                  type="checkbox"
+                  [checked]="entranceAllowMultiScan()"
+                  (change)="entranceAllowMultiScan.set($any($event.target).checked)"
+                  class="custom-checkbox"
+                />
+                <span class="checkbox-text">Allow Multiple Entry Scans (Re-entry)</span>
+              </label>
+              <button type="button" class="btn-builder-add" (click)="addEntrance()">
+                Add Entrance
+              </button>
+            </div>
+          </div>
+
+          <!-- List of Configured Entrances -->
+          <div class="configured-list">
+            <h4 class="list-heading">Configured Entrances ({{ entrances().length }})</h4>
+            @if (entrances().length === 0) {
+              <div class="empty-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <p>No entrance gates added yet. Click "Add Default Main Entrance" above or create custom entry doors.</p>
+              </div>
+            } @else {
+              <div class="items-grid">
+                @for (entrance of entrances(); track entrance.name; let i = $index) {
+                  <div class="item-card">
+                    <div class="item-info">
+                      <div class="item-primary-row">
+                        <span class="item-type-tag">Entrance Gate</span>
+                        <strong class="item-name">{{ entrance.name }}</strong>
+                      </div>
+                      <div class="item-secondary-row">
+                        <span class="item-loc">{{ entrance.location || 'Location not specified' }}</span>
+                        <span class="item-rule">
+                          {{ entrance.allowMultipleScans ? 'Re-entry allowed' : 'Single check-in' }}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-item-remove"
+                      (click)="removeEntrance(i)"
+                      [attr.aria-label]="'Remove entrance ' + entrance.name"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- STEP 3: Stations & Booths -->
+      @if (currentStep() === 3) {
+        <div class="step-content">
+          <div class="section-lead">
+            <h3>Stations &amp; Activity Booths</h3>
+            <p>Configure exhibition booths, workshop rooms, or sponsor checkpoints that award passport stamps.</p>
+          </div>
+
+          <!-- Add Booth Inline Form -->
+          <div class="builder-card">
+            <div class="builder-card-title">Add Booth or Activity Station</div>
+            @if (boothError()) {
+              <div class="builder-error">{{ boothError() }}</div>
+            }
+            <div class="builder-grid">
+              <div class="form-group">
+                <label for="booth-name-input">Booth Name *</label>
+                <input
+                  id="booth-name-input"
+                  type="text"
+                  [value]="boothName()"
+                  (input)="boothName.set($any($event.target).value)"
+                  placeholder="e.g. AWS Cloud Architecture Station"
+                />
+              </div>
+              <div class="form-group">
+                <label for="booth-loc-input">Location / Table</label>
+                <input
+                  id="booth-loc-input"
+                  type="text"
+                  [value]="boothLocation()"
+                  (input)="boothLocation.set($any($event.target).value)"
+                  placeholder="e.g. Hall B, Table #14"
+                />
+              </div>
+            </div>
+            <div class="form-group checkbox-options">
+              <label class="checkbox-card small">
+                <input
+                  type="checkbox"
+                  [checked]="boothRequireMainEntry()"
+                  (change)="boothRequireMainEntry.set($any($event.target).checked)"
+                  class="custom-checkbox"
+                />
+                <span class="checkbox-text">Require Main Gate Admission First</span>
+              </label>
+              <label class="checkbox-card small">
+                <input
+                  type="checkbox"
+                  [checked]="boothAllowMultiScan()"
+                  (change)="boothAllowMultiScan.set($any($event.target).checked)"
+                  class="custom-checkbox"
+                />
+                <span class="checkbox-text">Allow Multiple Scans at Booth</span>
+              </label>
+            </div>
+            <div class="builder-actions-row right">
+              <button type="button" class="btn-builder-add" (click)="addBooth()">
+                Add Booth
+              </button>
+            </div>
+          </div>
+
+          <!-- List of Configured Booths -->
+          <div class="configured-list">
+            <h4 class="list-heading">Configured Booths ({{ booths().length }})</h4>
+            @if (booths().length === 0) {
+              <div class="empty-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <p>No booths added yet. If your event does not use passport stamps or booths, you can proceed to staffing.</p>
+              </div>
+            } @else {
+              <div class="items-grid">
+                @for (booth of booths(); track booth.name; let i = $index) {
+                  <div class="item-card">
+                    <div class="item-info">
+                      <div class="item-primary-row">
+                        <span class="item-type-tag booth">Booth</span>
+                        <strong class="item-name">{{ booth.name }}</strong>
+                      </div>
+                      <div class="item-secondary-row">
+                        <span class="item-loc">{{ booth.location || 'Location not specified' }}</span>
+                        @if (booth.requireMainEntry) {
+                          <span class="item-rule entry-req">Requires Gate Entry</span>
+                        }
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-item-remove"
+                      (click)="removeBooth(i)"
+                      [attr.aria-label]="'Remove booth ' + booth.name"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- STEP 4: Staff & Scanner Access -->
+      @if (currentStep() === 4) {
+        <div class="step-content">
+          <div class="section-lead">
+            <h3>Staff Permissions &amp; Scanner Access</h3>
+            <p>Assign event staff and choose whether each operator can access all scanners or is restricted to a specific booth.</p>
+          </div>
+
+          <!-- Add Staff Form -->
+          <div class="builder-card">
+            <div class="builder-card-title">Assign Staff Operator</div>
+            @if (staffError()) {
+              <div class="builder-error">{{ staffError() }}</div>
+            }
+            <div class="builder-grid">
+              <div class="form-group span-full">
+                <label for="staff-email-input">Staff Email Address *</label>
+                <div class="autocomplete-wrapper">
+                  <div class="input-with-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-search-icon" aria-hidden="true">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input
+                      #staffInput
+                      id="staff-email-input"
+                      type="text"
+                      [value]="staffEmail()"
+                      (input)="onStaffEmailInput(staffInput.value)"
+                      (focus)="onStaffFocus()"
+                      (blur)="onStaffBlur()"
+                      placeholder="Search by name or enter email (e.g. staff.operator@alica.ph)"
+                      (keydown.escape)="showStaffDropdown.set(false)"
+                      autocomplete="off"
+                    />
+                  </div>
+
+                  <!-- Staff Autocomplete Dropdown Menu -->
+                  @if (showStaffDropdown()) {
+                    <div class="co-org-dropdown staff-dropdown" (mousedown)="$event.preventDefault()">
+                      @if (isSearchingStaff()) {
+                        <div class="dropdown-state-loading">
+                          <span class="spinner-inline" aria-hidden="true"></span>
+                          <span>Searching directory…</span>
+                        </div>
+                      } @else if (staffCandidates().length > 0) {
+                        <div class="dropdown-section-header">Matched Registered Users</div>
+                        <ul class="candidate-list" role="listbox">
+                          @for (candidate of staffCandidates(); track candidate.id) {
+                            <li
+                              class="candidate-item"
+                              role="option"
+                              (click)="selectStaffCandidate(candidate)"
+                            >
+                              <div class="candidate-avatar">
+                                {{ candidate.fullName.charAt(0).toUpperCase() }}
+                              </div>
+                              <div class="candidate-info">
+                                <strong class="candidate-name">{{ candidate.fullName }}</strong>
+                                <span class="candidate-email">{{ candidate.email }}</span>
+                                @if (candidate.affiliation) {
+                                  <span class="candidate-affiliation">{{ candidate.affiliation }}</span>
+                                }
+                              </div>
+                              <span class="candidate-badge">Registered</span>
+                            </li>
+                          }
+                        </ul>
+                      } @else if (staffEmail().trim().length >= 2) {
+                        <div class="dropdown-not-found">
+                          <div class="not-found-header">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="not-found-icon" aria-hidden="true">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                              <circle cx="8.5" cy="7" r="4"></circle>
+                              <line x1="20" y1="8" x2="20" y2="14"></line>
+                              <line x1="23" y1="11" x2="17" y2="11"></line>
+                            </svg>
+                            <strong>User not found in system</strong>
+                          </div>
+                          @if (isEmailFormat(staffEmail())) {
+                            <p class="not-found-desc">
+                              <strong>{{ staffEmail().trim().toLowerCase() }}</strong> will be provisioned as a staff operator and sent an invitation setup email upon event creation.
+                            </p>
+                            <button
+                              type="button"
+                              class="btn-dropdown-invite"
+                              (click)="showStaffDropdown.set(false)"
+                            >
+                              Use this email
+                            </button>
+                          } @else {
+                            <p class="not-found-desc">
+                              Enter their full email address (e.g. <code>{{ staffEmail().trim().toLowerCase() }}&#64;alica.ph</code>) to invite them.
+                            </p>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Access Level Option Toggle Cards -->
+            <div class="access-level-selector">
+              <span class="field-label">Scanner Access Level</span>
+              <div class="access-options-grid">
+                <label
+                  class="access-option-card"
+                  [class.selected]="staffAccessLevel() === 'ALL_SCANNERS'"
+                >
+                  <input
+                    type="radio"
+                    name="accessLevel"
+                    value="ALL_SCANNERS"
+                    [checked]="staffAccessLevel() === 'ALL_SCANNERS'"
+                    (change)="staffAccessLevel.set('ALL_SCANNERS')"
+                  />
+                  <div class="option-content">
+                    <div class="option-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                      </svg>
+                      <strong>All Scanners</strong>
+                    </div>
+                    <p class="option-desc">Operator can scan tickets at all gates, booths, and sessions across the event.</p>
+                  </div>
+                </label>
+
+                <label
+                  class="access-option-card"
+                  [class.selected]="staffAccessLevel() === 'SPECIFIC_BOOTH'"
+                >
+                  <input
+                    type="radio"
+                    name="accessLevel"
+                    value="SPECIFIC_BOOTH"
+                    [checked]="staffAccessLevel() === 'SPECIFIC_BOOTH'"
+                    (change)="staffAccessLevel.set('SPECIFIC_BOOTH')"
+                  />
+                  <div class="option-content">
+                    <div class="option-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      <strong>Specific Booth / Station</strong>
+                    </div>
+                    <p class="option-desc">Operator is restricted to scan only at a designated entrance or booth.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Specific Station Dropdown -->
+            @if (staffAccessLevel() === 'SPECIFIC_BOOTH') {
+              <div class="form-group station-select-group">
+                <label for="station-target-select">Select Designated Station *</label>
+                @if (availableStations().length === 0) {
+                  <p class="select-warning">No entrances or booths configured yet. Go back to Steps 2 or 3 to add stations first.</p>
+                } @else {
+                  <select
+                    id="station-target-select"
+                    [value]="staffCheckpointName()"
+                    (change)="staffCheckpointName.set($any($event.target).value)"
+                  >
+                    <option value="" disabled selected>-- Select an entrance or booth --</option>
+                    @for (st of availableStations(); track st.name) {
+                      <option [value]="st.name">{{ st.type }}: {{ st.name }}</option>
+                    }
+                  </select>
+                }
+              </div>
+            }
+
+            <div class="builder-actions-row right">
+              <button
+                type="button"
+                class="btn-builder-add"
+                (click)="addStaffAssignment()"
+                [disabled]="staffAccessLevel() === 'SPECIFIC_BOOTH' && (!staffCheckpointName() || availableStations().length === 0)"
+              >
+                Assign Staff Member
+              </button>
+            </div>
+          </div>
+
+          <!-- List of Assigned Staff -->
+          <div class="configured-list">
+            <h4 class="list-heading">Configured Staff Assignments ({{ staffAssignments().length }})</h4>
+            @if (staffAssignments().length === 0) {
+              <div class="empty-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <p>No staff assigned yet. You can also assign staff operators at any time later in Event Settings.</p>
+              </div>
+            } @else {
+              <div class="items-grid">
+                @for (assignment of staffAssignments(); track assignment.email; let i = $index) {
+                  <div class="item-card">
+                    <div class="item-info">
+                      <div class="item-primary-row">
+                        <strong class="item-name">{{ assignment.email }}</strong>
+                        @if (assignment.accessLevel === 'ALL_SCANNERS') {
+                          <span class="badge-access all">All Scanners</span>
+                        } @else {
+                          <span class="badge-access specific">
+                            Station: {{ assignment.checkpointName }}
+                          </span>
+                        }
+                      </div>
+                      <div class="item-secondary-row">
+                        <span class="item-rule">
+                          {{ assignment.accessLevel === 'ALL_SCANNERS' ? 'Unrestricted scanner access' : 'Restricted to single checkpoint' }}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-item-remove"
+                      (click)="removeStaffAssignment(i)"
+                      [attr.aria-label]="'Remove staff assignment for ' + assignment.email"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- STEP 5: Review & Submit -->
+      @if (currentStep() === 5) {
+        <div class="step-content review-step">
+          <div class="section-lead">
+            <h3>Review Event Configuration</h3>
+            @if (isPrivateEvent()) {
+              <p>Please inspect all parameters, checkpoints, and permissions before creating your private event.</p>
+            } @else {
+              <p>Please inspect all parameters, checkpoints, and permissions before submitting for administrative approval.</p>
+            }
+          </div>
+
+          <div class="review-grid">
+            <!-- 1. Event Overview -->
+            <div class="review-card">
+              <div class="review-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <h4>General Details</h4>
+              </div>
+              @if (bannerImageUrl()) {
+                <div class="review-banner-container">
+                  <img [src]="bannerImageUrl()" alt="Event Cover Banner" class="review-banner-image" />
+                </div>
+              }
+              <dl class="review-dl">
+                <div class="review-row">
+                  <dt>Visibility</dt>
+                  <dd>
+                    <span class="badge-format">{{ isPrivateEvent() ? 'Private (Direct link only)' : 'Public (Requires admin review)' }}</span>
+                  </dd>
+                </div>
+                <div class="review-row">
+                  <dt>Title</dt>
+                  <dd><strong>{{ detailsForm.controls.name.value }}</strong></dd>
+                </div>
+                <div class="review-row">
+                  <dt>Category</dt>
+                  <dd>
+                    <span class="badge-format">{{ detailsForm.controls.category.value }}</span>
+                  </dd>
+                </div>
+                @if (detailsForm.controls.tags.value.length > 0) {
+                  <div class="review-row">
+                    <dt>Tags</dt>
+                    <dd class="review-tags">
+                      @for (t of detailsForm.controls.tags.value; track t) {
+                        <span class="review-tag">#{{ t }}</span>
+                      }
+                    </dd>
+                  </div>
+                }
+                <div class="review-row">
+                  <dt>Venue</dt>
+                  <dd>{{ detailsForm.controls.venue.value }}</dd>
+                </div>
+                <div class="review-row">
+                  <dt>Schedule</dt>
+                  <dd>
+                    {{ detailsForm.controls.starts_at.value | date: 'MMM d, y, h:mm a' }}
+                    –
+                    {{ detailsForm.controls.ends_at.value | date: 'MMM d, y, h:mm a' }}
+                  </dd>
+                </div>
+                <div class="review-row">
+                  <dt>Capacity</dt>
+                  <dd>{{ detailsForm.controls.capacity.value }} attendees</dd>
+                </div>
+                <div class="review-row">
+                  <dt>Walk-ins</dt>
+                  <dd>{{ detailsForm.controls.allow_walk_ins.value ? 'Allowed' : 'Disabled' }}</dd>
+                </div>
+                <div class="review-row">
+                  <dt>Student ID</dt>
+                  <dd>{{ detailsForm.controls.require_student_id.value ? 'Required' : 'Not required' }}</dd>
+                </div>
+                @if (coOrganizerEmails().length > 0) {
+                  <div class="review-row">
+                    <dt>Co-Organizers</dt>
+                    <dd class="review-co-orgs-list">
+                      @for (email of coOrganizerEmails(); track email) {
+                        <div class="review-co-org-badge">
+                          <span>{{ email }}</span>
+                          <span
+                            class="review-sub-badge"
+                            [class.guest]="!coOrganizerMetadata()[email]?.isRegistered"
+                          >
+                            {{ coOrganizerMetadata()[email]?.isRegistered ? 'Registered' : 'Guest (Password setup email)' }}
+                          </span>
+                        </div>
+                      }
+                    </dd>
+                  </div>
+                }
+              </dl>
+            </div>
+
+            <!-- 2. Entrances -->
+            <div class="review-card">
+              <div class="review-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <h4>Admission Entrances ({{ entrances().length }})</h4>
+              </div>
+              @if (entrances().length === 0) {
+                <p class="review-empty">No dedicated entrance gates specified.</p>
+              } @else {
+                <ul class="review-item-list">
+                  @for (ent of entrances(); track ent.name) {
+                    <li>
+                      <strong>{{ ent.name }}</strong>
+                      <span class="sub-text">{{ ent.location || 'Location not specified' }} • {{ ent.allowMultipleScans ? 'Re-entry allowed' : 'Single entry' }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <!-- 3. Booths -->
+            <div class="review-card">
+              <div class="review-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <h4>Activity Booths ({{ booths().length }})</h4>
+              </div>
+              @if (booths().length === 0) {
+                <p class="review-empty">No activity booths specified.</p>
+              } @else {
+                <ul class="review-item-list">
+                  @for (booth of booths(); track booth.name) {
+                    <li>
+                      <strong>{{ booth.name }}</strong>
+                      <span class="sub-text">
+                        {{ booth.location || 'Location not specified' }}
+                        {{ booth.requireMainEntry ? '• Requires entry gate' : '' }}
+                      </span>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <!-- 4. Staffing -->
+            <div class="review-card">
+              <div class="review-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                </svg>
+                <h4>Scanner Staff Assignments ({{ staffAssignments().length }})</h4>
+              </div>
+              @if (staffAssignments().length === 0) {
+                <p class="review-empty">No staff operators assigned yet.</p>
+              } @else {
+                <ul class="review-item-list">
+                  @for (s of staffAssignments(); track s.email) {
+                    <li>
+                      <strong>{{ s.email }}</strong>
+                      <span class="sub-text">
+                        @if (s.accessLevel === 'ALL_SCANNERS') {
+                          Access: All event scanners
+                        } @else {
+                          Restricted to: {{ s.checkpointName }}
+                        }
+                      </span>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <!-- 5. Featured Speakers -->
+            @if (speakers().length > 0) {
+              <div class="review-card">
+                <div class="review-card-header">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                  <h4>Featured Speakers ({{ speakers().length }})</h4>
+                </div>
+                <ul class="review-item-list">
+                  @for (spk of speakers(); track spk.id) {
+                    <li>
+                      <strong>{{ spk.name }}</strong>
+                      <span class="sub-text">
+                        {{ spk.role || 'Featured Speaker' }}{{ spk.company ? ' • ' + spk.company : '' }}
+                        @if (spk.topic) {
+                          — <em>"{{ spk.topic }}"</em>
+                        }
+                      </span>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Wizard Footer -->
+    <footer class="wizard-footer">
+      <div class="footer-left">
+        <span class="step-indicator">Step {{ currentStep() }} of 5</span>
+      </div>
+      <div class="footer-right">
+        @if (currentStep() > 1) {
+          <button
+            type="button"
+            class="btn-back"
+            (click)="prevStep()"
+            [disabled]="isSaving()"
+          >
+            Back
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="btn-cancel"
+            (click)="close.emit()"
+            [disabled]="isSaving()"
+          >
+            Cancel
+          </button>
+        }
+
+        @if (currentStep() < 5) {
+          <button
+            type="button"
+            class="btn-next"
+            (click)="nextStep()"
+          >
+            Next Step
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="btn-submit"
+            (click)="submitEvent()"
+            [disabled]="isSaving()"
+          >
+            @if (isSaving()) {
+              {{ isPrivateEvent() ? 'Creating Event...' : 'Submitting Event...' }}
+            } @else {
+              {{ isPrivateEvent() ? 'Create Private Event' : 'Submit Event for Review' }}
+            }
+          </button>
+        }
+      </div>
+    </footer>
+  </section>
+</div>

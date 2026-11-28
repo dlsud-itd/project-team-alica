@@ -10,6 +10,7 @@ import { randomInt } from 'node:crypto';
 import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import {
+  CheckpointType,
   Event,
   EventApprovalStatus,
   Prisma,
@@ -35,6 +36,11 @@ import {
 } from '../checkpoints/checkpoints.service.js';
 import { GuestInvitationMailer } from './guest-invitation-mailer.service.js';
 import { generateTicketCode } from '../../common/ticket-code.js';
+import {
+  normalizeCategoryName,
+  STANDARD_EVENT_CATEGORIES,
+  type CategoryDefinition,
+} from '../../common/constants/event-taxonomy.constants.js';
 
 const MAX_GUEST_ROWS = 5000;
 const DEFAULT_GUEST_AFFILIATION = 'Guest / Imported Attendee';
@@ -100,8 +106,9 @@ export interface EventResponseDto {
   slug: string;
   title: string;
   description: string;
-  category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category: string;
   categoryLabel: string;
+  tags: string[];
   dateLabel: string;
   timeLabel: string;
   venue: string;
@@ -114,6 +121,7 @@ export interface EventResponseDto {
   staffIds?: string[];
   registeredUserIds?: string[];
   bannerImageUrl?: string | null;
+  requireStudentId: boolean;
 }
 
 export interface EventScheduleItemDto {
@@ -121,8 +129,18 @@ export interface EventScheduleItemDto {
   time: string;
   title: string;
   description: string;
-  type: 'KEYNOTE' | 'SESSION' | 'WORKSHOP' | 'PANEL' | 'BOOTH' | 'GATE';
+  /** BOOTH and GATE are legacy values kept so older saved programs still load. */
+  type:
+    | 'KEYNOTE'
+    | 'SESSION'
+    | 'WORKSHOP'
+    | 'PANEL'
+    | 'BREAK'
+    | 'OTHER'
+    | 'BOOTH'
+    | 'GATE';
   location?: string;
+  /** Optional station (checkpoint) where attendance for this item is scanned. */
   checkpointId?: string;
 }
 
@@ -176,13 +194,16 @@ export interface OrganizerEventDto {
   reviewed_at: string | null;
   submitted_at: string;
   is_private?: boolean;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
   category_label?: string;
+  tags?: string[];
   checkpoints_count?: number;
   admitted_count?: number;
   organizers?: EventOrganizerDto[];
   banner_image_url?: string | null;
+  require_student_id?: boolean;
   schedule?: EventScheduleItemDto[];
+  speakers?: CreateEventSpeakerDto[];
 }
 
 export interface EventLiveKpisDto {
@@ -213,6 +234,7 @@ export interface RecentScanItemDto {
   attendeeName: string;
   affiliation: string;
   ticketCode: string;
+  stationId: string;
   stationName: string;
   scannedAt: string;
   status: string;
@@ -302,6 +324,7 @@ export interface OrganizerCandidateDto {
 }
 
 export class UpdateEventDto {
+  require_student_id?: boolean;
   name?: string;
   description?: string;
   venue?: string;
@@ -310,11 +333,15 @@ export class UpdateEventDto {
   capacity?: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
+  tags?: string[];
   banner_image_url?: string;
   schedule?: EventScheduleItemDto[];
+  speakers?: CreateEventSpeakerDto[];
   organizerEmails?: string[];
 }
+
+export type StaffAccessLevel = 'ALL_SCANNERS' | 'SPECIFIC_BOOTH';
 
 export interface EventStaffDto {
   id: string;
@@ -323,9 +350,41 @@ export interface EventStaffDto {
   fullName: string;
   affiliation: string | null;
   assignedAt: string;
+  accessLevel?: StaffAccessLevel;
+  checkpointId?: string | null;
+  checkpointName?: string | null;
+}
+
+export interface CreateEventSpeakerDto {
+  id?: string;
+  name: string;
+  role?: string;
+  company?: string;
+  avatarUrl?: string;
+  topic?: string;
+}
+
+export interface CreateEventEntranceDto {
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+}
+
+export interface CreateEventBoothDto {
+  name: string;
+  location?: string;
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+}
+
+export interface CreateEventStaffAssignmentDto {
+  email: string;
+  accessLevel: StaffAccessLevel;
+  checkpointName?: string;
 }
 
 export class CreateEventDto {
+  require_student_id?: boolean;
   name!: string;
   description?: string;
   venue!: string;
@@ -334,10 +393,15 @@ export class CreateEventDto {
   capacity!: number;
   allow_walk_ins?: boolean;
   is_private?: boolean;
-  category?: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+  category?: string;
+  tags?: string[];
   banner_image_url?: string;
   schedule?: EventScheduleItemDto[];
+  speakers?: CreateEventSpeakerDto[];
   organizerEmails?: string[];
+  entrances?: CreateEventEntranceDto[];
+  booths?: CreateEventBoothDto[];
+  staffAssignments?: CreateEventStaffAssignmentDto[];
 }
 
 export class ReviewEventDto {
@@ -942,26 +1006,19 @@ export class EventsService {
 
       // Infer or use explicitly saved category
       const lowerSlug = (ev.slug + ' ' + ev.title).toLowerCase();
-      let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
-        'CONFERENCE';
-      let categoryLabel = 'Conference';
-
-      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
-        category = ev.category as any;
-        categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
-      } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
-        category = 'HACKATHON';
-        categoryLabel = 'Hackathon';
-      } else if (
-        lowerSlug.includes('workshop') ||
-        lowerSlug.includes('masterclass')
-      ) {
-        category = 'WORKSHOP';
-        categoryLabel = 'Workshop';
-      } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
-        category = 'EXPO';
-        categoryLabel = 'Expo';
+      let category = ev.category ? normalizeCategoryName(ev.category) : '';
+      if (!category) {
+        if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+          category = 'Hackathon';
+        } else if (lowerSlug.includes('workshop') || lowerSlug.includes('masterclass')) {
+          category = 'Workshop';
+        } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
+          category = 'Expo / Showcase';
+        } else {
+          category = 'Conference';
+        }
       }
+      const categoryLabel = category;
 
       const dateLabel = start.toLocaleDateString('en-US', {
         month: 'short',
@@ -997,7 +1054,9 @@ export class EventsService {
         registeredUserIds: ev.tickets
           .map((t) => t.userId)
           .filter((uid): uid is string => uid !== null),
+        tags: ev.tags ?? [],
         bannerImageUrl: ev.bannerImageUrl ?? null,
+        requireStudentId: ev.requireStudentId,
       };
     });
   }
@@ -1062,26 +1121,19 @@ export class EventsService {
     }
 
     const lowerSlug = (ev.slug + ' ' + ev.title).toLowerCase();
-    let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' =
-      'CONFERENCE';
-    let categoryLabel = 'Conference';
-
-    if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
-      category = ev.category as any;
-      categoryLabel = category.charAt(0) + category.slice(1).toLowerCase();
-    } else if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
-      category = 'HACKATHON';
-      categoryLabel = 'Hackathon';
-    } else if (
-      lowerSlug.includes('workshop') ||
-      lowerSlug.includes('masterclass')
-    ) {
-      category = 'WORKSHOP';
-      categoryLabel = 'Workshop';
-    } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
-      category = 'EXPO';
-      categoryLabel = 'Expo';
+    let category = ev.category ? normalizeCategoryName(ev.category) : '';
+    if (!category) {
+      if (lowerSlug.includes('hackathon') || lowerSlug.includes('sprint')) {
+        category = 'Hackathon';
+      } else if (lowerSlug.includes('workshop') || lowerSlug.includes('masterclass')) {
+        category = 'Workshop';
+      } else if (lowerSlug.includes('expo') || lowerSlug.includes('showcase')) {
+        category = 'Expo / Showcase';
+      } else {
+        category = 'Conference';
+      }
     }
+    const categoryLabel = category;
 
     const dateLabel = start.toLocaleDateString('en-US', {
       month: 'short',
@@ -1140,6 +1192,7 @@ export class EventsService {
       registeredUserIds: ev.tickets
         .map((t) => t.userId)
         .filter((uid): uid is string => uid !== null),
+      tags: ev.tags ?? [],
       durationDays,
       durationLabel,
       checkpointMode,
@@ -1157,6 +1210,7 @@ export class EventsService {
       schedule,
       speakers,
       bannerImageUrl,
+      requireStudentId: ev.requireStudentId,
     };
   }
 
@@ -1318,64 +1372,27 @@ export class EventsService {
       ];
     }
 
-    // Default timeline derived from checkpoints or standard blocks
-    if (ev.checkpoints && ev.checkpoints.length > 0) {
-      return ev.checkpoints.map((cp, idx) => {
-        const hours = 9 + idx * 2;
-        const time = `${hours.toString().padStart(2, '0')}:00 AM`;
-        const type: EventScheduleItemDto['type'] =
-          cp.type === 'MAIN_ENTRY'
-            ? 'GATE'
-            : cp.type === 'SESSION'
-              ? 'SESSION'
-              : 'BOOTH';
-        return {
-          id: `sch-dyn-${cp.id}`,
-          time,
-          title: cp.name,
-          description: cp.location
-            ? `Checkpoint session at ${cp.location}`
-            : 'Scheduled event activity and checkpoint verification',
-          type,
-          location: cp.location ?? undefined,
-          checkpointId: cp.id,
-        };
-      });
-    }
-
-    return [
-      {
-        id: 'sch-def-1',
-        time: '09:00 AM',
-        title: 'Gate Check-in & Registration',
-        description: 'Badge issuance and entry credential verification',
-        type: 'GATE',
-      },
-      {
-        id: 'sch-def-2',
-        time: '10:30 AM',
-        title: 'Opening Plenary & Welcome Keynote',
-        description: 'Welcome address, event overview, and program kickoff',
-        type: 'KEYNOTE',
-      },
-      {
-        id: 'sch-def-3',
-        time: '01:30 PM',
-        title: 'Breakout Sessions & Showcase',
-        description: 'Interactive workshops, partner booths, and exhibits',
-        type: 'WORKSHOP',
-      },
-      {
-        id: 'sch-def-4',
-        time: '04:00 PM',
-        title: 'Closing Remarks & Certification',
-        description: 'Event wrap-up and certificate eligibility claiming',
-        type: 'PANEL',
-      },
-    ];
+    // Events without a saved program show none. The program is separate from
+    // stations: it is never derived from checkpoints.
+    return [];
   }
 
-  private buildFeaturedSpeakers(ev: { slug: string; organizer?: { fullName: string; affiliation: string | null } }): EventSpeakerDto[] {
+  private buildFeaturedSpeakers(ev: {
+    slug: string;
+    speakers?: any;
+    organizer?: { fullName: string; affiliation: string | null };
+  }): EventSpeakerDto[] {
+    if (ev.speakers && Array.isArray(ev.speakers) && ev.speakers.length > 0) {
+      return (ev.speakers as any[]).map((s, idx) => ({
+        id: s.id || `spk-${idx + 1}`,
+        name: s.name,
+        role: s.role || 'Keynote Speaker',
+        company: s.company || '',
+        avatarUrl: s.avatarUrl,
+        topic: s.topic,
+      }));
+    }
+
     if (ev.slug === 'devcon-manila-2026') {
       return [
         {
@@ -1492,43 +1509,31 @@ export class EventsService {
       ];
     }
 
-    const orgName = ev.organizer?.fullName ?? 'Campus Organizer';
-    const orgAffil = ev.organizer?.affiliation ?? 'Organizing Committee';
-    return [
-      {
-        id: 'spk-def-1',
-        name: orgName,
-        role: 'Keynote Lead',
-        company: orgAffil,
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        topic: 'Welcome & Executive Remarks',
-      },
-      {
-        id: 'spk-def-2',
-        name: 'Alex Martin',
-        role: 'Program Director',
-        company: 'Campus Event Operations',
-        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-        topic: 'Event Guidelines & Milestone Tracker',
-      },
-    ];
+    return [];
   }
 
   private resolveBannerImage(
     slug: string,
-    category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO',
+    category: string,
   ): string {
+    const catLower = (category || '').toLowerCase();
     if (slug === 'devcon-manila-2026') {
       return 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&auto=format&fit=crop&q=80';
     }
-    if (slug === 'global-tech-ai-expo-2026' || category === 'EXPO') {
+    if (slug === 'global-tech-ai-expo-2026' || catLower.includes('expo') || catLower.includes('showcase')) {
       return 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200&auto=format&fit=crop&q=80';
     }
-    if (slug === 'national-ai-hackathon-2026' || category === 'HACKATHON') {
+    if (slug === 'national-ai-hackathon-2026' || catLower.includes('hackathon')) {
       return 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1200&auto=format&fit=crop&q=80';
     }
-    if (category === 'WORKSHOP') {
+    if (catLower.includes('workshop')) {
       return 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&auto=format&fit=crop&q=80';
+    }
+    if (catLower.includes('tournament') || catLower.includes('sport') || catLower.includes('esport')) {
+      return 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=1200&auto=format&fit=crop&q=80';
+    }
+    if (catLower.includes('concert') || catLower.includes('cultural') || catLower.includes('music')) {
+      return 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1200&auto=format&fit=crop&q=80';
     }
     return 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=1200&auto=format&fit=crop&q=80';
   }
@@ -1583,30 +1588,26 @@ export class EventsService {
 
     return events.map((ev) => {
       const base = this.toOrganizerEvent(ev, ev._count.tickets);
-      let category: 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO' = 'CONFERENCE';
-      let category_label = 'Conference';
-
-      if (ev.category && ['CONFERENCE', 'HACKATHON', 'WORKSHOP', 'EXPO'].includes(ev.category)) {
-        category = ev.category as any;
-        category_label = category.charAt(0) + category.slice(1).toLowerCase();
-      } else {
-        const lowerTitle = ev.title.toLowerCase();
+      const lowerTitle = ev.title.toLowerCase();
+      let category = ev.category ? normalizeCategoryName(ev.category) : '';
+      if (!category) {
         if (lowerTitle.includes('hackathon')) {
-          category = 'HACKATHON';
-          category_label = 'Hackathon';
+          category = 'Hackathon';
         } else if (lowerTitle.includes('workshop')) {
-          category = 'WORKSHOP';
-          category_label = 'Workshop';
+          category = 'Workshop';
         } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
-          category = 'EXPO';
-          category_label = 'Expo';
+          category = 'Expo / Showcase';
+        } else {
+          category = 'Conference';
         }
       }
+      const category_label = category;
 
       return {
         ...base,
         category,
         category_label,
+        tags: ev.tags ?? [],
         checkpoints_count: ev._count.checkpoints ?? 0,
         admitted_count: ev.tickets ? ev.tickets.length : 0,
       };
@@ -1646,12 +1647,15 @@ export class EventsService {
         endDate,
         capacity,
         allowWalkIns: dto.allow_walk_ins ?? false,
+        requireStudentId: dto.require_student_id === true,
         isPrivate,
         approvalStatus,
         organizerId: user.id,
-        category: dto.category ?? null,
+        category: dto.category ? normalizeCategoryName(dto.category) : null,
+        tags: Array.isArray(dto.tags) ? dto.tags.map((t) => t.trim()).filter(Boolean) : [],
         bannerImageUrl: dto.banner_image_url ?? null,
         schedule: dto.schedule ? (dto.schedule as any) : undefined,
+        speakers: dto.speakers ? (dto.speakers as any) : undefined,
       },
       include: {
         organizer: { select: { id: true, email: true, fullName: true, affiliation: true } },
@@ -1672,9 +1676,33 @@ export class EventsService {
           select: { id: true, email: true },
         });
         const foundEmailSet = new Set(foundUsers.map((u) => u.email.toLowerCase()));
+        const usedPasswords = new Set<string>();
+
         for (const em of cleanEmails) {
           if (!foundEmailSet.has(em)) {
-            throw new NotFoundException(`User with email '${em}' not found`);
+            // Provision guest organizer account and send password setup invitation
+            const temporaryPassword = this.generateUniqueTemporaryPassword(usedPasswords);
+            const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+            const guestUser = await this.prisma.user.create({
+              data: {
+                email: em,
+                passwordHash,
+                fullName: em.split('@')[0],
+                role: UserRole.ORGANIZER,
+                isActive: true,
+                mustChangePassword: true,
+              },
+              select: { id: true, email: true },
+            });
+            foundUsers.push(guestUser);
+            foundEmailSet.add(em);
+
+            await this.invitationMailer.sendOrganizerInvitation({
+              eventTitle: event.title,
+              email: em,
+              temporaryPassword,
+              invitedBy: user.fullName || user.email,
+            });
           }
         }
         await this.prisma.eventOrganizer.createMany({
@@ -1684,6 +1712,119 @@ export class EventsService {
           })),
           skipDuplicates: true,
         });
+      }
+    }
+
+    // Process entrances, booths, and staff assignments from creation wizard
+    const checkpointMap = new Map<string, { id: string; name: string }>();
+
+    if (Array.isArray(dto.entrances) && dto.entrances.length > 0 && this.prisma.checkpoint) {
+      for (const entrance of dto.entrances) {
+        const entName = entrance.name?.trim();
+        if (!entName) continue;
+        const createdEntrance = await this.prisma.checkpoint.create({
+          data: {
+            eventId: event.id,
+            name: entName,
+            location: entrance.location?.trim() || null,
+            type: CheckpointType.MAIN_ENTRY,
+            allowMultipleScans: entrance.allowMultipleScans ?? false,
+            requireMainEntry: false,
+          },
+        });
+        checkpointMap.set(entName.toLowerCase(), createdEntrance);
+      }
+    }
+
+    if (Array.isArray(dto.booths) && dto.booths.length > 0 && this.prisma.checkpoint) {
+      for (const booth of dto.booths) {
+        const boothName = booth.name?.trim();
+        if (!boothName) continue;
+        const createdBooth = await this.prisma.checkpoint.create({
+          data: {
+            eventId: event.id,
+            name: boothName,
+            location: booth.location?.trim() || null,
+            type: CheckpointType.BOOTH,
+            allowMultipleScans: booth.allowMultipleScans ?? true,
+            requireMainEntry: booth.requireMainEntry ?? false,
+          },
+        });
+        checkpointMap.set(boothName.toLowerCase(), createdBooth);
+      }
+    }
+
+    if (Array.isArray(dto.staffAssignments) && dto.staffAssignments.length > 0) {
+      for (const assignment of dto.staffAssignments) {
+        const cleanEmail = assignment.email?.trim().toLowerCase();
+        if (!cleanEmail) continue;
+        let staffUser = await this.prisma.user.findUnique({
+          where: { email: cleanEmail },
+          select: { id: true, email: true },
+        });
+        if (!staffUser) {
+          const temporaryPassword = this.generateUniqueTemporaryPassword(new Set());
+          const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+          staffUser = await this.prisma.user.create({
+            data: {
+              email: cleanEmail,
+              passwordHash,
+              fullName: cleanEmail.split('@')[0],
+              role: UserRole.STAFF,
+              isActive: true,
+              mustChangePassword: true,
+            },
+            select: { id: true, email: true },
+          });
+          await this.invitationMailer.sendOrganizerInvitation({
+            eventTitle: event.title,
+            email: cleanEmail,
+            temporaryPassword,
+            invitedBy: user.fullName || user.email,
+          });
+        }
+
+        if (
+          assignment.accessLevel === 'SPECIFIC_BOOTH' &&
+          assignment.checkpointName &&
+          this.prisma.checkpointStaff
+        ) {
+          const targetCheckpoint = checkpointMap.get(assignment.checkpointName.trim().toLowerCase());
+          if (targetCheckpoint) {
+            await this.prisma.checkpointStaff.upsert({
+              where: {
+                checkpointId_userId: {
+                  checkpointId: targetCheckpoint.id,
+                  userId: staffUser.id,
+                },
+              },
+              update: { isActive: true },
+              create: {
+                checkpointId: targetCheckpoint.id,
+                userId: staffUser.id,
+                isActive: true,
+              },
+            });
+            continue;
+          }
+        }
+
+        if (this.prisma.eventStaff) {
+          await this.prisma.eventStaff.upsert({
+            where: {
+              eventId_userId: {
+                eventId: event.id,
+                userId: staffUser.id,
+              },
+            },
+            update: { isActive: true },
+            create: {
+              eventId: event.id,
+              userId: staffUser.id,
+              isActive: true,
+            },
+          });
+        }
       }
     }
 
@@ -1740,12 +1881,20 @@ export class EventsService {
       data.allowWalkIns = Boolean(dto.allow_walk_ins);
     }
 
+    if (dto.require_student_id !== undefined) {
+      data.requireStudentId = Boolean(dto.require_student_id);
+    }
+
     if (dto.is_private !== undefined) {
       data.isPrivate = Boolean(dto.is_private);
     }
 
     if (dto.category !== undefined) {
-      data.category = dto.category;
+      data.category = dto.category ? normalizeCategoryName(dto.category) : null;
+    }
+
+    if (dto.tags !== undefined && Array.isArray(dto.tags)) {
+      data.tags = dto.tags.map((t) => t.trim()).filter(Boolean);
     }
 
     if (dto.banner_image_url !== undefined) {
@@ -1754,6 +1903,10 @@ export class EventsService {
 
     if (dto.schedule !== undefined) {
       data.schedule = dto.schedule ? (dto.schedule as any) : null;
+    }
+
+    if (dto.speakers !== undefined) {
+      data.speakers = dto.speakers ? (dto.speakers as any) : null;
     }
 
     const [startDate, endDate] = this.parseDateRange(
@@ -1804,9 +1957,31 @@ export class EventsService {
             })
           : [];
       const foundEmailSet = new Set(targetUsers.map((u) => u.email.toLowerCase()));
+      const usedPasswords = new Set<string>();
       for (const em of cleanEmails) {
         if (!foundEmailSet.has(em)) {
-          throw new NotFoundException(`User with email '${em}' not found`);
+          const temporaryPassword = this.generateUniqueTemporaryPassword(usedPasswords);
+          const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+          const guestUser = await this.prisma.user.create({
+            data: {
+              email: em,
+              passwordHash,
+              fullName: em.split('@')[0],
+              role: UserRole.ORGANIZER,
+              isActive: true,
+              mustChangePassword: true,
+            },
+            select: { id: true, email: true },
+          });
+          targetUsers.push(guestUser);
+          foundEmailSet.add(em);
+
+          await this.invitationMailer.sendOrganizerInvitation({
+            eventTitle: event.title,
+            email: em,
+            temporaryPassword,
+            invitedBy: user.fullName || user.email,
+          });
         }
       }
       const targetUserIds = targetUsers
@@ -2168,21 +2343,25 @@ export class EventsService {
       status,
       description: ev.description ?? '',
       allow_walk_ins: ev.allowWalkIns,
+      require_student_id: ev.requireStudentId,
       approval_status: APPROVAL_STATUS_LABELS[ev.approvalStatus],
       review_notes: ev.reviewNotes,
       reviewed_at: ev.reviewedAt?.toISOString() ?? null,
       submitted_at: ev.createdAt.toISOString(),
       is_private: ev.isPrivate,
-      category: (ev.category as any) ?? undefined,
+      category: ev.category ? normalizeCategoryName(ev.category) : undefined,
+      category_label: ev.category ? normalizeCategoryName(ev.category) : undefined,
+      tags: ev.tags ?? [],
       banner_image_url:
         ev.bannerImageUrl ??
-        (ev.slug ? this.resolveBannerImage(ev.slug, (ev.category as any) || 'CONFERENCE') : null),
+        (ev.slug ? this.resolveBannerImage(ev.slug, ev.category || 'Conference') : null),
       schedule:
         (ev.schedule && Array.isArray(ev.schedule) && (ev.schedule as any[]).length > 0)
           ? (ev.schedule as unknown as EventScheduleItemDto[])
           : ev.slug
             ? this.buildScheduleTimeline({ slug: ev.slug, checkpoints: (ev as any).checkpoints || [] })
             : undefined,
+      speakers: (ev as any).speakers && Array.isArray((ev as any).speakers) ? (ev as any).speakers : undefined,
       ...(organizersList.length > 0 ? { organizers: organizersList } : {}),
     };
   }
@@ -2350,25 +2529,9 @@ export class EventsService {
       percentage: Math.round((c._count.attendanceLogs / maxStationScans) * 100),
     }));
 
-    const recentScans: RecentScanItemDto[] = recentLogs.map((log) => ({
-      id: log.id,
-      attendeeName: log.ticket
-        ? `${log.ticket.firstName} ${log.ticket.lastName}`.trim()
-        : 'Guest Attendee',
-      affiliation: log.ticket?.affiliation || 'General Attendee',
-      ticketCode: log.ticketCode,
-      stationName: log.checkpoint.name,
-      scannedAt: log.scannedAt.toISOString(),
-      status: log.scanResult,
-      statusLabel:
-        log.scanResult === 'SUCCESS'
-          ? 'Checked In'
-          : log.scanResult === 'DUPLICATE'
-            ? 'Duplicate'
-            : log.scanResult === 'WARNING_NO_MAIN_ENTRY'
-              ? 'Warning: No Main Entry'
-              : 'Invalid Ticket',
-    }));
+    const recentScans: RecentScanItemDto[] = recentLogs.map((log) =>
+      this.toRecentScanItem(log),
+    );
 
     const attendanceRate =
       totalRsvps > 0 ? Math.round((checkedInAttendees / totalRsvps) * 100) : 0;
@@ -2377,19 +2540,8 @@ export class EventsService {
         ? Math.round((checkedInAttendees / event.capacity) * 100)
         : 0;
 
-    let category = 'CONFERENCE';
-    let categoryLabel = 'Conference';
-    const lowerTitle = event.title.toLowerCase();
-    if (lowerTitle.includes('hackathon')) {
-      category = 'HACKATHON';
-      categoryLabel = 'Hackathon';
-    } else if (lowerTitle.includes('workshop')) {
-      category = 'WORKSHOP';
-      categoryLabel = 'Workshop';
-    } else if (lowerTitle.includes('expo') || lowerTitle.includes('demo')) {
-      category = 'EXPO';
-      categoryLabel = 'Expo';
-    }
+    const category = event.category ? normalizeCategoryName(event.category) : normalizeCategoryName(event.title);
+    const categoryLabel = category;
 
     return {
       id: event.id,
@@ -2416,6 +2568,69 @@ export class EventsService {
       recentScans,
       organizers: await this.getOrganizers(user, eventId),
     };
+  }
+
+  private toRecentScanItem(log: {
+    id: string;
+    ticketCode: string;
+    scannedAt: Date;
+    scanResult: string;
+    checkpointId: string;
+    checkpoint: { name: string };
+    ticket: { firstName: string; lastName: string; affiliation: string | null } | null;
+  }): RecentScanItemDto {
+    return {
+      id: log.id,
+      attendeeName: log.ticket
+        ? `${log.ticket.firstName} ${log.ticket.lastName}`.trim()
+        : 'Guest Attendee',
+      affiliation: log.ticket?.affiliation || 'General Attendee',
+      ticketCode: log.ticketCode,
+      stationId: log.checkpointId,
+      stationName: log.checkpoint.name,
+      scannedAt: log.scannedAt.toISOString(),
+      status: log.scanResult,
+      statusLabel:
+        log.scanResult === 'SUCCESS'
+          ? 'Checked In'
+          : log.scanResult === 'DUPLICATE'
+            ? 'Duplicate'
+            : log.scanResult === 'WARNING_NO_MAIN_ENTRY'
+              ? 'Warning: No Main Entry'
+              : 'Invalid Ticket',
+    };
+  }
+
+  /**
+   * Scan log for the organizer Stream tab, newest first. Optional filters by
+   * station and scan result; limit defaults to 100 (max 500).
+   */
+  async listScans(
+    user: UserSummaryDto,
+    eventId: string,
+    filters: { checkpointId?: string; status?: string; limit?: number } = {},
+  ): Promise<RecentScanItemDto[]> {
+    await this.findAccessibleEvent(user, eventId);
+
+    const validStatuses = ['SUCCESS', 'DUPLICATE', 'WARNING_NO_MAIN_ENTRY', 'INVALID_TICKET'];
+    const status = filters.status && validStatuses.includes(filters.status)
+      ? (filters.status as 'SUCCESS' | 'DUPLICATE' | 'WARNING_NO_MAIN_ENTRY' | 'INVALID_TICKET')
+      : undefined;
+    const rawLimit = Number(filters.limit);
+    const take = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 500) : 100;
+
+    const logs = await this.prisma.attendanceLog.findMany({
+      where: {
+        checkpoint: { eventId },
+        ...(filters.checkpointId ? { checkpointId: filters.checkpointId } : {}),
+        ...(status ? { scanResult: status } : {}),
+      },
+      include: { checkpoint: true, ticket: true },
+      orderBy: { scannedAt: 'desc' },
+      take,
+    });
+
+    return logs.map((log) => this.toRecentScanItem(log));
   }
 
   async getEventCheckpoints(
@@ -2678,27 +2893,64 @@ export class EventsService {
 
   async getStaff(user: UserSummaryDto, eventId: string): Promise<EventStaffDto[]> {
     await this.findAccessibleEvent(user, eventId);
-    const staffList = await this.prisma.eventStaff.findMany({
-      where: { eventId, isActive: true },
-      include: {
-        user: { select: { id: true, email: true, fullName: true, affiliation: true } },
-      },
-      orderBy: { assignedAt: 'desc' },
-    });
-    return staffList.map((s) => ({
-      id: s.id,
-      userId: s.user.id,
-      email: s.user.email,
-      fullName: s.user.fullName,
-      affiliation: s.user.affiliation,
-      assignedAt: s.assignedAt.toISOString(),
-    }));
+    const [eventStaffList, checkpointStaffList] = await Promise.all([
+      this.prisma.eventStaff.findMany({
+        where: { eventId, isActive: true },
+        include: {
+          user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        },
+        orderBy: { assignedAt: 'desc' },
+      }),
+      this.prisma.checkpointStaff?.findMany
+        ? this.prisma.checkpointStaff.findMany({
+            where: { checkpoint: { eventId }, isActive: true },
+            include: {
+              user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+              checkpoint: { select: { id: true, name: true } },
+            },
+            orderBy: { assignedAt: 'desc' },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const results: EventStaffDto[] = [];
+    for (const s of eventStaffList) {
+      results.push({
+        id: s.id,
+        userId: s.user.id,
+        email: s.user.email,
+        fullName: s.user.fullName,
+        affiliation: s.user.affiliation,
+        assignedAt: s.assignedAt.toISOString(),
+        accessLevel: 'ALL_SCANNERS',
+        checkpointId: null,
+        checkpointName: null,
+      });
+    }
+
+    for (const cs of checkpointStaffList) {
+      results.push({
+        id: cs.id,
+        userId: cs.user.id,
+        email: cs.user.email,
+        fullName: cs.user.fullName,
+        affiliation: cs.user.affiliation,
+        assignedAt: cs.assignedAt.toISOString(),
+        accessLevel: 'SPECIFIC_BOOTH',
+        checkpointId: cs.checkpoint.id,
+        checkpointName: cs.checkpoint.name,
+      });
+    }
+
+    return results;
   }
 
   async addStaff(
     user: UserSummaryDto,
     eventId: string,
     email: string,
+    accessLevel?: StaffAccessLevel,
+    checkpointId?: string,
   ): Promise<EventStaffDto> {
     await this.findManageableEvent(user, eventId);
     const cleanEmail = email.trim().toLowerCase();
@@ -2709,6 +2961,36 @@ export class EventsService {
       throw new NotFoundException(
         `User with email '${cleanEmail}' not found. They must register an account first.`,
       );
+    }
+
+    if (accessLevel === 'SPECIFIC_BOOTH' && checkpointId && this.prisma.checkpointStaff) {
+      const checkpoint = await this.prisma.checkpoint.findFirst({
+        where: { id: checkpointId, eventId, isActive: true, deletedAt: null },
+      });
+      if (!checkpoint) {
+        throw new NotFoundException(`Checkpoint '${checkpointId}' not found in this event.`);
+      }
+
+      const assignment = await this.prisma.checkpointStaff.upsert({
+        where: { checkpointId_userId: { checkpointId, userId: targetUser.id } },
+        update: { isActive: true },
+        create: { checkpointId, userId: targetUser.id, isActive: true },
+        include: {
+          user: { select: { id: true, email: true, fullName: true, affiliation: true } },
+        },
+      });
+
+      return {
+        id: assignment.id,
+        userId: assignment.user.id,
+        email: assignment.user.email,
+        fullName: assignment.user.fullName,
+        affiliation: assignment.user.affiliation,
+        assignedAt: assignment.assignedAt.toISOString(),
+        accessLevel: 'SPECIFIC_BOOTH',
+        checkpointId: checkpoint.id,
+        checkpointName: checkpoint.name,
+      };
     }
 
     const assignment = await this.prisma.eventStaff.upsert({
@@ -2727,6 +3009,9 @@ export class EventsService {
       fullName: assignment.user.fullName,
       affiliation: assignment.user.affiliation,
       assignedAt: assignment.assignedAt.toISOString(),
+      accessLevel: 'ALL_SCANNERS',
+      checkpointId: null,
+      checkpointName: null,
     };
   }
 
@@ -2734,12 +3019,28 @@ export class EventsService {
     user: UserSummaryDto,
     eventId: string,
     targetUserId: string,
+    checkpointId?: string,
   ): Promise<void> {
     await this.findManageableEvent(user, eventId);
-    await this.prisma.eventStaff.updateMany({
-      where: { eventId, userId: targetUserId },
-      data: { isActive: false },
-    });
+    if (checkpointId && this.prisma.checkpointStaff) {
+      await this.prisma.checkpointStaff.updateMany({
+        where: { checkpointId, userId: targetUserId },
+        data: { isActive: false },
+      });
+    } else {
+      await Promise.all([
+        this.prisma.eventStaff.updateMany({
+          where: { eventId, userId: targetUserId },
+          data: { isActive: false },
+        }),
+        this.prisma.checkpointStaff?.updateMany
+          ? this.prisma.checkpointStaff.updateMany({
+              where: { checkpoint: { eventId }, userId: targetUserId },
+              data: { isActive: false },
+            })
+          : Promise.resolve(),
+      ]);
+    }
   }
 
   async getOrganizers(
@@ -2804,14 +3105,31 @@ export class EventsService {
     if (!cleanEmail) {
       throw new BadRequestException('Organizer email is required');
     }
-    const targetUser = await this.prisma.user.findUnique({
+    let targetUser = await this.prisma.user.findUnique({
       where: { email: cleanEmail },
       select: { id: true, email: true, fullName: true, affiliation: true },
     });
     if (!targetUser) {
-      throw new NotFoundException(
-        `User with email '${cleanEmail}' not found. They must register an account first.`,
-      );
+      const temporaryPassword = this.generateUniqueTemporaryPassword(new Set());
+      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+      targetUser = await this.prisma.user.create({
+        data: {
+          email: cleanEmail,
+          passwordHash,
+          fullName: cleanEmail.split('@')[0],
+          role: UserRole.ORGANIZER,
+          isActive: true,
+          mustChangePassword: true,
+        },
+        select: { id: true, email: true, fullName: true, affiliation: true },
+      });
+
+      await this.invitationMailer.sendOrganizerInvitation({
+        eventTitle: event.title,
+        email: cleanEmail,
+        temporaryPassword,
+        invitedBy: user.fullName || user.email,
+      });
     }
     if (targetUser.id === event.organizerId) {
       throw new BadRequestException('This user is already the primary organizer');
@@ -2874,5 +3192,9 @@ export class EventsService {
       fullName: u.fullName,
       affiliation: u.affiliation ?? null,
     }));
+  }
+
+  getCategories(): CategoryDefinition[] {
+    return STANDARD_EVENT_CATEGORIES;
   }
 }

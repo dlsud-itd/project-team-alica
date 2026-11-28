@@ -1,10 +1,13 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../core/auth/auth.service';
 import { SavedProfile } from '../../../core/auth/auth.models';
+import { AttendeeProgressService } from '../../../core/attendee/attendee-progress.service';
+import { TicketProgress } from '../../../core/attendee/attendee-progress.models';
+import { StampCardComponent } from '../../../shared/stamp-card/stamp-card.component';
 import { environment } from '../../../../environments/environment';
 
 export interface EventScheduleItem {
@@ -51,14 +54,16 @@ export interface EventDetail {
   schedule: EventScheduleItem[];
   speakers: EventSpeaker[];
   bannerImageUrl: string;
+  requireStudentId?: boolean;
 }
 
 @Component({
   selector: 'app-event-details',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, StampCardComponent],
   templateUrl: './event-details.component.html',
   styleUrl: './event-details.component.scss',
+  host: { '[class.is-preview]': 'preview()' },
 })
 export class EventDetailsComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -66,10 +71,32 @@ export class EventDetailsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly fb = inject(FormBuilder);
   readonly auth = inject(AuthService);
+  private readonly progressService = inject(AttendeeProgressService);
+
+  /**
+   * Preview mode (organizer Overview tab): render the page for this event id
+   * exactly as attendees see it, minus navigation and registration actions.
+   */
+  readonly previewEventId = input<string>('');
+  readonly preview = computed(() => !!this.previewEventId());
+
+  /**
+   * Controls rendering of the full Event Passport section.
+   * Can be passed as an input prop or via ?passport=true query param.
+   */
+  readonly showPassport = input<boolean, unknown>(false, {
+    transform: (v) => v === '' || v === true || v === 'true',
+  });
+  readonly passportFromRoute = signal(false);
+  readonly isPassportVisible = computed(() => this.showPassport() || this.passportFromRoute());
 
   readonly event = signal<EventDetail | null>(null);
   readonly isLoading = signal(true);
   readonly loadError = signal('');
+
+  // Per-user progress for this event
+  readonly userProgress = signal<TicketProgress | null>(null);
+  readonly progressLoading = signal(false);
 
   // RSVP Modal State
   readonly isRsvpOpen = signal(false);
@@ -92,10 +119,20 @@ export class EventDetailsComponent implements OnInit {
     const ev = this.event();
     const user = this.auth.user();
     if (!ev || !user) return false;
-    return ev.registeredUserIds?.includes(user.id) ?? false;
+    return (ev.registeredUserIds?.includes(user.id) ?? false) || !!this.userProgress();
   });
 
   ngOnInit(): void {
+    this.route.queryParamMap?.subscribe((params) => {
+      const show = params.get('passport') === 'true' || params.get('showPassport') === 'true';
+      this.passportFromRoute.set(show);
+    });
+
+    const previewId = this.previewEventId();
+    if (previewId) {
+      this.fetchEventDetails(previewId);
+      return;
+    }
     this.route.paramMap.subscribe((params) => {
       const idOrSlug = params.get('idOrSlug') || params.get('eventId');
       if (idOrSlug) {
@@ -120,6 +157,7 @@ export class EventDetailsComponent implements OnInit {
           this.isLoading.set(false);
           if (res?.success && res.data) {
             this.event.set(res.data);
+            this.loadUserProgress(res.data.id || idOrSlug);
           } else {
             this.loadError.set('Event not found');
           }
@@ -135,9 +173,34 @@ export class EventDetailsComponent implements OnInit {
       });
   }
 
+  loadUserProgress(idOrSlug: string): void {
+    if (!this.auth.isAuthenticated() || this.preview()) {
+      this.userProgress.set(null);
+      this.progressLoading.set(false);
+      return;
+    }
+
+    this.progressLoading.set(true);
+    this.progressService.loadMyProgressForEvent(idOrSlug).subscribe({
+      next: (progress) => {
+        this.userProgress.set(progress);
+        this.progressLoading.set(false);
+      },
+      error: () => {
+        this.userProgress.set(null);
+        this.progressLoading.set(false);
+      },
+    });
+  }
+
   openRsvpModal(): void {
     const ev = this.event();
-    if (!ev) return;
+    if (!ev || this.preview()) return;
+
+    // Student ID is only mandatory when the organizer requires it for this event.
+    const studentIdControl = this.rsvpForm.controls.studentId;
+    studentIdControl.setValidators(ev.requireStudentId ? [Validators.required] : []);
+    studentIdControl.updateValueAndValidity();
 
     this.isRsvpOpen.set(true);
     this.rsvpSuccess.set(null);
@@ -273,6 +336,7 @@ export class EventDetailsComponent implements OnInit {
               };
             });
           }
+          this.loadUserProgress(currentEvent.id);
         },
         error: (err: HttpErrorResponse) => {
           this.isSubmitting.set(false);

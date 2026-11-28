@@ -6,6 +6,8 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { OrganizerEventsService } from '../../../core/organizer/organizer-events.service';
 import { OrganizerEvent } from '../../../core/organizer/organizer.models';
+import { CategoryTagSelectorComponent } from '../../../shared/category-tag-selector/category-tag-selector.component';
+import { EventWizardComponent } from '../event-wizard/event-wizard.component';
 
 export type EventFormatFilter = 'ALL' | 'CONFERENCE' | 'EXPO' | 'MEETUP' | 'HACKATHON' | 'WORKSHOP';
 
@@ -23,7 +25,15 @@ function toDateTimeLocalInput(isoString: string): string {
 }
 
 @Component({
-  imports: [DatePipe, DecimalPipe, PercentPipe, ReactiveFormsModule, RouterLink],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    PercentPipe,
+    ReactiveFormsModule,
+    RouterLink,
+    CategoryTagSelectorComponent,
+    EventWizardComponent,
+  ],
   selector: 'app-organizer-dashboard',
   styleUrl: './dashboard.component.scss',
   templateUrl: './dashboard.component.html',
@@ -72,15 +82,18 @@ export class OrganizerDashboard {
       const matchesQuery =
         !query ||
         event.name.toLocaleLowerCase().includes(query) ||
-        event.venue.toLocaleLowerCase().includes(query);
+        event.venue.toLocaleLowerCase().includes(query) ||
+        (event.category && event.category.toLowerCase().includes(query)) ||
+        (event.tags && event.tags.some((t) => t.toLowerCase().includes(query)));
 
       const matchesStatus =
         status === 'All statuses' || event.status === status || event.approval_status === status;
 
-      const eventCategory = this.getCategory(event);
+      const eventCategory = this.getCategory(event).toLowerCase();
+      const formatLower = format.toLowerCase();
       const matchesFormat =
         format === 'ALL' ||
-        eventCategory === format ||
+        eventCategory.includes(formatLower) ||
         (format === 'MEETUP' && event.name.toLowerCase().includes('meetup'));
 
       return matchesQuery && matchesStatus && matchesFormat;
@@ -123,6 +136,12 @@ export class OrganizerDashboard {
   readonly isSaving = signal(false);
   readonly coOrganizerEmails = signal<string[]>([]);
 
+  onWizardSaved(saved: OrganizerEvent): void {
+    this.creating.set(false);
+    this.notice.set(`"${saved.name}" was submitted and is awaiting admin approval.`);
+    this.reloadEvents();
+  }
+
   // Delete Event State
   readonly deletingEvent = signal<OrganizerEvent | null>(null);
    readonly isDeleting = signal(false);
@@ -137,6 +156,9 @@ export class OrganizerDashboard {
       validators: [Validators.required, Validators.min(1)],
     }),
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
+    category: new FormControl('Conference', { nonNullable: true, validators: [Validators.required] }),
+    tags: new FormControl<string[]>([], { nonNullable: true }),
+    require_student_id: new FormControl(false, { nonNullable: true }),
   });
 
   setFormat(format: EventFormatFilter): void {
@@ -209,7 +231,18 @@ export class OrganizerDashboard {
   openCreate(): void {
     this.editingEvent.set(null);
     this.editErrorMessage.set('');
-    this.editForm.reset();
+    this.editForm.reset({
+      name: '',
+      description: '',
+      venue: '',
+      starts_at: '',
+      ends_at: '',
+      capacity: null,
+      allow_walk_ins: false,
+      category: 'Conference',
+      tags: [],
+      require_student_id: false,
+    });
     this.coOrganizerEmails.set([]);
     this.creating.set(true);
   }
@@ -254,6 +287,9 @@ export class OrganizerDashboard {
       ends_at: toDateTimeLocalInput(event.ends_at),
       capacity: event.capacity,
       allow_walk_ins: event.allow_walk_ins,
+      category: event.category || 'Conference',
+      tags: event.tags ?? [],
+      require_student_id: event.require_student_id ?? false,
     });
 
     if (!event.organizers) {
@@ -320,6 +356,9 @@ export class OrganizerDashboard {
       ends_at: endDate.toISOString(),
       capacity,
       allow_walk_ins: raw.allow_walk_ins,
+      category: raw.category || 'Conference',
+      tags: raw.tags || [],
+      require_student_id: raw.require_student_id,
       organizerEmails: this.coOrganizerEmails(),
     };
 

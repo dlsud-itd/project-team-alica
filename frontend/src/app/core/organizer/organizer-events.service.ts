@@ -6,6 +6,7 @@ import {
   EventCheckpoint,
   EventOrganizer,
   EventStaff,
+  StaffAccessLevel,
   EventLiveOverview,
   EventRegistrant,
   GuestFilePreview,
@@ -15,6 +16,7 @@ import {
   OrganizerCandidate,
   OrganizerEvent,
   OrganizerEventChanges,
+  RecentScanItem,
   RecordScanResponse,
   UUID,
 } from './organizer.models';
@@ -276,6 +278,20 @@ export class OrganizerEventsService {
       .pipe(map((res) => res.data));
   }
 
+  /** Scan log for the Stream tab, newest first. */
+  listScans(
+    eventId: UUID,
+    filters: { stationId?: string; status?: string; limit?: number } = {},
+  ): Observable<RecentScanItem[]> {
+    const params: Record<string, string> = {};
+    if (filters.stationId) params['stationId'] = filters.stationId;
+    if (filters.status) params['status'] = filters.status;
+    if (filters.limit) params['limit'] = String(filters.limit);
+    return this.http
+      .get<ApiResponse<RecentScanItem[]>>(`${this.api}/${eventId}/scans`, { params })
+      .pipe(map((res) => res.data));
+  }
+
   exportScansCsv(eventId: UUID): Observable<string> {
     return this.http
       .get<ApiResponse<string>>(`${this.api}/${eventId}/scans/export`)
@@ -288,15 +304,27 @@ export class OrganizerEventsService {
       .pipe(map((res) => res.data));
   }
 
-  addStaff(eventId: UUID, email: string): Observable<EventStaff> {
+  addStaff(
+    eventId: UUID,
+    email: string,
+    accessLevel?: StaffAccessLevel,
+    checkpointId?: string,
+  ): Observable<EventStaff> {
     return this.http
-      .post<ApiResponse<EventStaff>>(`${this.api}/${eventId}/staff`, { email })
+      .post<ApiResponse<EventStaff>>(`${this.api}/${eventId}/staff`, {
+        email,
+        accessLevel,
+        checkpointId,
+      })
       .pipe(map((res) => res.data));
   }
 
-  removeStaff(eventId: UUID, userId: string): Observable<void> {
+  removeStaff(eventId: UUID, userId: string, checkpointId?: string): Observable<void> {
+    const params = checkpointId ? { checkpointId } : undefined;
     return this.http
-      .delete<ApiResponse<unknown>>(`${this.api}/${eventId}/staff/${userId}`)
+      .delete<ApiResponse<unknown>>(`${this.api}/${eventId}/staff/${userId}`, {
+        params,
+      })
       .pipe(map(() => undefined));
   }
 

@@ -407,8 +407,16 @@
   </div>
 </div>
 
-<!-- Create / Edit Event Dialog -->
-@if (dialogOpen()) {
+<!-- Create Event Wizard -->
+@if (creating()) {
+  <app-event-wizard
+    (close)="creating.set(false)"
+    (saved)="onWizardSaved($event)"
+  ></app-event-wizard>
+}
+
+<!-- Edit Event Dialog -->
+@if (editingEvent(); as curEvent) {
   <div
     class="dialog-backdrop"
     (click)="closeEdit()"
@@ -475,6 +483,15 @@
           />
         </div>
 
+        <div class="form-group span-full">
+          <app-category-tag-selector
+            [category]="editForm.controls.category.value"
+            [tags]="editForm.controls.tags.value"
+            (categoryChange)="editForm.controls.category.setValue($event)"
+            (tagsChange)="editForm.controls.tags.setValue($event)"
+          ></app-category-tag-selector>
+        </div>
+
         <div class="form-row">
           <div class="form-group">
             <label for="event-starts-at">Starts At *</label>
@@ -516,6 +533,14 @@
               <span class="checkbox-text">Allow Walk-ins</span>
             </label>
           </div>
+        </div>
+
+        <div class="form-group">
+          <span class="field-label">Student ID</span>
+          <label class="checkbox-card">
+            <input type="checkbox" formControlName="require_student_id" class="custom-checkbox" />
+            <span class="checkbox-text">Require student ID to register</span>
+          </label>
         </div>
 
         <div class="form-group">

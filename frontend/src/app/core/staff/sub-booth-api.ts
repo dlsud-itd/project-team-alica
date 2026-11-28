@@ -8,7 +8,19 @@ import { StaffCheckpoint } from './scanner.models';
 export interface CreateSubBoothPayload {
   name: string;
   location?: string;
+  allowMultipleScans?: boolean;
 }
+
+export interface CreateCheckpointPayload {
+  eventId: string;
+  name: string;
+  location?: string;
+  type?: StaffCheckpoint['type'];
+  allowMultipleScans?: boolean;
+  requireMainEntry?: boolean;
+}
+
+export type UpdateCheckpointPayload = Partial<Omit<CreateCheckpointPayload, 'eventId'>>;
 
 @Injectable({ providedIn: 'root' })
 export class SubBoothApi {
@@ -30,6 +42,26 @@ export class SubBoothApi {
     return this.http
       .get<{ success: boolean; data: StaffCheckpoint[] }>(
         `${this.apiUrl}/events/${eventId}/checkpoints`,
+        { headers: this.buildHeaders() },
+      )
+      .pipe(map((res) => res.data));
+  }
+
+  /** Create a top-level checkpoint (booth by default) for an event. */
+  createCheckpoint(payload: CreateCheckpointPayload): Observable<StaffCheckpoint> {
+    return this.http
+      .post<{ success: boolean; data: StaffCheckpoint }>(`${this.apiUrl}/checkpoints`, payload, {
+        headers: this.buildHeaders(),
+      })
+      .pipe(map((res) => res.data));
+  }
+
+  /** Edit a station's name, location, type or scan settings. */
+  update(checkpointId: string, payload: UpdateCheckpointPayload): Observable<StaffCheckpoint> {
+    return this.http
+      .patch<{ success: boolean; data: StaffCheckpoint }>(
+        `${this.apiUrl}/checkpoints/${checkpointId}`,
+        payload,
         { headers: this.buildHeaders() },
       )
       .pipe(map((res) => res.data));

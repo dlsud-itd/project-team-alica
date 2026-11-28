@@ -64,43 +64,25 @@
           <span class="live-dot" aria-hidden="true"></span>
           <span>Live today</span>
         </button>
-        <button
-          type="button"
-          class="filter-pill"
-          [class.active]="selectedCategory() === 'CONFERENCE'"
-          (click)="setCategory('CONFERENCE')"
-        >
-          Conferences
-        </button>
-        <button
-          type="button"
-          class="filter-pill"
-          [class.active]="selectedCategory() === 'HACKATHON'"
-          (click)="setCategory('HACKATHON')"
-        >
-          Hackathons
-        </button>
-        <button
-          type="button"
-          class="filter-pill"
-          [class.active]="selectedCategory() === 'WORKSHOP'"
-          (click)="setCategory('WORKSHOP')"
-        >
-          Workshops
-        </button>
-        <button
-          type="button"
-          class="filter-pill"
-          [class.active]="selectedCategory() === 'EXPO'"
-          (click)="setCategory('EXPO')"
-        >
-          Expos & Demos
-        </button>
+        @for (category of availableCategories(); track category) {
+          <button
+            type="button"
+            class="filter-pill"
+            [class.active]="selectedCategory().toLowerCase() === category.toLowerCase()"
+            (click)="setCategory(category)"
+          >
+            {{ category }}
+          </button>
+        }
       </div>
 
       <div class="results-meta">
         <span class="count-text">
-          Showing <strong>{{ filteredEvents().length }}</strong> of {{ events().length }} events
+          @if (filteredEvents().length > 0) {
+            Showing <strong>{{ startIndex() }}–{{ endIndex() }}</strong> of {{ filteredEvents().length }} events
+          } @else {
+            Showing 0 events
+          }
         </span>
       </div>
     </section>
@@ -108,12 +90,26 @@
     <!-- Events Grid -->
     @if (filteredEvents().length > 0) {
       <div class="events-grid">
-        @for (event of filteredEvents(); track event.id) {
+        @for (event of paginatedEvents(); track event.id) {
           <article class="event-card">
             <!-- Card Header Tags -->
             <div class="card-meta-row">
               <div class="meta-tags-group">
-                <span class="category-tag">{{ event.categoryLabel }}</span>
+                <span class="category-tag">{{ event.categoryLabel || event.category }}</span>
+                @if (event.tags && event.tags.length > 0) {
+                  <div class="card-tags-list">
+                    @for (tag of event.tags; track tag) {
+                      <button
+                        type="button"
+                        class="card-tag-chip"
+                        (click)="filterByTag(tag, $event)"
+                        [title]="'Filter by #' + tag"
+                      >
+                        #{{ tag }}
+                      </button>
+                    }
+                  </div>
+                }
                 @switch (getEventRole(event)) {
                   @case ('ORGANIZER') {
                     <span class="role-badge badge-organizer">Organizing</span>
@@ -215,7 +211,7 @@
                   </a>
                 }
                 @case ('REGISTERED') {
-                  <a routerLink="/profile" class="btn-card-action btn-pass" aria-label="View Ticket Pass for {{ event.title }}">
+                  <a [routerLink]="['/events', event.slug || event.id]" [queryParams]="{ passport: 'true' }" class="btn-card-action btn-pass" aria-label="View Ticket Pass for {{ event.title }}">
                     <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                       <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -252,6 +248,62 @@
           </article>
         }
       </div>
+
+      <!-- Pagination Controls -->
+      @if (totalPages() > 1) {
+        <footer class="events-pagination-container">
+          <span class="pagination-meta">
+            Showing <strong>{{ startIndex() }}</strong> to <strong>{{ endIndex() }}</strong> of <strong>{{ filteredEvents().length }}</strong> events
+          </span>
+
+          <nav class="pagination-nav" aria-label="Events pagination">
+            <button
+              type="button"
+              class="btn-pagination-nav"
+              [disabled]="currentPage() === 1"
+              (click)="prevPage()"
+              aria-label="Previous page"
+            >
+              <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              <span>Previous</span>
+            </button>
+
+            <div class="pagination-pages">
+              @for (p of pageNumbers(); track $index) {
+                @if (p === '...') {
+                  <span class="pagination-ellipsis" aria-hidden="true">&hellip;</span>
+                } @else {
+                  <button
+                    type="button"
+                    class="btn-page-number"
+                    [class.active]="p === currentPage()"
+                    [attr.aria-current]="p === currentPage() ? 'page' : null"
+                    (click)="goToPage(p)"
+                    [attr.aria-label]="'Page ' + p"
+                  >
+                    {{ p }}
+                  </button>
+                }
+              }
+            </div>
+
+            <button
+              type="button"
+              class="btn-pagination-nav"
+              [disabled]="currentPage() === totalPages()"
+              (click)="nextPage()"
+              aria-label="Next page"
+            >
+              <span>Next</span>
+              <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </nav>
+        </footer>
+      }
     } @else {
       <!-- Empty Search State -->
       <div class="empty-state">
@@ -370,7 +422,12 @@
             <!-- Student ID -->
             <div class="form-group">
               <label for="rsvp-id" class="form-label">
-                Student ID Number <span class="required-asterisk" aria-hidden="true">*</span>
+                Student ID Number
+                @if (event.requireStudentId) {
+                  <span class="required-asterisk" aria-hidden="true">*</span>
+                } @else {
+                  <span>(optional)</span>
+                }
               </label>
               <div class="input-wrapper" [class.has-error]="rsvpForm.controls.studentId.invalid && rsvpForm.controls.studentId.touched">
                 <input

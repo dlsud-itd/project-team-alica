@@ -3,6 +3,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { Subscription, interval, startWith, switchMap } from 'rxjs';
 import { AttendeeProgressService } from '../../core/attendee/attendee-progress.service';
 import { StampCardComponent } from '../../shared/stamp-card/stamp-card.component';
+import { EventWizardComponent } from '../organizer/event-wizard/event-wizard.component';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { TicketQrService } from '../../core/tickets/ticket-qr.service';
@@ -32,7 +33,14 @@ function toDateTimeLocalInput(isoString: string): string {
 @Component({
   selector: 'app-hub',
   standalone: true,
-  imports: [CommonModule, DatePipe, ReactiveFormsModule, RouterLink, StampCardComponent],
+  imports: [
+    CommonModule,
+    DatePipe,
+    ReactiveFormsModule,
+    RouterLink,
+    StampCardComponent,
+    EventWizardComponent,
+  ],
   templateUrl: './hub.component.html',
   styleUrl: './hub.component.scss',
 })
@@ -97,6 +105,7 @@ export class HubComponent implements OnInit {
     }),
     allow_walk_ins: new FormControl(false, { nonNullable: true }),
     is_private: new FormControl(false, { nonNullable: true }),
+    require_student_id: new FormControl(false, { nonNullable: true }),
   });
 
   ngOnInit(): void {
@@ -238,6 +247,7 @@ export class HubComponent implements OnInit {
       capacity: 100,
       allow_walk_ins: false,
       is_private: false,
+      require_student_id: false,
     });
     this.isCreateModalOpen.set(true);
   }
@@ -268,6 +278,12 @@ export class HubComponent implements OnInit {
     this.isCreateModalOpen.set(false);
   }
 
+  onWizardSaved(created: OrganizerEvent): void {
+    this.closeCreateModal();
+    this.organizerService.loadEvents().subscribe({ error: () => undefined });
+    this.router.navigate(['/organizer/events', created.id, 'overview']);
+  }
+
   onSubmitCreateEvent(): void {
     if (this.eventForm.invalid) {
       this.eventForm.markAllAsTouched();
@@ -296,6 +312,7 @@ export class HubComponent implements OnInit {
         capacity: Number(val.capacity) || 100,
         allow_walk_ins: val.allow_walk_ins,
         is_private: val.is_private,
+        require_student_id: val.require_student_id,
         organizerEmails: this.coOrganizerEmails(),
       })
       .subscribe({

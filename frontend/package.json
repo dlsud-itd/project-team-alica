@@ -4,9 +4,11 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build && node -e \"const fs=require('fs'),p='dist/frontend/browser';if(fs.existsSync(p+'/index.html'))fs.copyFileSync(p+'/index.html',p+'/200.html');\"",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env dev"
   },
   "private": true,
   "packageManager": "npm@12.0.1",

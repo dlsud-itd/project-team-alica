@@ -66,7 +66,25 @@ describe('Events Component', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(async () => {
-    localStorage.clear();
+    let store: Record<string, string> = {};
+    const storageMock = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+      clear: () => { store = {}; },
+      length: 0,
+      key: () => null,
+    };
+    try {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: storageMock,
+        writable: true,
+        configurable: true,
+      });
+    } catch {
+      // ignore
+    }
+    storageMock.clear();
 
     await TestBed.configureTestingModule({
       imports: [Events],
@@ -91,8 +109,12 @@ describe('Events Component', () => {
   });
 
   afterEach(() => {
-    authService.logout(null);
-    localStorage.clear();
+    try {
+      authService?.logout(null);
+      globalThis.localStorage?.clear();
+    } catch {
+      // ignore
+    }
   });
 
   it('should create successfully', () => {
@@ -224,5 +246,92 @@ describe('Events Component', () => {
 
     expect(myEvents.length).toBe(1);
     expect(myEvents[0].id).toBe('evt-tech-summit-2026');
+  });
+
+  it('renders View Ticket Pass link routing to event details with passport queryParam for registered events', () => {
+    authService.setSession(
+      {
+        id: 'usr-attendee-alen',
+        email: 'amc.umandal@gmail.com',
+        fullName: 'Alen Mikel Umandal',
+        role: 'ATTENDEE',
+      },
+      'token',
+    );
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const passLink = compiled.querySelector('.btn-pass');
+    expect(passLink).toBeTruthy();
+    expect(passLink?.textContent).toContain('View Ticket Pass');
+  });
+
+  it('should filter events by tag using filterByTag', () => {
+    component.events.set([
+      apiEvent({ id: 'evt-1', title: 'Tech Meet', category: 'Conference', tags: ['AI', 'Robotics'] }),
+      apiEvent({ id: 'evt-2', title: 'Design Sprint', category: 'Workshop', tags: ['UX', 'Figma'] }),
+    ]);
+    component.filterByTag('AI');
+    const filtered = component.filteredEvents();
+    expect(filtered.length).toBe(1);
+    expect(filtered[0].id).toBe('evt-1');
+  });
+
+  it('should match tags in searchQuery', () => {
+    component.events.set([
+      apiEvent({ id: 'evt-1', title: 'Tech Meet', category: 'Conference', tags: ['AI', 'Robotics'] }),
+      apiEvent({ id: 'evt-2', title: 'Design Sprint', category: 'Workshop', tags: ['UX', 'Figma'] }),
+    ]);
+    component.searchQuery.set('figma');
+    const filtered = component.filteredEvents();
+    expect(filtered.length).toBe(1);
+    expect(filtered[0].id).toBe('evt-2');
+  });
+
+  it('should paginate events correctly with pageSize', () => {
+    const mockEvents: EventCardData[] = Array.from({ length: 14 }, (_, i) =>
+      apiEvent({ id: `evt-${i + 1}`, title: `Event ${i + 1}`, category: 'Conference' }),
+    );
+    component.events.set(mockEvents);
+
+    expect(component.totalPages()).toBe(3);
+    expect(component.currentPage()).toBe(1);
+    expect(component.paginatedEvents().length).toBe(6);
+    expect(component.paginatedEvents()[0].id).toBe('evt-1');
+    expect(component.startIndex()).toBe(1);
+    expect(component.endIndex()).toBe(6);
+
+    component.nextPage();
+    expect(component.currentPage()).toBe(2);
+    expect(component.paginatedEvents().length).toBe(6);
+    expect(component.paginatedEvents()[0].id).toBe('evt-7');
+    expect(component.startIndex()).toBe(7);
+    expect(component.endIndex()).toBe(12);
+
+    component.goToPage(3);
+    expect(component.currentPage()).toBe(3);
+    expect(component.paginatedEvents().length).toBe(2);
+    expect(component.paginatedEvents()[0].id).toBe('evt-13');
+    expect(component.startIndex()).toBe(13);
+    expect(component.endIndex()).toBe(14);
+
+    component.prevPage();
+    expect(component.currentPage()).toBe(2);
+  });
+
+  it('should reset currentPage to 1 when changing filters or searching', () => {
+    const mockEvents: EventCardData[] = Array.from({ length: 14 }, (_, i) =>
+      apiEvent({ id: `evt-${i + 1}`, title: `Event ${i + 1}`, category: 'Conference' }),
+    );
+    component.events.set(mockEvents);
+    component.goToPage(2);
+    expect(component.currentPage()).toBe(2);
+
+    component.setCategory('Workshop');
+    expect(component.currentPage()).toBe(1);
+
+    component.goToPage(2);
+    component.resetFilters();
+    expect(component.currentPage()).toBe(1);
   });
 });

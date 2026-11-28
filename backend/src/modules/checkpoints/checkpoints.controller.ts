@@ -6,16 +6,19 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import {
   CheckpointsService,
+  CreateCheckpointDto,
   CreateSubBoothDto,
   ScanOutcomeDto,
   ScanRequestBodyDto,
   StaffCheckpointDto,
   StationDetailsDto,
+  UpdateCheckpointDto,
 } from './checkpoints.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -96,6 +99,15 @@ export class CheckpointsController {
     };
   }
 
+  @Post()
+  async createCheckpoint(
+    @CurrentUser() user: UserSummaryDto,
+    @Body() dto: CreateCheckpointDto,
+  ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
+    const data = await this.checkpointsService.createCheckpoint(user, dto);
+    return { success: true, data };
+  }
+
   @Post(':boothId/sub-booths')
   async createSubBooth(
     @CurrentUser() user: UserSummaryDto,
@@ -111,6 +123,16 @@ export class CheckpointsController {
       success: true,
       data,
     };
+  }
+
+  @Patch(':boothId')
+  async updateCheckpoint(
+    @CurrentUser() user: UserSummaryDto,
+    @Param('boothId') boothId: string,
+    @Body() dto: UpdateCheckpointDto,
+  ): Promise<{ success: boolean; data: StaffCheckpointDto }> {
+    const data = await this.checkpointsService.updateCheckpoint(user, boothId, dto);
+    return { success: true, data };
   }
 
   @Delete(':boothId')

@@ -1,4 +1,4 @@
-export type RsvpCategory = 'CONFERENCE' | 'HACKATHON' | 'WORKSHOP' | 'EXPO';
+export type RsvpCategory = string;
 export type RsvpStatus = 'Registered' | 'Checked In' | 'Cancelled';
 
 export interface AttendeeRsvp {
@@ -17,5 +17,6 @@ export interface AttendeeRsvp {
   endsAt: string;
   category: RsvpCategory;
   categoryLabel: string;
+  tags?: string[];
   description: string;
 }

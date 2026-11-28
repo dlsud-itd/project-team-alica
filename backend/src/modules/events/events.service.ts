@@ -1061,18 +1061,19 @@ export class EventsService {
     });
   }
 
-  async findOne(idOrSlug: string): Promise<EventDetailResponseDto> {
+  /** Public event page. Unapproved events are visible only to their organizers and admins (for the workspace preview). */
+  async findOne(idOrSlug: string, viewer?: UserSummaryDto): Promise<EventDetailResponseDto> {
     const ev = await this.prisma.event.findFirst({
       where: {
         OR: [{ id: idOrSlug }, { slug: idOrSlug }],
         isActive: true,
         deletedAt: null,
-        approvalStatus: EventApprovalStatus.APPROVED,
       },
       include: {
         organizer: {
           select: { id: true, fullName: true, affiliation: true },
         },
+        organizers: { select: { userId: true } },
         staff: {
           where: { isActive: true },
           select: { userId: true },
@@ -1096,7 +1097,12 @@ export class EventsService {
       },
     });
 
-    if (!ev) {
+    const canPreview =
+      !!viewer &&
+      (viewer.role === 'ADMIN' ||
+        ev?.organizerId === viewer.id ||
+        !!ev?.organizers?.some((o) => o.userId === viewer.id));
+    if (!ev || (ev.approvalStatus !== EventApprovalStatus.APPROVED && !canPreview)) {
       throw new NotFoundException(`Event '${idOrSlug}' not found`);
     }
 

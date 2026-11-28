@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EventApprovalStatus, TicketStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import ExcelJS from 'exceljs';
@@ -823,6 +823,24 @@ describe('EventsService', () => {
       );
     });
 
+    it('hides an unapproved event from the public but shows it to its organizers and admins', async () => {
+      prisma.event.findFirst.mockResolvedValue({
+        ...dbEvent({ organizerId: 'usr-org' }),
+        organizer: { id: 'usr-org', fullName: 'Campus Organizer', affiliation: null },
+        organizers: [{ userId: 'usr-co' }],
+        staff: [],
+        tickets: [],
+        checkpoints: [],
+      });
+      const as = (id: string, role = 'ORGANIZER') => ({ id, role }) as UserSummaryDto;
+
+      await expect(service.findOne('evt-1')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findOne('evt-1', as('usr-other'))).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findOne('evt-1', as('usr-org'))).resolves.toBeTruthy();
+      await expect(service.findOne('evt-1', as('usr-co'))).resolves.toBeTruthy();
+      await expect(service.findOne('evt-1', as('usr-admin', 'ADMIN'))).resolves.toBeTruthy();
+    });
+
     it('returns event details with schedule, speakers, and metadata in findOne', async () => {
       prisma.event.findFirst.mockResolvedValue({
         ...dbEvent({
@@ -831,6 +849,7 @@ describe('EventsService', () => {
           title: 'DevCon Manila 2026',
           description: 'Premier developer conference',
           capacity: 1240,
+          approvalStatus: EventApprovalStatus.APPROVED,
         }),
         organizer: { id: 'usr-org', fullName: 'Campus Organizer', affiliation: 'Council' },
         staff: [],
